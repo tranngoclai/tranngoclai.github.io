@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Hiểu luồng identity embedding của IP-Adapter FaceID, InsightFace và ArcFace; chẩn đoán tradeoff giữa độ nhất quán danh tính và chuyển động.">
+  <title>FaceID — Giữ khuôn mặt nhất quán</title>
+  <link rel="icon" href="video-generation-favicon.svg" type="image/svg+xml">
+  <script src="video-generation-theme.js"></script>
+  <link rel="stylesheet" href="video-generation-design-system.css">
+  <style>
+    .lesson-hero { padding: clamp(72px, 11vw, 140px) 0 78px; }
+    .hero-grid { display: grid; grid-template-columns: minmax(0, 1.18fr) minmax(330px, .82fr); gap: clamp(42px, 7vw, 88px); align-items: center; }
+    .eyebrow,
+    .section-kicker,
+    .flow-tag,
+    .lab-label,
+    .status-label {
+      margin: 0;
+      color: var(--cyan);
+      font-family: var(--font-mono);
+      font-size: .75rem;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    h1 { max-width: 780px; margin: 16px 0 22px; font-size: clamp(3.2rem, 8.5vw, 7rem); line-height: .88; letter-spacing: -.07em; }
+    .hero-lead { max-width: 700px; margin: 0; color: var(--muted); font-size: clamp(1.05rem, 2vw, 1.3rem); }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
+    .identity-map {
+      position: relative;
+      overflow: hidden;
+      min-height: 390px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: 0 26px 72px rgba(0,0,0,.18);
+    }
+    .identity-map::before,
+    .identity-map::after { position: absolute; border: 1px solid var(--line); border-radius: 50%; content: ""; }
+    .identity-map::before { width: 290px; height: 290px; }
+    .identity-map::after { width: 210px; height: 210px; border-style: dashed; }
+    .face-mark { position: relative; z-index: 1; width: 136px; height: 164px; border: 2px solid var(--acid); border-radius: 48% 48% 44% 44%; }
+    .face-mark::before { position: absolute; top: 60px; left: 28px; width: 76px; height: 12px; border: solid var(--cyan); border-width: 3px 0; content: ""; }
+    .face-mark::after { position: absolute; bottom: 35px; left: 46px; width: 40px; height: 14px; border-bottom: 3px solid var(--cyan); border-radius: 50%; content: ""; }
+    .vector-label { position: absolute; right: 20px; bottom: 18px; color: var(--muted); font-family: var(--font-mono); font-size: .72rem; }
+    .lesson-section { padding: clamp(72px, 9vw, 112px) 0; border-top: 1px solid var(--line); }
+    .section-head { max-width: 790px; margin-bottom: 42px; }
+    .section-head h2 { margin: 10px 0 14px; font-size: clamp(2.2rem, 5vw, 4.2rem); line-height: 1; letter-spacing: -.045em; }
+    .section-head p { margin: 0; color: var(--muted); font-size: 1.06rem; }
+    .definition { max-width: 940px; margin: 0; border-left: 4px solid var(--acid-fill); padding: 8px 0 8px clamp(22px, 4vw, 42px); font-size: clamp(1.3rem, 2.5vw, 1.85rem); line-height: 1.45; }
+    .definition strong { color: var(--acid); }
+    .flow { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+    .flow-step { position: relative; min-width: 0; padding: clamp(24px, 3vw, 36px); background: var(--panel); }
+    .flow-step + .flow-step { border-left: 1px solid var(--line); }
+    .flow-step:not(:last-child)::after { position: absolute; z-index: 2; top: 42px; right: -12px; width: 24px; height: 24px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; background: var(--night); color: var(--acid); content: "→"; font-family: var(--font-mono); font-size: .76rem; }
+    .flow-number { display: block; margin-bottom: 34px; color: var(--dim); font-family: var(--font-mono); font-size: 2rem; font-weight: 900; }
+    .flow-step h3 { margin: 9px 0 8px; font-size: 1.2rem; }
+    .flow-step p:last-child { margin: 0; color: var(--muted); font-size: .92rem; }
+    .role-split { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 24px; }
+    .role-panel { border: 1px solid var(--line); border-radius: 18px; padding: clamp(24px, 4vw, 38px); background: var(--panel); }
+    .role-panel h3 { margin: 0 0 12px; font-size: 1.4rem; }
+    .role-panel p { margin: 0; color: var(--muted); }
+    .boundary { margin-top: 24px; border: 1px solid color-mix(in srgb, var(--orange) 60%, var(--line)); border-radius: 18px; padding: 22px 24px; background: color-mix(in srgb, var(--orange) 7%, var(--panel)); }
+    .boundary strong { color: var(--orange); }
+    .boundary p { margin: 6px 0 0; color: var(--muted); }
+    .lab-grid { display: grid; grid-template-columns: minmax(0, .82fr) minmax(350px, 1.18fr); gap: 24px; align-items: stretch; }
+    .lab-controls,
+    .lab-output { border: 1px solid var(--line); border-radius: var(--radius); padding: clamp(24px, 4vw, 42px); background: var(--panel); }
+    .lab-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+    .control + .control { margin-top: 32px; padding-top: 28px; border-top: 1px solid var(--line); }
+    .control-head { display: flex; justify-content: space-between; gap: 18px; align-items: baseline; margin-bottom: 13px; }
+    .control-head label { font-weight: 800; }
+    .control-value { color: var(--acid); font-family: var(--font-mono); font-weight: 900; }
+    input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--acid-fill); }
+    select { width: 100%; min-height: 50px; border: 1px solid var(--line); border-radius: 12px; padding: 10px 42px 10px 14px; background: var(--panel-2); color: var(--ink); font: inherit; }
+    .control-help { margin: 9px 0 0; color: var(--muted); font-size: .88rem; }
+    .lab-output { background: var(--panel-2); }
+    .status-title { margin: 10px 0 10px; font-size: clamp(1.75rem, 4vw, 3.1rem); line-height: 1; letter-spacing: -.04em; }
+    .status-copy { margin: 0 0 30px; color: var(--muted); }
+    .metric + .metric { margin-top: 22px; }
+    .metric-head { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 8px; font-size: .92rem; font-weight: 800; }
+    .metric-head span:last-child { color: var(--muted); font-family: var(--font-mono); }
+    meter { width: 100%; height: 14px; border: 0; background: var(--line); }
+    meter::-webkit-meter-bar { border: 0; border-radius: 999px; background: var(--line); }
+    meter::-webkit-meter-optimum-value { border-radius: 999px; background: var(--cyan-fill); }
+    meter::-moz-meter-bar { border-radius: 999px; background: var(--cyan-fill); }
+    .diagnosis { margin-top: 30px; border-top: 1px solid var(--line); padding-top: 22px; }
+    .diagnosis strong { display: block; margin-bottom: 6px; color: var(--acid); }
+    .diagnosis p { margin: 0; }
+    .lab-caption { margin: 18px 0 0; color: var(--dim); font-family: var(--font-mono); font-size: .75rem; }
+    .brand { min-height: 44px; align-items: center; }
+    .lab-caption a { display: inline-flex; align-items: center; min-height: 44px; color: var(--cyan); }
+    .debug-list { display: grid; gap: 0; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+    .debug-row { display: grid; grid-template-columns: minmax(160px, .7fr) 1.3fr; gap: 30px; padding: 26px clamp(22px, 4vw, 40px); background: var(--panel); }
+    .debug-row + .debug-row { border-top: 1px solid var(--line); }
+    .debug-row h3 { margin: 0; font-size: 1.05rem; }
+    .debug-row p { margin: 0; color: var(--muted); }
+    .production-brief { display: grid; grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr); gap: 1px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--line); }
+    .brief-intro, .brief-details { padding: clamp(24px, 4vw, 40px); background: var(--panel); }
+    .brief-intro h3 { margin: 8px 0 12px; font-size: clamp(1.5rem, 3vw, 2.25rem); line-height: 1.1; }
+    .brief-intro p { margin: 0; color: var(--muted); }
+    .brief-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; padding: 0; }
+    .brief-item { min-width: 0; padding: 20px 22px; border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .brief-item:nth-child(odd) { border-left: 0; }
+    .brief-item:nth-last-child(-n+2) { border-bottom: 0; }
+    .brief-item h4 { margin: 0 0 6px; color: var(--cyan); font-family: var(--font-mono); font-size: .74rem; letter-spacing: .08em; text-transform: uppercase; }
+    .brief-item p { margin: 0; color: var(--muted); font-size: .91rem; }
+    .ethics { display: grid; grid-template-columns: auto 1fr; gap: 24px; border: 1px solid var(--line); border-radius: var(--radius); padding: clamp(26px, 5vw, 52px); background: var(--panel); }
+    .ethics-mark { width: 48px; height: 48px; display: grid; place-items: center; border: 1px solid var(--orange); border-radius: 50%; color: var(--orange); font-family: var(--font-mono); font-weight: 900; }
+    .ethics h2 { margin: 0 0 12px; font-size: clamp(1.8rem, 3vw, 2.7rem); }
+    .ethics p { margin: 0; color: var(--muted); }
+    .ethics ul { margin: 18px 0 0; padding-left: 20px; }
+    .ethics li + li { margin-top: 8px; }
+    .related-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+    .related-card { display: block; min-height: 176px; border: 1px solid var(--line); border-radius: 16px; padding: 22px; background: var(--panel); color: inherit; text-decoration: none; transition: transform .2s ease, border-color .2s ease, background .2s ease; }
+    .related-card:hover { transform: translateY(-3px); border-color: var(--cyan); background: var(--panel-2); }
+    .related-card h3 { margin: 8px 0; font-size: 1.15rem; line-height: 1.2; }
+    .related-card p:last-child { margin: 0; color: var(--muted); font-size: .9rem; }
+    .sr-status { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+    footer { border-top: 1px solid var(--line); padding: 34px 0 46px; color: var(--muted); }
+    .footer-inner { display: flex; justify-content: space-between; gap: 24px; align-items: center; }
+    .footer-inner p { margin: 0; }
+    @media (max-width: 900px) {
+      .hero-grid,
+      .lab-grid,
+      .production-brief { grid-template-columns: 1fr; }
+      .identity-map { max-width: 620px; min-height: 330px; }
+      .flow { grid-template-columns: 1fr 1fr; }
+      .flow-step + .flow-step { border-left: 0; }
+      .flow-step:nth-child(even) { border-left: 1px solid var(--line); }
+      .flow-step:nth-child(n+3) { border-top: 1px solid var(--line); }
+      .flow-step::after { display: none !important; }
+      .topnav { display: none; }
+      .related-grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 640px) {
+      .lesson-hero { padding-top: 56px; }
+      h1 { font-size: clamp(3rem, 17vw, 4.8rem); }
+      .hero-actions .button { width: 100%; }
+      .flow,
+      .role-split { grid-template-columns: 1fr; }
+      .flow-step:nth-child(even) { border-left: 0; }
+      .flow-step + .flow-step { border-top: 1px solid var(--line); }
+      .debug-row { grid-template-columns: 1fr; gap: 8px; }
+      .ethics { grid-template-columns: 1fr; }
+      .footer-inner { display: grid; }
+      .brief-details, .related-grid { grid-template-columns: 1fr; }
+      .brief-item, .brief-item:nth-child(odd), .brief-item:nth-last-child(-n+2) { border: 0; border-bottom: 1px solid var(--line); }
+      .brief-item:last-child { border-bottom: 0; }
+      .lab-actions .button { width: 100%; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#noi-dung">Bỏ qua điều hướng</a>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="index.html" aria-label="Video Generation Study — Trang chủ"><span class="brand-mark" aria-hidden="true"></span>Video Generation Study</a>
+      <nav class="topnav" aria-label="Trong bài học">
+        <a href="#pipeline">Pipeline</a>
+        <a href="#tradeoff">Tradeoff lab</a>
+        <a href="#chan-doan">Chẩn đoán</a>
+        <a href="#quyen-rieng-tu">Quyền riêng tư</a>
+      </nav>
+      <div class="progress-track" aria-hidden="true"><div class="progress-fill"></div></div>
+    </div>
+  </header>
+
+  <main id="noi-dung">
+    <section class="lesson-hero shell" aria-labelledby="lesson-title">
+      <div class="hero-grid">
+        <div>
+          <p class="eyebrow">Part 04 · Lesson 04 · Identity conditioning</p>
+          <h1 id="lesson-title">FaceID</h1>
+          <p class="hero-lead">Biến khuôn mặt tham chiếu thành tín hiệu nhận dạng để video bám một danh tính ổn định hơn — nhưng vẫn phải thương lượng với biểu cảm, góc quay và chuyển động.</p>
+          <div class="hero-actions">
+            <a class="button primary" href="#pipeline">Theo luồng embedding</a>
+            <a class="button" href="#tradeoff">Thử tradeoff lab</a>
+          </div>
+        </div>
+        <div class="identity-map" role="img" aria-label="Minh họa khuôn mặt tham chiếu được biểu diễn thành một vector nhận dạng">
+          <span class="face-mark" aria-hidden="true"></span>
+          <span class="vector-label">identity_vector [d₁ … dₙ]</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="lesson-section" aria-labelledby="dinh-nghia-heading">
+      <div class="shell">
+        <p class="section-kicker">01 · Định nghĩa thực dụng</p>
+        <h2 id="dinh-nghia-heading" class="definition">FaceID không “dán” lại ảnh gốc. Nó đưa một <strong>identity embedding</strong> vào quá trình sinh để tăng xác suất các frame cùng gợi về một người.</h2>
+      </div>
+    </section>
+
+    <section class="lesson-section" id="pipeline" aria-labelledby="pipeline-heading">
+      <div class="shell">
+        <div class="section-head">
+          <p class="section-kicker">02 · Identity embedding flow</p>
+          <h2 id="pipeline-heading">Từ khuôn mặt đến tín hiệu điều kiện</h2>
+          <p>IP-Adapter FaceID là họ conditioning gốc cho diffusion text-to-image: ảnh tham chiếu được phát hiện, mã hóa thành vector đặc trưng, rồi adapter chuyển thành tín hiệu cho model sinh. Một workflow video có thể dùng tín hiệu này từng lần sinh, nhưng bản thân FaceID không cung cấp bảo đảm nhất quán theo thời gian.</p>
+        </div>
+        <div class="flow" aria-label="Bốn bước của pipeline FaceID">
+          <article class="flow-step"><span class="flow-number">01</span><p class="flow-tag">Reference</p><h3>Ảnh khuôn mặt</h3><p>Chọn ảnh rõ, đủ sáng, khuôn mặt không bị che quá nhiều.</p></article>
+          <article class="flow-step"><span class="flow-number">02</span><p class="flow-tag">InsightFace</p><h3>Phát hiện & căn chỉnh</h3><p>Xác định vùng mặt và chuẩn hóa đầu vào cho bộ mã hóa nhận dạng.</p></article>
+          <article class="flow-step"><span class="flow-number">03</span><p class="flow-tag">ArcFace</p><h3>Identity embedding</h3><p>Mã hóa đặc trưng nhận dạng thành vector; không phải ảnh thu nhỏ.</p></article>
+          <article class="flow-step"><span class="flow-number">04</span><p class="flow-tag">IP-Adapter FaceID</p><h3>Điều kiện hóa model</h3><p>Checkpoint FaceID dùng embedding InsightFace thay vì CLIP image embedding; cách node/framework áp dụng scale là chi tiết triển khai.</p></article>
+        </div>
+        <div class="role-split">
+          <article class="role-panel"><h3>InsightFace / ArcFace làm gì?</h3><p>Đọc khuôn mặt và tạo biểu diễn phục vụ nhận dạng. Có thể hình dung đây là bước “ai” được tham chiếu, không phải bước dựng chuyển động.</p></article>
+          <article class="role-panel"><h3>IP-Adapter FaceID làm gì?</h3><p>Kết nối biểu diễn nhận dạng với model sinh. Cơ chế adapter thuộc pipeline diffusion; temporal coherence, sampler và strength naming của workflow video là các lớp khác cần kiểm thử riêng.</p></article>
+        </div>
+        <aside class="boundary" aria-label="Giới hạn của FaceID">
+          <strong>Giới hạn cần nhớ</strong>
+          <p>Embedding giữ các đặc trưng nhận dạng tương đối, không bảo đảm tái tạo chính xác khuôn mặt ở mọi frame. Góc cực đoan, che khuất, ánh sáng, biểu cảm và giới hạn model vẫn có thể làm danh tính trôi.</p>
+        </aside>
+      </div>
+    </section>
+
+    <section class="lesson-section" id="tradeoff" aria-labelledby="tradeoff-heading">
+      <div class="shell">
+        <div class="section-head">
+          <p class="section-kicker">03 · Tradeoff lab</p>
+          <h2 id="tradeoff-heading">Danh tính và chuyển động cùng kéo một frame</h2>
+          <p>Tăng lực bám FaceID thường giúp neo danh tính, nhưng có thể làm model ít tự do hơn khi biểu cảm hoặc góc quay thay đổi mạnh. Điều chỉnh hai biến để xem chẩn đoán định tính.</p>
+        </div>
+        <div class="lab-grid">
+          <form class="lab-controls" id="tradeoff-form">
+            <p class="lab-label">Điều kiện thử nghiệm</p>
+            <div class="control">
+              <div class="control-head"><label for="identity-strength">Identity strength</label><output class="control-value" id="strength-value" for="identity-strength">55</output></div>
+              <input id="identity-strength" type="range" min="0" max="100" step="5" value="55">
+              <p class="control-help">Thấp: model tự do hơn. Cao: embedding danh tính có ảnh hưởng mạnh hơn.</p>
+            </div>
+            <div class="control">
+              <div class="control-head"><label for="motion-demand">Độ khó chuyển động</label></div>
+              <select id="motion-demand">
+                <option value="25">Thấp — cử động nhẹ, góc gần chính diện</option>
+                <option value="55" selected>Vừa — đổi biểu cảm và góc quay</option>
+                <option value="85">Cao — quay đầu mạnh, che khuất, chuyển động nhanh</option>
+              </select>
+              <p class="control-help">Đây là yêu cầu của shot, không phải một tham số model cụ thể.</p>
+            </div>
+            <div class="lab-actions">
+              <button class="button primary" id="ab-test" type="button" aria-describedby="lab-instructions">Lập test A/B</button>
+            </div>
+            <p class="control-help" id="lab-instructions">Tạo hai cấu hình mô phỏng: baseline thấp hơn 10 điểm và cấu hình hiện tại. Render cùng seed, prompt và shot để so sánh.</p>
+          </form>
+          <output class="lab-output" id="tradeoff-output" for="identity-strength motion-demand">
+            <p class="status-label">Chẩn đoán hiện tại</p>
+            <h3 class="status-title" id="status-title">Cân bằng nhưng cần theo dõi</h3>
+            <p class="status-copy" id="status-copy">Identity signal ở mức vừa trong khi shot yêu cầu thay đổi đáng kể. Kiểm tra drift ở các frame chuyển góc hoặc đổi biểu cảm.</p>
+            <div class="metric">
+              <div class="metric-head"><span>Neo danh tính dự kiến</span><span id="identity-score-label">51 / 100</span></div>
+              <meter id="identity-score" min="0" max="100" value="51">51 trên 100</meter>
+            </div>
+            <div class="metric">
+              <div class="metric-head"><span>Dư địa chuyển động</span><span id="motion-room-label">60 / 100</span></div>
+              <meter id="motion-room" min="0" max="100" value="60">60 trên 100</meter>
+            </div>
+            <div class="diagnosis"><strong id="action-title">Bước thử tiếp theo</strong><p id="action-copy">Render một đoạn ngắn, quan sát frame chuyển góc; chỉ tăng strength từng nấc nhỏ nếu danh tính trôi.</p></div>
+            <div class="diagnosis" id="ab-result" hidden><strong>So sánh A/B mô phỏng</strong><p id="ab-copy"></p></div>
+          </output>
+        </div>
+        <p class="sr-status" id="lab-live" aria-live="polite" aria-atomic="true"></p>
+        <p class="lab-caption">Mô phỏng khái niệm — các điểm số không phải metric của InsightFace, ArcFace hay bất kỳ model cụ thể nào.</p>
+      </div>
+    </section>
+
+    <section class="lesson-section" id="production-brief" aria-labelledby="production-brief-heading">
+      <div class="shell">
+        <div class="section-head">
+          <p class="section-kicker">04 · Production brief</p>
+          <h2 id="production-brief-heading">Chọn strength bằng một test có kiểm soát</h2>
+          <p>Case dưới đây là kế hoạch thử nghiệm, không phải preset được bảo đảm cho mọi checkpoint, node hay workflow video.</p>
+        </div>
+        <article class="production-brief" aria-label="Production brief: lời chào nhân vật cho ứng dụng học ngôn ngữ">
+          <div class="brief-intro">
+            <p class="lab-label">Case study · mô phỏng</p>
+            <h3>Lời chào 4 giây cho ứng dụng học ngôn ngữ</h3>
+            <p>Mục tiêu đầu ra: một presenter nhìn gần chính diện, mỉm cười rồi quay đầu nhẹ; team cần nhận ra cùng một người trong 3 biến thể màu nền cho một UI preview.</p>
+          </div>
+          <div class="brief-details">
+            <div class="brief-item"><h4>Bối cảnh & input</h4><p>1 ảnh chân dung đã có consent, prompt cố định, 16 frame preview; FaceID checkpoint tương thích base model được chọn trong workflow nội bộ.</p></div>
+            <div class="brief-item"><h4>Giữ cố định</h4><p>Reference/crop, seed, prompt, negative prompt, base model, sampler, số bước, resolution và pose brief.</p></div>
+            <div class="brief-item"><h4>Biến thử nghiệm</h4><p>Chỉ thay identity strength: A = 45, B = 55. Không đồng thời đổi pose-control hay CFG vì sẽ không biết nguyên nhân chênh lệch.</p></div>
+            <div class="brief-item"><h4>Ràng buộc</h4><p>Ngân sách preview là 10 phút trên GPU đang dùng; dừng sau hai render nếu không còn đủ thời gian cho đánh giá. Không coi số VRAM này là yêu cầu chung.</p></div>
+            <div class="brief-item"><h4>Tiêu chí đánh giá</h4><p>Người duyệt nhận ra danh tính ở frame đầu/giữa/cuối; biểu cảm và quay đầu vẫn tự nhiên; không có flicker mặt rõ rệt.</p></div>
+            <div class="brief-item"><h4>Thất bại & bước kế</h4><p>Nếu A trôi: kiểm tra crop/reference rồi mới tăng B. Nếu B cứng hoặc biến dạng: quay lại A, giảm độ khó motion hoặc chia shot; log frame lỗi trước lần thử tiếp.</p></div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="lesson-section" id="chan-doan" aria-labelledby="chan-doan-heading">
+      <div class="shell">
+        <div class="section-head">
+          <p class="section-kicker">05 · Debug theo triệu chứng</p>
+          <h2 id="chan-doan-heading">Đừng chỉ kéo strength lên</h2>
+          <p>Một kết quả “không giống” có nhiều nguyên nhân. Tách lỗi đầu vào, lực conditioning và độ khó chuyển động trước khi chỉnh.</p>
+        </div>
+        <div class="debug-list">
+          <article class="debug-row"><h3>Danh tính trôi dần</h3><p>Kiểm tra ảnh reference và frame xảy ra drift; thử tăng strength nhẹ hoặc giảm độ cực đoan của motion trước khi đổi toàn bộ pipeline.</p></article>
+          <article class="debug-row"><h3>Mặt cứng, ít biểu cảm</h3><p>Identity conditioning có thể đang lấn át yêu cầu chuyển động. Hạ strength từng bước và dùng prompt chuyển động cụ thể hơn.</p></article>
+          <article class="debug-row"><h3>Giống sai người ngay từ đầu</h3><p>Ưu tiên kiểm tra phát hiện/crop mặt, độ rõ, che khuất và chất lượng reference. Tăng strength không sửa được embedding đầu vào kém.</p></article>
+          <article class="debug-row"><h3>Chỉ hỏng ở góc nghiêng</h3><p>Reference có thể thiếu thông tin về góc đó hoặc model khó suy diễn hình học khuôn mặt. Bổ sung reference phù hợp nếu workflow hỗ trợ, hoặc giảm biên độ shot.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="lesson-section" id="quyen-rieng-tu" aria-labelledby="quyen-rieng-tu-heading">
+      <div class="shell">
+        <aside class="ethics">
+          <span class="ethics-mark" aria-hidden="true">!</span>
+          <div>
+            <p class="section-kicker">06 · Consent, ethics & privacy</p>
+            <h2 id="quyen-rieng-tu-heading">Khuôn mặt là dữ liệu nhạy cảm</h2>
+            <p>Face embedding có thể được dùng để liên kết hoặc nhận diện một người. Hãy coi cả ảnh gốc lẫn embedding là dữ liệu cần bảo vệ, kể cả khi embedding không nhìn giống ảnh.</p>
+            <ul>
+              <li>Chỉ dùng khuôn mặt khi có sự đồng ý rõ ràng và đúng mục đích đã thống nhất.</li>
+              <li>Không mạo danh, gây hiểu nhầm, quấy rối hoặc tạo nội dung xâm hại.</li>
+              <li>Giới hạn quyền truy cập, thời gian lưu và nơi truyền ảnh/embedding; xóa khi không còn cần.</li>
+              <li>Gắn nhãn nội dung tổng hợp khi ngữ cảnh có thể khiến người xem nhầm là thật.</li>
+            </ul>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="lesson-section" id="related-lessons" aria-labelledby="related-heading">
+      <div class="shell">
+        <div class="section-head">
+          <p class="section-kicker">07 · Bài liên quan</p>
+          <h2 id="related-heading">Nối FaceID vào đúng lớp của workflow</h2>
+          <p>Mỗi link dẫn tới một bài thật và giải thích quan hệ kỹ thuật, thay vì chỉ nối theo từ khóa.</p>
+        </div>
+        <nav class="related-grid" aria-label="Các bài học liên quan đến FaceID">
+          <a class="related-card" href="video-generation-part-4-lesson-3.html"><p class="section-kicker">Cùng cơ chế</p><h3>IP-Adapter</h3><p>Hiểu nhánh image-conditioning trước khi phân biệt biến thể FaceID dùng embedding nhận dạng.</p></a>
+          <a class="related-card" href="video-generation-part-4-lesson-5.html"><p class="section-kicker">Ứng dụng tiếp theo</p><h3>InstantID</h3><p>So sánh một pipeline identity-preserving khác: thêm nhánh IdentityNet và landmark control, không đồng nhất với FaceID.</p></a>
+          <a class="related-card" href="video-generation-part-1-lesson-2.html"><p class="section-kicker">Kiến thức nền</p><h3>VAE</h3><p>Nhắc lại latent diffusion xử lý tín hiệu trong không gian nén; từ đó tránh hiểu conditioning như dán pixel reference vào output.</p></a>
+        </nav>
+        <p class="lab-caption">Nguồn phạm vi: <a href="https://github.com/tencent-ailab/IP-Adapter/wiki/IP%E2%80%90Adapter%E2%80%90Face" rel="noopener noreferrer">IP-Adapter Face wiki</a> nêu FaceID dùng ArcFace/InsightFace ID embedding; <a href="https://huggingface.co/docs/diffusers/using-diffusers/ip_adapter" rel="noopener noreferrer">Diffusers documentation</a> phân biệt FaceID embedding với CLIP image embedding. InstantID có IdentityNet/landmark branch theo <a href="https://instantid.github.io/" rel="noopener noreferrer">project page chính chủ</a>.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="shell footer-inner">
+      <p>Video Generation Study · Part 4 / Lesson 4</p>
+      <nav class="hero-actions" aria-label="Điều hướng tuần tự">
+        <a class="button" href="video-generation-part-4-lesson-3.html">← Bài 3: IP-Adapter</a>
+        <a class="button" href="index.html">Mục lục</a>
+        <a class="button primary" href="video-generation-part-4-lesson-5.html">Bài 5: InstantID →</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script>
+    (() => {
+      const form = document.querySelector('#tradeoff-form');
+      const strength = document.querySelector('#identity-strength');
+      const demand = document.querySelector('#motion-demand');
+      const strengthValue = document.querySelector('#strength-value');
+      const identityMeter = document.querySelector('#identity-score');
+      const motionMeter = document.querySelector('#motion-room');
+      const identityLabel = document.querySelector('#identity-score-label');
+      const motionLabel = document.querySelector('#motion-room-label');
+      const statusTitle = document.querySelector('#status-title');
+      const statusCopy = document.querySelector('#status-copy');
+      const actionCopy = document.querySelector('#action-copy');
+      const live = document.querySelector('#lab-live');
+      const abTest = document.querySelector('#ab-test');
+      const abResult = document.querySelector('#ab-result');
+      const abCopy = document.querySelector('#ab-copy');
+      const progress = document.querySelector('.progress-fill');
+
+      const clamp = (value) => Math.max(0, Math.min(100, Math.round(value)));
+
+      const updateLab = () => {
+        const strengthNumber = Number(strength.value);
+        const demandNumber = Number(demand.value);
+        const identityScore = clamp(22 + strengthNumber * .72 - demandNumber * .2);
+        const motionRoom = clamp(100 - strengthNumber * .72);
+        const pressure = demandNumber - motionRoom;
+
+        strengthValue.textContent = String(strengthNumber);
+        identityMeter.value = identityScore;
+        identityMeter.textContent = `${identityScore} trên 100`;
+        motionMeter.value = motionRoom;
+        motionMeter.textContent = `${motionRoom} trên 100`;
+        identityLabel.textContent = `${identityScore} / 100`;
+        motionLabel.textContent = `${motionRoom} / 100`;
+        live.textContent = `Mô phỏng cập nhật: identity strength ${strengthNumber}; độ khó chuyển động ${demandNumber}; neo danh tính dự kiến ${identityScore} trên 100; dư địa chuyển động ${motionRoom} trên 100.`;
+
+        if (identityScore < 42) {
+          statusTitle.textContent = 'Nguy cơ trôi danh tính';
+          statusCopy.textContent = 'Tín hiệu danh tính tương đối yếu so với yêu cầu của shot. Các frame đổi góc hoặc biểu cảm có thể lệch khỏi reference.';
+          actionCopy.textContent = 'Kiểm tra chất lượng reference trước, sau đó tăng strength từng nấc nhỏ hoặc giảm độ khó chuyển động.';
+        } else if (pressure > 24) {
+          statusTitle.textContent = 'Xung đột identity–motion cao';
+          statusCopy.textContent = 'Shot đòi hỏi nhiều hơn dư địa chuyển động còn lại. Kết quả có thể giữ mặt nhưng cứng, hoặc chuyển động được nhưng biến dạng.';
+          actionCopy.textContent = 'Giảm strength nhẹ, chia shot thành đoạn ngắn hơn hoặc giảm góc quay/che khuất cực đoan.';
+        } else if (pressure > 0) {
+          statusTitle.textContent = 'Cân bằng nhưng cần theo dõi';
+          statusCopy.textContent = 'Identity signal ở mức vừa trong khi shot yêu cầu thay đổi đáng kể. Kiểm tra drift ở các frame chuyển góc hoặc đổi biểu cảm.';
+          actionCopy.textContent = 'Render một đoạn ngắn, quan sát frame chuyển góc; chỉ tăng strength từng nấc nhỏ nếu danh tính trôi.';
+        } else {
+          statusTitle.textContent = 'Vùng thử nghiệm hợp lý';
+          statusCopy.textContent = 'Mức conditioning chừa đủ dư địa cho yêu cầu chuyển động hiện tại. Đây là điểm xuất phát để render test, không phải bảo đảm kết quả.';
+          actionCopy.textContent = 'Giữ cấu hình, render seed thử và đánh giá theo chuỗi frame thay vì chỉ nhìn một ảnh đẹp nhất.';
+        }
+      };
+
+      const buildAbTest = () => {
+        const current = Number(strength.value);
+        const baseline = Math.max(Number(strength.min), current - 10);
+        abCopy.textContent = `A dùng strength ${baseline}; B dùng strength ${current}. Giữ seed, prompt, crop reference, base model, sampler, số bước và shot brief cố định; so sánh frame đầu/giữa/cuối, độ tự nhiên biểu cảm và flicker. Đây là kế hoạch A/B mô phỏng, không phải benchmark.`;
+        abResult.hidden = false;
+        live.textContent = `Đã tạo test A/B mô phỏng: A strength ${baseline}; B strength ${current}. Giữ các biến còn lại cố định.`;
+      };
+
+      const updateProgress = () => {
+        const scrollable = document.documentElement.scrollHeight - window.innerHeight;
+        const percent = scrollable > 0 ? Math.min(100, Math.max(0, window.scrollY / scrollable * 100)) : 0;
+        progress.style.width = `${percent}%`;
+      };
+
+      form.addEventListener('input', updateLab);
+      form.addEventListener('change', updateLab);
+      abTest.addEventListener('click', buildAbTest);
+      window.addEventListener('scroll', updateProgress, {passive: true});
+      updateLab();
+      updateProgress();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,1546 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CFG — Điều khiển độ bám prompt | Phần 2 · Bài 4 | Video Gen Lab</title>
+  <meta name="description" content="Hiểu Classifier-Free Guidance (CFG): CFG Scale điều chỉnh mức độ bám prompt, CFG Schedule thay đổi guidance theo timestep trong quá trình sampling." />
+
+  <script src="video-generation-theme.js"></script>
+  <link rel="stylesheet" href="video-generation-design-system.css" />
+
+  <style>
+    /* ── Layout helpers ── */
+    .hero {
+      padding: 80px 0 64px;
+      border-bottom: 1px solid var(--line);
+    }
+    .hero-meta {
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin: 0 0 18px;
+    }
+    .hero-meta .part-tag {
+      color: var(--cyan);
+    }
+    .hero h1 {
+      font-size: clamp(2.2rem, 5vw, 3.6rem);
+      font-weight: 900;
+      letter-spacing: -.03em;
+      line-height: 1.05;
+      margin: 0 0 20px;
+      max-width: 18ch;
+    }
+    .hero-lead {
+      font-size: 1.1rem;
+      color: var(--muted);
+      max-width: 58ch;
+      margin: 0 0 36px;
+    }
+    .hero-cta { display: flex; flex-wrap: wrap; gap: 12px; }
+
+    /* ── Progress bar ── */
+    .lesson-progress-bar {
+      margin: 28px 0 0;
+      max-width: 340px;
+    }
+    .lesson-progress-label {
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-bottom: 6px;
+    }
+    .lesson-progress-track {
+      height: 4px;
+      background: var(--line);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .lesson-progress-fill {
+      height: 100%;
+      width: calc(4 / 6 * 100%);
+      background: linear-gradient(90deg, var(--acid), var(--cyan));
+      border-radius: 4px;
+    }
+
+    /* ── Keyword chips ── */
+    .keyword-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 36px;
+    }
+    .chip {
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+      padding: 5px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--acid);
+      background: transparent;
+    }
+
+    /* ── Section layout ── */
+    .section {
+      padding: 72px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .section:last-of-type { border-bottom: none; }
+    .section-index {
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      font-weight: 700;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin: 0 0 10px;
+    }
+    .section h2 {
+      font-size: clamp(1.5rem, 3.5vw, 2.2rem);
+      font-weight: 900;
+      letter-spacing: -.025em;
+      line-height: 1.1;
+      margin: 0 0 20px;
+    }
+    .section-intro {
+      font-size: 1rem;
+      color: var(--muted);
+      max-width: 62ch;
+      margin: 0 0 40px;
+    }
+
+    /* ── Definition panel ── */
+    .def-panel {
+      border-left: 3px solid var(--cyan);
+      background: var(--panel);
+      border-radius: 0 var(--radius) var(--radius) 0;
+      padding: 24px 28px;
+      margin: 0 0 28px;
+    }
+    .def-panel strong {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: .8rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--cyan);
+      margin-bottom: 8px;
+    }
+    .def-panel p { margin: 0; line-height: 1.7; }
+
+    /* ── Formula box ── */
+    .formula-box {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 32px 36px;
+      margin: 0 0 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+    .formula-label {
+      font-family: var(--font-mono);
+      font-size: .7rem;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+    .formula-expr {
+      font-family: var(--font-mono);
+      font-size: clamp(1rem, 2.5vw, 1.35rem);
+      font-weight: 700;
+      color: var(--ink);
+      line-height: 1.5;
+      word-break: break-word;
+    }
+    .formula-expr .unc { color: var(--orange); }
+    .formula-expr .scale { color: var(--acid); }
+    .formula-expr .diff { color: var(--cyan); }
+    .formula-expr .op { color: var(--dim); }
+    .formula-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 24px;
+      padding-top: 8px;
+      border-top: 1px solid var(--line);
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: .82rem;
+      color: var(--muted);
+    }
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .dot-unc { background: var(--orange); }
+    .dot-scale { background: var(--acid-fill); }
+    .dot-diff { background: var(--cyan); }
+
+    /* ── Two-pass diagram ── */
+    .two-pass {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 16px;
+      align-items: center;
+      margin: 32px 0;
+    }
+    .pass-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 22px 20px;
+      text-align: center;
+    }
+    .pass-card .pass-type {
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .pass-card .pass-type.cond { color: var(--cyan); }
+    .pass-card .pass-type.uncond { color: var(--orange); }
+    .pass-card .pass-title {
+      font-weight: 800;
+      font-size: 1rem;
+      margin-bottom: 6px;
+    }
+    .pass-card .pass-desc {
+      font-size: .82rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .pass-arrow {
+      font-family: var(--font-mono);
+      font-size: 1.3rem;
+      color: var(--dim);
+      text-align: center;
+      white-space: nowrap;
+    }
+    .combine-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-top: 4px;
+      font-family: var(--font-mono);
+      font-size: .82rem;
+      color: var(--muted);
+    }
+    .combine-accent { color: var(--acid); font-weight: 700; }
+
+    /* ── CFG Slider lab ── */
+    .lab-panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 36px;
+      margin: 0 0 32px;
+    }
+    .lab-heading {
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin: 0 0 24px;
+    }
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .slider-row label {
+      font-weight: 800;
+      font-size: .9rem;
+      white-space: nowrap;
+      min-width: 9ch;
+    }
+    .cfg-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      flex: 1;
+      height: 44px;
+      border-radius: 0;
+      background: linear-gradient(
+        to bottom,
+        transparent 19px,
+        var(--line) 19px 25px,
+        transparent 25px
+      );
+      outline: none;
+      cursor: pointer;
+    }
+    .cfg-slider:focus-visible {
+      outline: 3px solid var(--cyan);
+      outline-offset: 2px;
+      border-radius: 8px;
+    }
+    .cfg-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--acid-fill);
+      border: 2px solid var(--night);
+      cursor: pointer;
+      transition: transform .15s ease;
+    }
+    .cfg-slider::-webkit-slider-thumb:hover { transform: scale(1.15); }
+    .cfg-slider::-moz-range-thumb {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--acid-fill);
+      border: 2px solid var(--night);
+      cursor: pointer;
+    }
+    .slider-value {
+      font-family: var(--font-mono);
+      font-size: 1.5rem;
+      font-weight: 900;
+      color: var(--acid);
+      min-width: 3.5ch;
+      text-align: right;
+    }
+
+    /* Spectrum bar */
+    .spectrum-bar {
+      position: relative;
+      height: 12px;
+      border-radius: 6px;
+      background: linear-gradient(90deg,
+        var(--orange) 0%,
+        var(--acid-fill) 40%,
+        var(--cyan) 75%,
+        var(--red) 100%
+      );
+      margin: 0 0 10px;
+    }
+    .spectrum-needle {
+      position: absolute;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 4px;
+      height: 24px;
+      background: var(--ink);
+      border-radius: 2px;
+      transition: left .15s ease;
+      box-shadow: 0 0 0 2px var(--night);
+    }
+    .spectrum-labels {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: .65rem;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-bottom: 28px;
+    }
+
+    /* CFG state card */
+    .cfg-state {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 22px 24px;
+      background: var(--panel-2);
+      transition: border-color .2s ease;
+    }
+    .cfg-state-label {
+      font-family: var(--font-mono);
+      font-size: .7rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-bottom: 6px;
+    }
+    .cfg-state-title {
+      font-size: 1.1rem;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+    .cfg-state-desc {
+      font-size: .9rem;
+      color: var(--muted);
+      line-height: 1.6;
+      margin: 0;
+    }
+
+    /* Live formula readout */
+    .formula-live {
+      font-family: var(--font-mono);
+      font-size: .9rem;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-top: 16px;
+      color: var(--muted);
+      line-height: 1.8;
+    }
+    .formula-live .fv-scale { color: var(--acid); font-weight: 700; }
+    .formula-live .fv-unc { color: var(--orange); }
+    .formula-live .fv-cond { color: var(--cyan); }
+
+    /* ── Prompt studio ── */
+    .prompt-studio {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(240px, .65fr);
+      gap: 18px;
+      margin-bottom: 28px;
+    }
+    .scene-frame {
+      min-height: 300px;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: #071019;
+      color: #f8fbff;
+      isolation: isolate;
+    }
+    .scene-world {
+      position: absolute;
+      inset: 0;
+      filter: blur(var(--scene-blur, 0px)) saturate(var(--scene-saturation, 1)) contrast(var(--scene-contrast, 1));
+      transition: filter .35s ease, opacity .35s ease, transform .35s ease;
+    }
+    .scene-sky {
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(90deg, rgba(0, 225, 255, .2), transparent 30%, transparent 68%, rgba(255, 84, 47, .22)),
+        linear-gradient(180deg, #11182b 0 54%, #182f3d 55%, #061119 100%);
+    }
+    .scene-building { position: absolute; top: 0; bottom: 28%; width: 24%; background: #090d18; border-inline: 1px solid rgba(255,255,255,.1); }
+    .scene-building.left { left: 0; box-shadow: 24px 0 70px rgba(0, 226, 255, .2); }
+    .scene-building.right { right: 0; box-shadow: -24px 0 70px rgba(255, 80, 45, .2); }
+    .scene-sign { position: absolute; top: 20%; width: 5px; height: 66px; border-radius: 4px; box-shadow: 0 0 18px currentColor; }
+    .scene-sign.one { left: 18%; color: #62e7f5; background: currentColor; }
+    .scene-sign.two { right: 17%; top: 34%; color: #ff765b; background: currentColor; }
+    .scene-road { position: absolute; left: 16%; right: 16%; bottom: -12%; height: 53%; background: linear-gradient(180deg, #152936, #081118); clip-path: polygon(30% 0, 70% 0, 100% 100%, 0 100%); }
+    .scene-road::after { content: ""; position: absolute; left: 48%; top: 12%; width: 4%; height: 75%; background: linear-gradient(#f6d66e, transparent); opacity: .55; }
+    .paper-boat { position: absolute; left: 41%; bottom: 16%; width: 78px; height: 42px; animation: boat-glide 4.8s ease-in-out infinite alternate; }
+    .paper-boat::before { content: ""; position: absolute; inset: 0; background: #ff6b3f; clip-path: polygon(0 42%, 100% 42%, 78% 100%, 20% 88%); filter: drop-shadow(0 9px 8px rgba(0,0,0,.5)); }
+    .paper-boat::after { content: ""; position: absolute; left: 25%; top: 0; width: 48%; height: 50%; background: #ffd4a5; clip-path: polygon(0 100%, 50% 0, 100% 100%); }
+    .rain { position: absolute; inset: -20%; opacity: .35; background: repeating-linear-gradient(105deg, transparent 0 17px, rgba(180,239,255,.7) 18px 19px, transparent 20px 34px); animation: rain-shift 1.1s linear infinite; }
+    .artifact-watermark { position: absolute; right: 8%; bottom: 8%; font: 800 .75rem/1 var(--font-mono); letter-spacing: .15em; color: rgba(255,255,255,.64); transform: rotate(-4deg); }
+    .artifact-birds { position: absolute; left: 30%; top: 18%; font: 900 1.25rem/1 var(--font-mono); letter-spacing: .45em; color: #f7f5df; }
+    .motion-smear { position: absolute; left: 36%; bottom: 18%; width: 120px; height: 36px; background: linear-gradient(90deg, transparent, rgba(255,108,66,.42), transparent); filter: blur(8px); }
+    .artifact-watermark, .artifact-birds, .motion-smear { transition: opacity .25s ease; }
+    .overcook-lines { position: absolute; inset: 0; opacity: 0; background: repeating-linear-gradient(0deg, transparent 0 9px, rgba(255,255,255,.1) 10px); transition: opacity .25s ease; }
+    .scene-frame[data-zone="high"] .overcook-lines { opacity: 1; }
+    .scene-frame[data-zone="low"] .paper-boat { opacity: .55; transform: translateX(22px) rotate(-6deg); }
+    .scene-frame.remove-watermark .artifact-watermark,
+    .scene-frame.remove-birds .artifact-birds,
+    .scene-frame.remove-blur .motion-smear { opacity: 0; }
+    .scene-frame.is-switching .scene-world { animation: guidance-shift .42s ease-out; }
+    @keyframes guidance-shift { 0% { opacity: .48; transform: scale(1.025); } 100% { opacity: 1; transform: scale(1); } }
+    @keyframes boat-glide { from { translate: -5px 0; rotate: -1deg; } to { translate: 8px -2px; rotate: 1deg; } }
+    @keyframes rain-shift { to { transform: translate3d(-18px, 28px, 0); } }
+    .scene-hud { position: absolute; inset: 14px 14px auto; z-index: 3; display: flex; justify-content: space-between; gap: 10px; pointer-events: none; }
+    .scene-tag { padding: 5px 8px; border-radius: 6px; background: rgba(5, 11, 16, .78); color: #fff; font: 700 .65rem/1.2 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
+    .studio-controls { border: 1px solid var(--line); border-radius: 16px; background: var(--panel-2); padding: 20px; }
+    .prompt-label { display: block; margin-bottom: 8px; font: 700 .67rem/1.3 var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+    .prompt-copy { margin: 0 0 20px; color: var(--ink); font-size: .88rem; line-height: 1.6; }
+    .negative-set { border: 0; padding: 0; margin: 0; }
+    .negative-set legend { padding: 0; margin-bottom: 10px; font: 700 .67rem/1.3 var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+    .negative-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .negative-chip { min-height: 44px; border: 1px solid var(--line); border-radius: 999px; padding: 8px 12px; background: var(--panel); color: var(--muted); font-size: .78rem; transition: color .2s ease, border-color .2s ease, background .2s ease; }
+    .negative-chip:hover { color: var(--ink); border-color: var(--dim); }
+    .negative-chip[aria-pressed="true"] { color: var(--ink); border-color: var(--orange); background: color-mix(in srgb, var(--orange) 10%, var(--panel)); }
+    .negative-live { min-height: 62px; margin: 16px 0 0; color: var(--muted); font-size: .8rem; line-height: 1.55; }
+    .negative-live strong { color: var(--ink); }
+
+    .checkpoint { margin-top: 28px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 26px; }
+    .checkpoint fieldset { border: 0; padding: 0; margin: 0; }
+    .checkpoint legend { padding: 0; font-weight: 800; }
+    .checkpoint p { color: var(--muted); }
+    .answer-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .answer-button { min-height: 64px; border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: var(--panel-2); color: var(--ink); text-align: left; font-weight: 700; transition: border-color .2s ease, background .2s ease; }
+    .answer-button:hover { border-color: var(--dim); }
+    .answer-button[data-state="correct"] { border-color: var(--acid); background: color-mix(in srgb, var(--acid-fill) 10%, var(--panel)); }
+    .answer-button[data-state="wrong"] { border-color: var(--red); }
+    .answer-feedback { min-height: 48px; margin-bottom: 0; }
+    .answer-feedback strong { color: var(--ink); }
+
+    /* ── CFG Schedule diagram ── */
+    .schedule-diagram {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 28px 0;
+    }
+    .schedule-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 22px 20px;
+    }
+    .schedule-card h3 {
+      font-size: .9rem;
+      font-weight: 800;
+      margin: 0 0 8px;
+    }
+    .schedule-card p {
+      font-size: .84rem;
+      color: var(--muted);
+      margin: 0 0 16px;
+      line-height: 1.6;
+    }
+    .schedule-bar-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .schedule-bar-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .schedule-bar-label {
+      font-family: var(--font-mono);
+      font-size: .65rem;
+      color: var(--dim);
+      min-width: 3.5ch;
+      text-align: right;
+    }
+    .schedule-bar-track {
+      flex: 1;
+      height: 8px;
+      background: var(--line);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .schedule-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      background: var(--acid-fill);
+    }
+
+    /* ── Negative prompt panel ── */
+    .neg-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 24px 0;
+    }
+    .neg-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 22px 20px;
+    }
+    .neg-card .neg-type {
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-bottom: 6px;
+    }
+    .neg-card h3 {
+      font-size: .95rem;
+      font-weight: 800;
+      margin: 0 0 8px;
+    }
+    .neg-card p {
+      font-size: .84rem;
+      color: var(--muted);
+      margin: 0;
+      line-height: 1.6;
+    }
+    .neg-card.has-neg { border-color: var(--orange); }
+    .neg-card.no-neg { border-color: var(--line); }
+
+    /* ── Takeaways ── */
+    .takeaways {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin-top: 32px;
+    }
+    .takeaway-item {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+    }
+    .takeaway-num {
+      font-family: var(--font-mono);
+      font-size: .75rem;
+      font-weight: 700;
+      color: var(--acid);
+      background: color-mix(in srgb, var(--acid-fill) 12%, transparent);
+      border: 1px solid color-mix(in srgb, var(--acid-fill) 30%, transparent);
+      border-radius: 50%;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .takeaway-text {
+      font-size: .95rem;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+    .takeaway-text strong { color: var(--ink); }
+
+    /* ── Nav between lessons ── */
+    .lesson-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 40px 0 60px;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--line);
+      padding: 32px 0;
+    }
+    .footer-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .footer-brand {
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+    .footer-copy {
+      font-size: .78rem;
+      color: var(--dim);
+    }
+
+    /* ── Table ── */
+    .cfg-table-wrap {
+      margin-top: 16px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    .cfg-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+    .cfg-table thead tr { background: var(--panel-2); }
+    .cfg-table th {
+      text-align: left;
+      padding: 12px 16px;
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--dim);
+      font-weight: 700;
+    }
+    .cfg-table td { padding: 12px 16px; }
+    .cfg-table tr + tr td { border-top: 1px solid var(--line); }
+    .cfg-table .scale-cell {
+      font-family: var(--font-mono);
+      font-weight: 700;
+    }
+    .cfg-table .td-muted { color: var(--muted); }
+    .cfg-table .scale-orange { color: var(--orange); }
+    .cfg-table .scale-acid  { color: var(--acid); }
+    .cfg-table .scale-cyan  { color: var(--cyan); }
+    .cfg-table .scale-red   { color: var(--red); }
+    .cfg-table .row-sweet   { background: color-mix(in srgb, var(--acid-fill) 5%, transparent); }
+
+    /* ── Details / disclosure ── */
+    .details-summary {
+      cursor: pointer;
+      font-weight: 800;
+      font-size: .9rem;
+      color: var(--muted);
+      padding: 10px 0;
+    }
+    .details-body {
+      margin-top: 12px;
+      padding: 20px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      font-size: .9rem;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+    .details-body p { margin: 0 0 10px; }
+    .details-body p:last-child { margin-bottom: 0; }
+    .details-body strong { color: var(--ink); }
+
+    /* ── Schedule fill variants ── */
+    .sbf-cyan  { background: var(--cyan) !important; }
+    .sbf-acid  { background: var(--acid-fill) !important; }
+    .sbf-orange{ background: var(--orange) !important; }
+
+    /* ── Schedule bar widths ── */
+    .w-95 { width: 95%; }
+    .w-80 { width: 80%; }
+    .w-60 { width: 60%; }
+    .w-38 { width: 38%; }
+    .w-18 { width: 18%; }
+
+    /* ── neg-type orange variant ── */
+    .neg-type-orange { color: var(--orange); }
+
+    /* ── def-panel orange variant ── */
+    .def-panel-orange { border-left-color: var(--orange); }
+    .def-panel-orange strong { color: var(--orange); }
+
+    /* ── Lesson nav span ── */
+    .lesson-nav-label {
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      color: var(--dim);
+    }
+
+    /* ── Guidance control room ── */
+    .hero {
+      position: relative;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 82% 22%, color-mix(in srgb, var(--cyan) 11%, transparent), transparent 28%),
+        linear-gradient(110deg, transparent 55%, color-mix(in srgb, var(--orange) 5%, transparent));
+    }
+    .hero::after {
+      content: "COND  +  w × Δ";
+      position: absolute;
+      right: max(4vw, 24px);
+      bottom: 30px;
+      z-index: -1;
+      color: color-mix(in srgb, var(--ink) 5%, transparent);
+      font: 900 clamp(2.3rem, 7vw, 6.6rem)/1 var(--font-mono);
+      letter-spacing: -.08em;
+      white-space: nowrap;
+    }
+    .production-strip {
+      display: grid;
+      grid-template-columns: 1.35fr repeat(3, minmax(110px, .55fr));
+      gap: 1px;
+      margin: 0 0 22px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--line);
+    }
+    .production-cell { padding: 15px 17px; background: var(--panel-2); }
+    .production-cell span {
+      display: block;
+      margin-bottom: 6px;
+      font: 700 .62rem/1.3 var(--font-mono);
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+    .production-cell strong { display: block; font-size: .83rem; line-height: 1.5; }
+    .production-cell:first-child strong { color: var(--cyan); }
+    .preset-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+    .cfg-preset {
+      min-height: 44px;
+      padding: 9px 13px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--panel-2);
+      color: var(--muted);
+      font-weight: 750;
+      cursor: pointer;
+      transition: border-color .2s ease, color .2s ease, background .2s ease;
+    }
+    .cfg-preset:hover { color: var(--ink); border-color: var(--cyan); }
+    .cfg-preset[aria-pressed="true"] {
+      color: var(--ink);
+      border-color: var(--acid-fill);
+      background: color-mix(in srgb, var(--acid-fill) 10%, var(--panel));
+    }
+    .cfg-preset:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
+    .model-caveat {
+      margin: 18px 0 0;
+      padding: 14px 16px;
+      border-left: 3px solid var(--orange);
+      background: color-mix(in srgb, var(--orange) 7%, var(--panel-2));
+      color: var(--muted);
+      font-size: .82rem;
+      line-height: 1.55;
+    }
+    .model-caveat strong { color: var(--ink); }
+    .related-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+    .related-card {
+      min-height: 158px;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--panel);
+      color: inherit;
+      text-decoration: none;
+      transition: transform .22s ease, border-color .22s ease, background .22s ease;
+    }
+    .related-card:hover { transform: translateY(-3px); border-color: var(--orange); background: var(--panel-2); }
+    .related-card:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
+    .related-kicker {
+      display: block;
+      margin-bottom: 12px;
+      font: 700 .64rem/1.3 var(--font-mono);
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--orange);
+    }
+    .related-card strong { display: block; margin-bottom: 7px; }
+    .related-card small { color: var(--muted); line-height: 1.55; }
+    .reveal-item { opacity: 0; transform: translateY(18px); }
+    .reveal-item.is-visible {
+      opacity: 1;
+      transform: translateY(0);
+      transition: opacity .5s ease, transform .5s cubic-bezier(.2,.8,.2,1);
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 900px) {
+      .production-strip { grid-template-columns: 1fr 1fr; }
+      .related-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 720px) {
+      .two-pass { grid-template-columns: 1fr; }
+      .pass-arrow { transform: rotate(90deg); display: inline-block; }
+      .schedule-diagram { grid-template-columns: 1fr; }
+      .neg-grid { grid-template-columns: 1fr; }
+      .slider-row { flex-wrap: wrap; }
+      .cfg-slider { min-width: 100%; }
+      .lab-panel { padding: 24px 18px; }
+      .formula-box { padding: 22px 20px; }
+      .prompt-studio { grid-template-columns: 1fr; }
+      .scene-frame { min-height: 260px; }
+      .answer-row { grid-template-columns: 1fr; }
+      .production-strip { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 480px) {
+      .hero { padding: 52px 0 44px; }
+      .section { padding: 52px 0; }
+      .hero h1 { max-width: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .paper-boat,
+      .rain,
+      .scene-frame.is-switching .scene-world { animation: none; }
+      .scene-world,
+      .spectrum-needle,
+      .related-card,
+      .reveal-item,
+      .reveal-item.is-visible {
+        opacity: 1;
+        transform: none;
+        transition: none;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <a class="skip-link" href="#main">Bỏ qua điều hướng</a>
+
+  <!-- ── Topbar ── -->
+  <header class="topbar" role="banner">
+    <div class="topbar-inner">
+      <a href="index.html" class="brand" aria-label="Video Gen Lab — Trang chủ">
+        <span class="brand-mark" aria-hidden="true"></span>
+        VIDEO GEN LAB
+      </a>
+      <nav class="topnav" aria-label="Điều hướng trang">
+        <a href="index.html">Trang chủ</a>
+        <a href="video-generation-part-2-lesson-4.html" aria-current="page">Phần 2 · Bài 4</a>
+      </nav>
+    </div>
+    <div class="progress-track" role="progressbar" aria-label="Tiến trình đọc trang" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div class="progress-fill" id="reading-progress"></div>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <!-- ── Hero ── -->
+    <section class="hero" aria-labelledby="hero-heading">
+      <div class="shell">
+        <p class="hero-meta">
+          <span class="part-tag">PHẦN 2 — SAMPLING / INFERENCE</span>
+          &nbsp;·&nbsp; BÀI 4 / 6
+        </p>
+        <h1 id="hero-heading">CFG — Điều khiển độ bám prompt</h1>
+        <p class="hero-lead">
+          Tìm hiểu Classifier-Free Guidance: cơ chế giúp model "nghe lời" prompt nhiều hay ít, và cách CFG Schedule cho phép điều chỉnh linh hoạt hơn theo từng bước sampling.
+        </p>
+        <div class="keyword-chips" aria-label="Từ khóa bài học">
+          <span class="chip">CFG Scale</span>
+          <span class="chip">CFG Schedule</span>
+          <span class="chip">Classifier-Free Guidance</span>
+          <span class="chip">Negative Prompt</span>
+        </div>
+        <div class="hero-cta">
+          <a href="#cfg-intro" class="button primary">Bắt đầu học →</a>
+          <a href="#lab" class="button">Thử CFG slider</a>
+        </div>
+        <div class="lesson-progress-bar" aria-label="Bài 4 trên 6 trong phần 2">
+          <div class="lesson-progress-label">Tiến trình bài học — 4 / 6</div>
+          <div class="lesson-progress-track">
+            <div class="lesson-progress-fill"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Section 1: CFG là gì ── -->
+    <section class="section" id="cfg-intro" aria-labelledby="s1-heading">
+      <div class="shell">
+        <p class="section-index">01 — KHÁI NIỆM CƠ BẢN</p>
+        <h2 id="s1-heading">Classifier-Free Guidance là gì?</h2>
+        <p class="section-intro">
+          CFG là kỹ thuật chạy model hai lần trong mỗi bước denoising — một lần có prompt, một lần không. Từ hai kết quả đó, ta "kéo" output về phía prompt.
+        </p>
+
+        <div class="def-panel">
+          <strong>Định nghĩa</strong>
+          <p>
+            Classifier-Free Guidance (CFG) là phương pháp điều khiển quá trình diffusion sampling mà không cần một model classifier riêng. Model chạy hai lần: một lần với prompt (<em>conditional</em>) và một lần không có prompt (<em>unconditional</em>). Kết quả cuối cùng được tính bằng cách tăng cường sự khác biệt giữa hai lần chạy.
+          </p>
+        </div>
+
+        <!-- Two-pass diagram -->
+        <div class="two-pass" role="img" aria-label="Sơ đồ hai lần chạy model: conditional và unconditional">
+          <div class="pass-card">
+            <div class="pass-type cond">CONDITIONAL</div>
+            <div class="pass-title">Có prompt</div>
+            <div class="pass-desc">Model nhận prompt + noisy latent → tạo ra prediction theo hướng prompt</div>
+          </div>
+          <div class="pass-arrow" aria-hidden="true">⟶<br/>⟶</div>
+          <div class="pass-card">
+            <div class="pass-type uncond">UNCONDITIONAL</div>
+            <div class="pass-title">Không có prompt</div>
+            <div class="pass-desc">Model chỉ nhận noisy latent → tạo ra prediction "trung bình", không định hướng</div>
+          </div>
+        </div>
+
+        <div class="combine-row" role="note">
+          <span aria-hidden="true">✦</span>
+          <span>Kết quả cuối: <span class="combine-accent">unconditional + scale × (conditional − unconditional)</span></span>
+        </div>
+
+        <!-- Formula -->
+        <div class="formula-box" aria-label="Công thức CFG">
+          <div class="formula-label">CÔNG THỨC CFG</div>
+          <div class="formula-expr">
+            ε̂ = <span class="unc">ε<sub>unc</sub></span>
+            <span class="op"> + </span>
+            <span class="scale">w</span>
+            <span class="op"> × (</span><span class="diff">ε<sub>cond</sub> − ε<sub>unc</sub></span><span class="op">)</span>
+          </div>
+          <div class="formula-legend">
+            <div class="legend-item">
+              <span class="legend-dot dot-unc" aria-hidden="true"></span>
+              <span><strong>ε<sub>unc</sub></strong> — noise prediction không có prompt</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-dot dot-scale" aria-hidden="true"></span>
+              <span><strong>w</strong> — CFG Scale (hệ số khuếch đại)</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-dot dot-diff" aria-hidden="true"></span>
+              <span><strong>ε<sub>cond</sub></strong> — noise prediction có prompt</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Section 2: CFG Scale + Lab ── -->
+    <section class="section" id="lab" aria-labelledby="s2-heading">
+      <div class="shell">
+        <p class="section-index">02 — CFG SCALE</p>
+        <h2 id="s2-heading">CFG Scale — Hệ số điều khiển</h2>
+        <p class="section-intro">
+          CFG Scale (<strong>w</strong>) quyết định model "nghe" prompt nhiều đến đâu. Giá trị thấp cho phép sáng tạo; giá trị cao buộc model bám sát prompt nhưng có thể sinh artifact.
+        </p>
+
+        <div class="production-strip" aria-label="Bối cảnh sản xuất của thí nghiệm CFG">
+          <div class="production-cell">
+            <span>Shot đang duyệt</span>
+            <strong>Thuyền giấy cam trôi qua hẻm neon mưa đêm · camera tracking thấp</strong>
+          </div>
+          <div class="production-cell">
+            <span>Output</span>
+            <strong>5 giây · 24 fps</strong>
+          </div>
+          <div class="production-cell">
+            <span>Khóa kiểm soát</span>
+            <strong>Cùng prompt + seed</strong>
+          </div>
+          <div class="production-cell">
+            <span>Biến đang thử</span>
+            <strong>Chỉ CFG Scale</strong>
+          </div>
+        </div>
+
+        <!-- Interactive slider lab -->
+        <div class="lab-panel">
+          <p class="lab-heading" id="lab-heading">— THÍ NGHIỆM: ĐIỀU CHỈNH CFG SCALE</p>
+
+          <div class="prompt-studio">
+            <div class="scene-frame" id="cfg-scene" data-zone="balanced" role="img" aria-describedby="scene-description">
+              <div class="scene-world" aria-hidden="true">
+                <div class="scene-sky"></div>
+                <div class="scene-building left"></div>
+                <div class="scene-building right"></div>
+                <div class="scene-sign one"></div>
+                <div class="scene-sign two"></div>
+                <div class="scene-road"></div>
+                <div class="rain"></div>
+                <div class="motion-smear"></div>
+                <div class="paper-boat"></div>
+                <div class="artifact-birds">⌁⌁</div>
+                <div class="artifact-watermark">STOCK 04</div>
+                <div class="overcook-lines"></div>
+              </div>
+              <div class="scene-hud" aria-hidden="true">
+                <span class="scene-tag">Output mô phỏng</span>
+                <span class="scene-tag" id="scene-cfg-tag">CFG 7 · cân bằng</span>
+              </div>
+            </div>
+
+            <div class="studio-controls">
+              <span class="prompt-label">Positive prompt</span>
+              <p class="prompt-copy">“Orange paper boat drifting through a rain-soaked neon alley, low tracking shot, wet reflections, restrained cyan and amber palette”</p>
+              <fieldset class="negative-set">
+                <legend>Negative prompt · chọn hướng cần tránh</legend>
+                <div class="negative-chips">
+                  <button class="negative-chip" type="button" data-negative="blur" aria-pressed="false">motion blur</button>
+                  <button class="negative-chip" type="button" data-negative="watermark" aria-pressed="false">watermark</button>
+                  <button class="negative-chip" type="button" data-negative="birds" aria-pressed="false">extra objects</button>
+                </div>
+              </fieldset>
+              <p class="negative-live" id="negative-live" aria-live="polite"><strong>Negative đang trống.</strong> Ba lỗi mô phỏng vẫn xuất hiện trong output.</p>
+            </div>
+          </div>
+          <p class="section-intro" id="scene-description">Kéo CFG để so sánh độ tự do và độ bám prompt. CFG thấp làm chủ thể kém ổn định; vùng cân bằng giữ cảnh tự nhiên; CFG quá cao làm màu và cạnh bị xử lý quá mức. Sau đó bật từng negative token để thấy nó thay đổi hướng unconditional.</p>
+
+          <div class="preset-toolbar" aria-label="Preset theo giai đoạn sản xuất">
+            <button class="cfg-preset" type="button" data-cfg="4" aria-pressed="false">Khám phá style · CFG 4</button>
+            <button class="cfg-preset" type="button" data-cfg="7" aria-pressed="true">Duyệt shot · CFG 7</button>
+            <button class="cfg-preset" type="button" data-cfg="10" aria-pressed="false">Bám brief · CFG 10</button>
+          </div>
+
+          <div class="slider-row">
+            <label for="cfg-scale-input">CFG Scale</label>
+            <input
+              type="range"
+              id="cfg-scale-input"
+              class="cfg-slider"
+              min="1"
+              max="20"
+              value="7"
+              step="0.5"
+              aria-describedby="cfg-state-desc cfg-live-formula"
+              aria-valuetext="7 — Cân bằng tốt"
+            />
+            <output class="slider-value" for="cfg-scale-input" id="cfg-scale-output" aria-live="polite">7</output>
+          </div>
+
+          <!-- Spectrum bar -->
+          <div class="spectrum-bar" role="img" aria-label="Dải từ sáng tạo (trái) đến cứng nhắc (phải)">
+            <div class="spectrum-needle" id="spectrum-needle" aria-hidden="true"></div>
+          </div>
+          <div class="spectrum-labels" aria-hidden="true">
+            <span>Quá sáng tạo / random</span>
+            <span>Vùng tốt nhất (6–8)</span>
+            <span>Oversaturated / artifact</span>
+          </div>
+
+          <!-- State card -->
+          <div class="cfg-state" id="cfg-state" role="region" aria-labelledby="cfg-state-title" aria-describedby="cfg-state-desc">
+            <div class="cfg-state-label" id="cfg-state-label">TRẠNG THÁI</div>
+            <div class="cfg-state-title" id="cfg-state-title">Cân bằng tốt</div>
+            <p class="cfg-state-desc" id="cfg-state-desc">Scale 6–8 thường cho chất lượng tốt nhất: bám prompt đủ mạnh mà không gây ra artifact hay màu quá bão hoà.</p>
+          </div>
+
+          <!-- Live formula -->
+          <div class="formula-live" id="cfg-live-formula" aria-live="polite" aria-label="Công thức CFG với giá trị hiện tại">
+            ε̂ = <span class="fv-unc">ε<sub>unc</sub></span> + <span class="fv-scale" id="fv-scale-val">7.0</span> × (<span class="fv-cond">ε<sub>cond</sub></span> − <span class="fv-unc">ε<sub>unc</sub></span>)
+          </div>
+          <p class="model-caveat"><strong>Kiểm tra model card trước khi dùng con số này.</strong> Các vùng CFG trong Lab minh họa workflow CFG truyền thống; model distilled hoặc guidance-embedded có thể dùng scale rất thấp, thậm chí gần 1.</p>
+        </div>
+
+        <!-- Static comparison table -->
+        <details>
+          <summary class="details-summary">Xem bảng tham khảo CFG Scale theo use-case ↓</summary>
+          <div class="cfg-table-wrap">
+            <table class="cfg-table">
+              <thead>
+                <tr>
+                  <th>Scale</th>
+                  <th>Đặc điểm</th>
+                  <th>Dùng khi</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="scale-cell scale-orange">1–3</td>
+                  <td class="td-muted">Rất sáng tạo, ít bám prompt</td>
+                  <td class="td-muted">Khám phá ý tưởng mới, style tự do</td>
+                </tr>
+                <tr>
+                  <td class="scale-cell scale-acid">4–5</td>
+                  <td class="td-muted">Cân bằng, vẫn còn linh hoạt</td>
+                  <td class="td-muted">Khi muốn prompt có tác động nhưng không cứng</td>
+                </tr>
+                <tr class="row-sweet">
+                  <td class="scale-cell scale-acid">6–8 ✦</td>
+                  <td class="td-muted">Điểm ngọt — chất lượng tốt nhất</td>
+                  <td class="td-muted">Hầu hết các trường hợp thông thường</td>
+                </tr>
+                <tr>
+                  <td class="scale-cell scale-cyan">9–12</td>
+                  <td class="td-muted">Bám prompt chặt, ít sáng tạo</td>
+                  <td class="td-muted">Khi prompt cần được thực hiện chính xác</td>
+                </tr>
+                <tr>
+                  <td class="scale-cell scale-red">13–20</td>
+                  <td class="td-muted">Oversaturated, artifact, mất tự nhiên</td>
+                  <td class="td-muted">Tránh trừ khi cố ý tạo hiệu ứng cực đoan</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- ── Section 3: CFG Schedule ── -->
+    <section class="section" id="cfg-schedule" aria-labelledby="s3-heading">
+      <div class="shell">
+        <p class="section-index">03 — CFG SCHEDULE</p>
+        <h2 id="s3-heading">CFG Schedule — Thay đổi guidance theo thời gian</h2>
+        <p class="section-intro">
+          Thay vì dùng một CFG Scale cố định cho toàn bộ quá trình, CFG Schedule cho phép thay đổi giá trị này theo từng timestep — kiểm soát tinh tế hơn giữa hình dáng tổng thể và chi tiết.
+        </p>
+
+        <div class="def-panel">
+          <strong>Nguyên lý</strong>
+          <p>
+            Các bước đầu trong diffusion sampling xây dựng cấu trúc tổng thể (composition, shape). Các bước cuối tinh chỉnh chi tiết và texture. CFG Schedule khai thác điều này: CFG cao ở bước đầu để bám prompt chặt về nội dung, rồi giảm dần để chi tiết tự nhiên hơn.
+          </p>
+        </div>
+
+        <div class="schedule-diagram" role="img" aria-label="So sánh CFG không đổi với CFG giảm dần theo timestep">
+          <div class="schedule-card">
+            <h3>CFG Scale cố định</h3>
+            <p>Cùng một giá trị cho toàn bộ quá trình sampling.</p>
+            <div class="schedule-bar-group" aria-label="Tất cả các bước đều ở CFG = 7">
+              <div class="schedule-bar-row">
+                <span class="schedule-bar-label">T=1</span>
+                <div class="schedule-bar-track"><div class="schedule-bar-fill w-60"></div></div>
+              </div>
+              <div class="schedule-bar-row">
+                <span class="schedule-bar-label">T=5</span>
+                <div class="schedule-bar-track"><div class="schedule-bar-fill w-60"></div></div>
+              </div>
+              <div class="schedule-bar-row">
+                <span class="schedule-bar-label">T=10</span>
+                <div class="schedule-bar-track"><div class="schedule-bar-fill w-60"></div></div>
+              </div>
+              <div class="schedule-bar-row">
+                <span class="schedule-bar-label">T=15</span>
+                <div class="schedule-bar-track"><div class="schedule-bar-fill w-60"></div></div>
+              </div>
+              <div class="schedule-bar-row">
+                <span class="schedule-bar-label">T=20</span>
+                <div class="schedule-bar-track"><div class="schedule-bar-fill w-60"></div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="schedule-card">
+            <h3>CFG Schedule giảm dần</h3>
+            <p>CFG cao đầu → bám prompt tổng thể; giảm dần → chi tiết tự nhiên.</p>
+            <div class="schedule-bar-group" aria-label="CFG giảm dần từ cao đến thấp theo timestep">
+              <div class="schedule-bar-row">
+                <span class="schedule-bar-label">T=1</span>
+                <div class="schedule-bar-track"><div class="schedule-bar-fill w-95 sbf-cyan"></div></div>
+              </div>
+              <div class="schedule-bar-row">
+                <span class="schedule-bar-label">T=5</span>
+                <div class="schedule-bar-track"><div class="schedule-bar-fill w-80 sbf-cyan"></div></div>
+              </div>
+              <div class="schedule-bar-row">
+                <span class="schedule-bar-label">T=10</span>
+                <div class="schedule-bar-track"><div class="schedule-bar-fill w-60 sbf-acid"></div></div>
+              </div>
+              <div class="schedule-bar-row">
+                <span class="schedule-bar-label">T=15</span>
+                <div class="schedule-bar-track"><div class="schedule-bar-fill w-38 sbf-acid"></div></div>
+              </div>
+              <div class="schedule-bar-row">
+                <span class="schedule-bar-label">T=20</span>
+                <div class="schedule-bar-track"><div class="schedule-bar-fill w-18 sbf-orange"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <details>
+          <summary class="details-summary">Tại sao CFG Schedule hữu ích trong video generation? ↓</summary>
+          <div class="details-body">
+            <p>Trong video generation, các frame cần nhất quán về nội dung và motion. CFG cao ở bước đầu giúp tất cả frame đều bắt đầu từ cùng một "hướng" theo prompt. Khi CFG giảm dần, model có không gian tạo ra chuyển động và chi tiết tự nhiên hơn mà không bị "kẹt" bởi guidance quá mạnh.</p>
+            <p>Một số schedule phổ biến: <strong>tuyến tính</strong> (giảm đều), <strong>cosine</strong> (giảm chậm đầu rồi nhanh), <strong>stepped</strong> (giảm theo bước nhảy).</p>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- ── Section 4: Negative Prompt ── -->
+    <section class="section" id="negative-prompt" aria-labelledby="s4-heading">
+      <div class="shell">
+        <p class="section-index">04 — NEGATIVE PROMPT</p>
+        <h2 id="s4-heading">Negative Prompt — Hướng output ra xa điều không muốn</h2>
+        <p class="section-intro">
+          Phần "unconditional" trong công thức CFG không nhất thiết phải để trống. Ta có thể thay bằng một negative prompt để đẩy output ra xa những nội dung không mong muốn.
+        </p>
+
+        <div class="neg-grid">
+          <div class="neg-card no-neg">
+            <div class="neg-type">KHÔNG CÓ NEGATIVE PROMPT</div>
+            <h3>Unconditional rỗng</h3>
+            <p>ε<sub>unc</sub> được tính với empty string. Model tránh xa "không có gì" — ít định hướng hơn về những gì cần loại bỏ.</p>
+          </div>
+          <div class="neg-card has-neg">
+            <div class="neg-type neg-type-orange">CÓ NEGATIVE PROMPT</div>
+            <h3>Unconditional = negative text</h3>
+            <p>ε<sub>unc</sub> được tính với negative prompt (VD: "blurry, low quality, distorted"). Model tránh xa hướng đó — output rõ hơn, ít artifact hơn.</p>
+          </div>
+        </div>
+
+        <div class="def-panel def-panel-orange">
+          <strong>Công thức khi có Negative Prompt</strong>
+          <p>
+            ε̂ = ε<sub><em>neg</em></sub> + w × (ε<sub>cond</sub> − ε<sub><em>neg</em></sub>)<br/>
+            Thay vì dùng ε<sub>unc</sub>, model dùng noise prediction từ negative prompt làm điểm "đẩy ra xa".
+          </p>
+        </div>
+
+        <div class="checkpoint">
+          <fieldset>
+            <legend>Checkpoint: Output bám đúng nội dung nhưng màu gắt, cạnh cứng và motion thiếu tự nhiên. Bạn thử gì trước?</legend>
+            <p>Chọn thay đổi trực tiếp xử lý nguyên nhân, không chỉ che triệu chứng.</p>
+            <div class="answer-row">
+              <button class="answer-button" type="button" data-answer="raise" aria-pressed="false">Tăng CFG lên nữa</button>
+              <button class="answer-button" type="button" data-answer="lower" aria-pressed="false">Giảm CFG hoặc dùng schedule giảm dần</button>
+              <button class="answer-button" type="button" data-answer="negative" aria-pressed="false">Thêm “cinematic” vào negative prompt</button>
+            </div>
+            <p class="answer-feedback" id="answer-feedback" aria-live="polite">Chọn một phương án để xem giải thích.</p>
+          </fieldset>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Section 5: Tổng kết ── -->
+    <section class="section" id="takeaways" aria-labelledby="s5-heading">
+      <div class="shell">
+        <p class="section-index">05 — TỔNG KẾT</p>
+        <h2 id="s5-heading">Những điều cần nhớ</h2>
+        <div class="takeaways">
+          <div class="takeaway-item">
+            <div class="takeaway-num" aria-hidden="true">1</div>
+            <p class="takeaway-text"><strong>CFG chạy model hai lần</strong> mỗi bước: một lần có prompt (conditional), một lần không (unconditional). Kết quả = unconditional + scale × (conditional − unconditional).</p>
+          </div>
+          <div class="takeaway-item">
+            <div class="takeaway-num" aria-hidden="true">2</div>
+            <p class="takeaway-text"><strong>CFG Scale 6–8 thường là điểm tốt nhất</strong> cho hầu hết trường hợp. Thấp hơn cho phép sáng tạo; cao hơn buộc bám prompt nhưng dễ sinh artifact và màu bão hoà.</p>
+          </div>
+          <div class="takeaway-item">
+            <div class="takeaway-num" aria-hidden="true">3</div>
+            <p class="takeaway-text"><strong>CFG Schedule</strong> cho phép thay đổi scale theo timestep — CFG cao ở bước đầu giúp định hình nội dung, giảm dần để chi tiết và chuyển động tự nhiên hơn.</p>
+          </div>
+          <div class="takeaway-item">
+            <div class="takeaway-num" aria-hidden="true">4</div>
+            <p class="takeaway-text"><strong>Negative prompt</strong> thay thế phần unconditional, đẩy output ra xa những nội dung không mong muốn thay vì chỉ "không có định hướng".</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="related-lessons" aria-labelledby="related-heading">
+      <div class="shell">
+        <p class="section-index">06 — ĐI TIẾP THEO KIẾN THỨC</p>
+        <h2 id="related-heading">Bài liên quan</h2>
+        <p class="section-intro">CFG nối trực tiếp text encoder với đường sampling. Ba bài này giúp bạn biết prompt được mã hóa ra sao và guidance tác động ở đâu.</p>
+        <nav class="related-grid" aria-label="Các bài học liên quan đến CFG">
+          <a class="related-card" href="video-generation-part-1-lesson-3.html">
+            <span class="related-kicker">CLIP · Text embedding</span>
+            <strong>Prompt trở thành vector điều kiện thế nào?</strong>
+            <small>Hiểu đầu vào conditional trước khi CFG khuếch đại chênh lệch.</small>
+          </a>
+          <a class="related-card" href="video-generation-part-1-lesson-5.html">
+            <span class="related-kicker">Cross-Attention</span>
+            <strong>Vị trí text tác động lên latent</strong>
+            <small>Theo dấu token khi chúng điều hướng chủ thể, bố cục và texture.</small>
+          </a>
+          <a class="related-card" href="video-generation-part-7-lesson-1.html">
+            <span class="related-kicker">Positive · Negative Prompt</span>
+            <strong>Viết hai hướng guidance có chủ đích</strong>
+            <small>Chuyển hiểu biết CFG thành prompt thực hành, tránh danh sách negative vô tội vạ.</small>
+          </a>
+        </nav>
+      </div>
+    </section>
+
+    <!-- ── Lesson navigation ── -->
+    <div class="shell">
+      <nav class="lesson-nav" aria-label="Điều hướng bài học">
+        <a href="video-generation-part-2-lesson-3.html" class="button">← Bài 3: Sampler</a>
+        <span class="lesson-nav-label">BÀI 4 / 6</span>
+        <a href="video-generation-part-2-lesson-5.html" class="button primary">Bài 5: Context Window →</a>
+      </nav>
+    </div>
+
+  </main>
+
+  <!-- ── Footer ── -->
+  <footer role="contentinfo">
+    <div class="shell">
+      <div class="footer-inner">
+        <span class="footer-brand">VIDEO GEN LAB</span>
+        <span class="footer-copy">Phần 2 · Bài 4 — CFG & Prompt Adherence</span>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    /* ── Reading progress ── */
+    (() => {
+      const fill = document.getElementById('reading-progress');
+      const bar = fill?.closest('[role="progressbar"]');
+      if (!fill) return;
+      const update = () => {
+        const scrollable = document.documentElement.scrollHeight - window.innerHeight;
+        const pct = scrollable > 0 ? Math.round((window.scrollY / scrollable) * 100) : 0;
+        fill.style.width = pct + '%';
+        if (bar) bar.setAttribute('aria-valuenow', pct);
+      };
+      window.addEventListener('scroll', update, { passive: true });
+      update();
+    })();
+
+    /* ── CFG Slider ── */
+    (() => {
+      const slider = document.getElementById('cfg-scale-input');
+      const output = document.getElementById('cfg-scale-output');
+      const needle = document.getElementById('spectrum-needle');
+      const stateTitle = document.getElementById('cfg-state-title');
+      const stateDesc = document.getElementById('cfg-state-desc');
+      const stateBox = document.getElementById('cfg-state');
+      const fvScale = document.getElementById('fv-scale-val');
+      const scene = document.getElementById('cfg-scene');
+      const sceneTag = document.getElementById('scene-cfg-tag');
+      const presetButtons = [...document.querySelectorAll('.cfg-preset')];
+      let previousZone = '';
+      if (!slider) return;
+
+      const states = [
+        {
+          min: 1, max: 3,
+          title: 'Quá sáng tạo / Random',
+          desc: 'Model gần như bỏ qua prompt. Output đa dạng nhưng khó kiểm soát nội dung. Thích hợp để khám phá hoặc tạo variation tự do.',
+          borderColor: 'var(--orange)'
+        },
+        {
+          min: 4, max: 5,
+          title: 'Linh hoạt, vẫn có định hướng',
+          desc: 'Prompt có tác động rõ nhưng model còn nhiều tự do. Tốt khi muốn kết quả mang tính nghệ thuật và không quá cứng nhắc.',
+          borderColor: 'var(--acid)'
+        },
+        {
+          min: 6, max: 8,
+          title: 'Vùng tốt nhất (Sweet Spot)',
+          desc: 'Scale 6–8 thường cho chất lượng tốt nhất: bám prompt đủ mạnh mà không gây ra artifact hay màu quá bão hoà. Dùng cho hầu hết trường hợp.',
+          borderColor: 'var(--acid)'
+        },
+        {
+          min: 9, max: 12,
+          title: 'Bám prompt chặt',
+          desc: 'Model theo sát prompt, ít sáng tạo hơn. Chi tiết bắt đầu cứng và "overprocessed". Dùng khi cần thực hiện prompt chính xác.',
+          borderColor: 'var(--cyan)'
+        },
+        {
+          min: 13, max: 20,
+          title: 'Oversaturated / Artifact',
+          desc: 'CFG quá cao gây bão hoà màu, artifact, mất chi tiết tự nhiên. Chỉ dùng cố ý cho hiệu ứng cực đoan hoặc thử nghiệm.',
+          borderColor: 'var(--red)'
+        }
+      ];
+
+      const getState = (val) => states.find(s => val >= s.min && val <= s.max) || states[2];
+
+      const update = () => {
+        const val = parseFloat(slider.value);
+        const min = parseFloat(slider.min);
+        const max = parseFloat(slider.max);
+        const pct = (val - min) / (max - min);
+
+        output.textContent = val % 1 === 0 ? val : val.toFixed(1);
+        fvScale.textContent = val % 1 === 0 ? val + '.0' : val.toFixed(1);
+
+        // Needle position (with padding for thumb edges)
+        if (needle) needle.style.left = `calc(${pct * 100}% - ${(pct - 0.5) * 20}px)`;
+
+        const state = getState(val);
+        stateTitle.textContent = state.title;
+        stateDesc.textContent = state.desc;
+        stateBox.style.borderColor = state.borderColor;
+
+        slider.setAttribute('aria-valuetext', `${val} — ${state.title}`);
+
+        let zone = 'balanced';
+        let blur = 0;
+        let saturation = 1;
+        let contrast = 1;
+        if (val <= 3) {
+          zone = 'low'; blur = 1.6; saturation = .72; contrast = .88;
+        } else if (val <= 5) {
+          zone = 'flexible'; blur = .55; saturation = .9; contrast = .96;
+        } else if (val <= 8) {
+          zone = 'balanced';
+        } else if (val <= 12) {
+          zone = 'guided'; saturation = 1.18; contrast = 1.08;
+        } else {
+          zone = 'high'; saturation = 1.62; contrast = 1.3;
+        }
+        scene.dataset.zone = zone;
+        scene.style.setProperty('--scene-blur', `${blur}px`);
+        scene.style.setProperty('--scene-saturation', saturation);
+        scene.style.setProperty('--scene-contrast', contrast);
+        sceneTag.textContent = `CFG ${val} · ${state.title.replace(' (Sweet Spot)', '').toLowerCase()}`;
+        if (previousZone && previousZone !== zone) {
+          scene.classList.remove('is-switching');
+          void scene.offsetWidth;
+          scene.classList.add('is-switching');
+        }
+        previousZone = zone;
+        presetButtons.forEach((button) => {
+          button.setAttribute('aria-pressed', String(Number(button.dataset.cfg) === val));
+        });
+      };
+
+      slider.addEventListener('input', update);
+      presetButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+          slider.value = button.dataset.cfg;
+          update();
+          slider.focus();
+        });
+      });
+      update();
+    })();
+
+    /* ── Negative prompt simulator ── */
+    (() => {
+      const scene = document.getElementById('cfg-scene');
+      const buttons = [...document.querySelectorAll('.negative-chip')];
+      const live = document.getElementById('negative-live');
+      const labels = { blur: 'motion blur', watermark: 'watermark', birds: 'extra objects' };
+      if (!scene || !live) return;
+
+      const sync = () => {
+        const selected = buttons.filter(button => button.getAttribute('aria-pressed') === 'true').map(button => button.dataset.negative);
+        scene.classList.toggle('remove-blur', selected.includes('blur'));
+        scene.classList.toggle('remove-watermark', selected.includes('watermark'));
+        scene.classList.toggle('remove-birds', selected.includes('birds'));
+        live.innerHTML = selected.length
+          ? `<strong>Đang đẩy ra xa:</strong> ${selected.map(key => labels[key]).join(', ')}. Đây là mô phỏng xu hướng; negative prompt giảm xác suất, không cam kết xóa tuyệt đối.`
+          : '<strong>Negative đang trống.</strong> Ba lỗi mô phỏng vẫn xuất hiện trong output.';
+      };
+
+      buttons.forEach(button => {
+        button.addEventListener('click', () => {
+          button.setAttribute('aria-pressed', String(button.getAttribute('aria-pressed') !== 'true'));
+          sync();
+        });
+      });
+      sync();
+    })();
+
+    /* ── Learning checkpoint ── */
+    (() => {
+      const buttons = [...document.querySelectorAll('.answer-button')];
+      const feedback = document.getElementById('answer-feedback');
+      if (!feedback) return;
+      buttons.forEach(button => {
+        button.addEventListener('click', () => {
+          const correct = button.dataset.answer === 'lower';
+          buttons.forEach(item => {
+            item.dataset.state = item === button ? (correct ? 'correct' : 'wrong') : '';
+            item.setAttribute('aria-pressed', String(item === button));
+          });
+          feedback.innerHTML = correct
+            ? '<strong>Đúng.</strong> Đây là dấu hiệu guidance quá mạnh. Giảm CFG hoặc giảm dần ở các bước cuối trả lại không gian cho texture và motion tự nhiên.'
+            : '<strong>Chưa đúng nguyên nhân.</strong> Tăng CFG sẽ khuếch đại lỗi; còn negative prompt không phải nút sửa chung cho hiện tượng over-guidance.';
+        });
+      });
+    })();
+
+    /* ── Focused entrance motion ── */
+    (() => {
+      const items = [...document.querySelectorAll('.two-pass, .production-strip, .prompt-studio, .schedule-diagram, .related-card')];
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduceMotion || !('IntersectionObserver' in window)) {
+        items.forEach((item) => item.classList.add('is-visible'));
+        return;
+      }
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          entry.target.classList.add('is-visible');
+          observer.unobserve(entry.target);
+        });
+      }, { threshold: .14 });
+      items.forEach((item) => {
+        item.classList.add('reveal-item');
+        observer.observe(item);
+      });
+    })();
+  </script>
+</body>
+</html>

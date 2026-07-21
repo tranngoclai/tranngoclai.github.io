@@ -1,0 +1,1418 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Hiểu Positive Prompt và Negative Prompt trong AI video generation: cách diffusion model dùng CFG để hướng tới hoặc tránh xa các đặc điểm, và cách viết prompt hiệu quả với ComfyUI/Wan2.2.">
+  <title>Positive &amp; Negative Prompt — Video Generation Study</title>
+  <link rel="icon" href="video-generation-favicon.svg" type="image/svg+xml">
+  <script src="video-generation-theme.js"></script>
+  <link rel="stylesheet" href="video-generation-design-system.css">
+  <style>
+    /* ── Hero ─────────────────────────────────────────────── */
+    .lesson-hero {
+      padding: clamp(72px, 11vw, 132px) 0 clamp(64px, 9vw, 108px);
+      border-bottom: 1px solid var(--line);
+    }
+    .eyebrow {
+      margin: 0;
+      color: var(--cyan);
+      font-family: var(--font-mono);
+      font-size: .75rem;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(260px, .6fr);
+      gap: clamp(36px, 7vw, 96px);
+      align-items: end;
+    }
+    h1 {
+      max-width: 860px;
+      margin: 18px 0 24px;
+      font-size: clamp(3.2rem, 8.5vw, 7.2rem);
+      line-height: .88;
+      letter-spacing: -.07em;
+    }
+    .hero-lead {
+      max-width: 660px;
+      margin: 0;
+      color: var(--muted);
+      font-size: clamp(1.05rem, 2vw, 1.28rem);
+    }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; }
+
+    /* Hero diagram: two-pill CFG visual */
+    .cfg-diagram {
+      position: relative;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 28px 24px;
+      background: var(--panel);
+      box-shadow: 12px 12px 0 color-mix(in srgb, var(--acid) 10%, transparent);
+      overflow: hidden;
+    }
+    .cfg-diagram::after {
+      content: "";
+      position: absolute;
+      right: -30px; bottom: -30px;
+      width: 110px; aspect-ratio: 1;
+      border: 16px solid color-mix(in srgb, var(--cyan) 15%, transparent);
+      border-radius: 50%;
+    }
+    .cfg-label {
+      margin: 0 0 16px;
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+    .cfg-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .cfg-pill {
+      flex: 1;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-radius: 999px;
+      padding: 8px 16px;
+      font-family: var(--font-mono);
+      font-size: .8rem;
+      font-weight: 800;
+    }
+    .cfg-pill.pos {
+      background: color-mix(in srgb, var(--acid-fill) 14%, transparent);
+      border: 1.5px solid color-mix(in srgb, var(--acid-fill) 50%, transparent);
+      color: var(--acid);
+    }
+    .cfg-pill.neg {
+      background: color-mix(in srgb, var(--red) 10%, transparent);
+      border: 1.5px dashed color-mix(in srgb, var(--red) 45%, transparent);
+      color: var(--red);
+    }
+    .cfg-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .cfg-dot.pos { background: var(--acid-fill); }
+    .cfg-dot.neg { background: var(--red); }
+    .cfg-arrow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      font-size: 1rem;
+    }
+    .cfg-output {
+      margin-top: 14px;
+      padding: 10px 16px;
+      border-radius: 12px;
+      background: color-mix(in srgb, var(--cyan) 8%, transparent);
+      border: 1px solid color-mix(in srgb, var(--cyan) 25%, transparent);
+      font-family: var(--font-mono);
+      font-size: .75rem;
+      color: var(--cyan);
+      text-align: center;
+    }
+
+    /* ── Shared section ───────────────────────────────────── */
+    .lesson-section {
+      padding: clamp(72px, 10vw, 120px) 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .section-index {
+      margin: 0;
+      color: var(--cyan);
+      font-family: var(--font-mono);
+      font-size: .75rem;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    .section-head { max-width: 760px; margin-bottom: 42px; }
+    .section-head h2 {
+      margin: 12px 0 14px;
+      font-size: clamp(2.1rem, 5vw, 4rem);
+      line-height: .98;
+      letter-spacing: -.05em;
+    }
+    .section-lead { margin: 0; color: var(--muted); font-size: 1.05rem; max-width: 640px; }
+
+    /* ── Definition panels ────────────────────────────────── */
+    .def-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    .def-panel {
+      border-radius: var(--radius);
+      padding: 28px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      position: relative;
+      overflow: hidden;
+    }
+    .def-panel::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 4px;
+      border-radius: 4px 0 0 4px;
+    }
+    .def-panel.positive::before { background: var(--acid-fill); }
+    .def-panel.negative::before { background: var(--red); }
+    .def-panel-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 14px;
+      font-family: var(--font-mono);
+      font-size: .7rem;
+      font-weight: 800;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+    .def-panel.positive .def-panel-tag { color: var(--acid); }
+    .def-panel.negative .def-panel-tag { color: var(--red); }
+    .def-panel h3 { margin: 0 0 10px; font-size: 1.35rem; letter-spacing: -.03em; }
+    .def-panel p { margin: 0; color: var(--muted); font-size: .95rem; line-height: 1.7; }
+
+    /* CFG explanation block */
+    .cfg-explain {
+      margin-top: 28px;
+      padding: 24px 28px;
+      border-radius: 16px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+    }
+    .cfg-explain-label {
+      margin: 0 0 8px;
+      font-family: var(--font-mono);
+      font-size: .7rem;
+      font-weight: 800;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+    .cfg-formula {
+      font-family: var(--font-mono);
+      font-size: clamp(1rem, 2.5vw, 1.4rem);
+      font-weight: 800;
+      color: var(--ink);
+      margin: 0 0 10px;
+      line-height: 1.5;
+    }
+    .cfg-formula span.pos { color: var(--acid); }
+    .cfg-formula span.neg { color: var(--red); }
+    .cfg-formula span.cfg { color: var(--cyan); }
+    .cfg-explain p { margin: 0; color: var(--muted); font-size: .92rem; }
+
+    /* ── Comparison section ───────────────────────────────── */
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    .compare-card {
+      border-radius: var(--radius);
+      padding: 28px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+    }
+    .compare-card-label {
+      font-family: var(--font-mono);
+      font-size: .7rem;
+      font-weight: 800;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      margin: 0 0 16px;
+    }
+    .compare-card.good .compare-card-label { color: var(--acid); }
+    .compare-card.bad .compare-card-label { color: var(--red); }
+    .prompt-box {
+      padding: 16px;
+      border-radius: 12px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      font-family: var(--font-mono);
+      font-size: .83rem;
+      line-height: 1.7;
+      color: var(--ink);
+      margin-bottom: 14px;
+    }
+    .prompt-box.neg-prompt {
+      border-style: dashed;
+    }
+    .token { display: inline; border-radius: 4px; padding: 1px 5px; margin: 1px; }
+    .token-subject { background: color-mix(in srgb, var(--cyan) 15%, transparent); color: var(--cyan); }
+    .token-style   { background: color-mix(in srgb, var(--acid) 12%, transparent); color: var(--acid); }
+    .token-quality { background: color-mix(in srgb, var(--orange) 12%, transparent); color: var(--orange); }
+    .token-motion  { background: color-mix(in srgb, #a78fff 12%, transparent); color: #a78fff; }
+    .token-bad     { background: color-mix(in srgb, var(--red) 12%, transparent); color: var(--red); }
+
+    .compare-note { margin: 0; color: var(--muted); font-size: .88rem; line-height: 1.65; }
+    .compare-outcome {
+      margin-top: 12px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: .85rem;
+      font-weight: 700;
+    }
+    .compare-card.good .compare-outcome {
+      background: color-mix(in srgb, var(--acid-fill) 10%, transparent);
+      color: var(--acid);
+      border: 1px solid color-mix(in srgb, var(--acid-fill) 25%, transparent);
+    }
+    .compare-card.bad .compare-outcome {
+      background: color-mix(in srgb, var(--red) 10%, transparent);
+      color: var(--red);
+      border: 1px solid color-mix(in srgb, var(--red) 25%, transparent);
+    }
+
+    /* Token legend */
+    .token-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 28px;
+    }
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-mono);
+      font-size: .7rem;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .legend-swatch { width: 10px; height: 10px; border-radius: 3px; }
+    .legend-item.subject .legend-swatch { background: var(--cyan); }
+    .legend-item.style   .legend-swatch { background: var(--acid-fill); }
+    .legend-item.quality .legend-swatch { background: var(--orange); }
+    .legend-item.motion  .legend-swatch { background: #a78fff; }
+    .legend-item.bad     .legend-swatch { background: var(--red); }
+
+    /* ── Anatomy section ─────────────────────────────────── */
+    .anatomy-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 28px;
+    }
+    .anatomy-card {
+      border-radius: var(--radius);
+      padding: 28px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+    }
+    .anatomy-card-title {
+      font-family: var(--font-mono);
+      font-size: .7rem;
+      font-weight: 800;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      margin: 0 0 18px;
+    }
+    .anatomy-card.pos .anatomy-card-title { color: var(--acid); }
+    .anatomy-card.neg .anatomy-card-title { color: var(--red); }
+    .anatomy-row {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .anatomy-row:last-child { margin-bottom: 0; }
+    .anatomy-part-name {
+      flex-shrink: 0;
+      width: 90px;
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+    .anatomy-part-name.subject { color: var(--cyan); }
+    .anatomy-part-name.style   { color: var(--acid); }
+    .anatomy-part-name.quality { color: var(--orange); }
+    .anatomy-part-name.motion  { color: #a78fff; }
+    .anatomy-part-name.bad     { color: var(--red); }
+    .anatomy-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .chip {
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .chip.subject { background: color-mix(in srgb, var(--cyan) 12%, transparent); color: var(--cyan); border: 1px solid color-mix(in srgb, var(--cyan) 30%, transparent); }
+    .chip.style   { background: color-mix(in srgb, var(--acid) 10%, transparent); color: var(--acid); border: 1px solid color-mix(in srgb, var(--acid) 28%, transparent); }
+    .chip.quality { background: color-mix(in srgb, var(--orange) 10%, transparent); color: var(--orange); border: 1px solid color-mix(in srgb, var(--orange) 28%, transparent); }
+    .chip.motion  { background: color-mix(in srgb, #a78fff 10%, transparent); color: #a78fff; border: 1px solid color-mix(in srgb, #a78fff 28%, transparent); }
+    .chip.bad     { background: color-mix(in srgb, var(--red) 10%, transparent); color: var(--red); border: 1px solid color-mix(in srgb, var(--red) 28%, transparent); }
+
+    /* ── Interactive lab ─────────────────────────────────── */
+    .lab-frame {
+      border-radius: var(--radius);
+      background: var(--panel);
+      border: 1px solid var(--line);
+      overflow: hidden;
+    }
+    .lab-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel-2);
+    }
+    .lab-header-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--acid-fill);
+      box-shadow: 0 0 12px color-mix(in srgb, var(--acid-fill) 60%, transparent);
+    }
+    .lab-title {
+      font-family: var(--font-mono);
+      font-size: .75rem;
+      font-weight: 800;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--ink);
+    }
+    .lab-body { padding: 28px; }
+    .lab-inputs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+    .lab-field label {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: .7rem;
+      font-weight: 800;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .lab-field.pos label { color: var(--acid); }
+    .lab-field.neg label { color: var(--red); }
+    .lab-textarea {
+      width: 100%;
+      min-height: 110px;
+      border-radius: 12px;
+      border: 1.5px solid var(--line);
+      background: var(--panel-2);
+      color: var(--ink);
+      font-family: var(--font-mono);
+      font-size: .85rem;
+      line-height: 1.6;
+      padding: 14px 16px;
+      resize: vertical;
+      transition: border-color .2s;
+    }
+    .lab-textarea:focus {
+      outline: none;
+      border-color: var(--cyan);
+    }
+    .lab-field.neg .lab-textarea:focus { border-color: var(--red); }
+    .lab-textarea:focus-visible {
+      outline: 3px solid var(--cyan);
+      outline-offset: 3px;
+    }
+    .lab-field.neg .lab-textarea:focus-visible { outline-color: var(--red); }
+    .lab-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    .lab-btn-analyze {
+      min-height: 48px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      border: 1px solid var(--acid-fill);
+      border-radius: 999px;
+      padding: 11px 24px;
+      background: var(--acid-fill);
+      color: #111;
+      font-family: var(--font-sans);
+      font-weight: 800;
+      font-size: .9rem;
+      cursor: pointer;
+      transition: background .2s, border-color .2s;
+    }
+    .lab-btn-analyze:hover { background: #dcff82; }
+    .lab-btn-reset {
+      min-height: 48px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 11px 20px;
+      background: var(--panel);
+      color: var(--muted);
+      font-family: var(--font-sans);
+      font-weight: 700;
+      font-size: .9rem;
+      cursor: pointer;
+      transition: background .2s, color .2s, border-color .2s;
+    }
+    .lab-btn-reset:hover { color: var(--ink); border-color: var(--dim); background: var(--panel-2); }
+
+    /* Analysis output */
+    .lab-output {
+      display: none;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      overflow: hidden;
+    }
+    .lab-output.visible { display: block; }
+    .output-header {
+      padding: 12px 20px;
+      background: var(--panel-2);
+      border-bottom: 1px solid var(--line);
+      font-family: var(--font-mono);
+      font-size: .7rem;
+      font-weight: 800;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+    .output-body { padding: 20px; }
+    .analysis-section { margin-bottom: 18px; }
+    .analysis-section:last-child { margin-bottom: 0; }
+    .analysis-label {
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      font-weight: 800;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .analysis-tokens {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .analysis-empty {
+      color: var(--dim);
+      font-style: italic;
+      font-size: .85rem;
+    }
+    .analysis-note {
+      margin: 0;
+      color: var(--muted);
+      font-size: .85rem;
+      line-height: 1.6;
+    }
+    .analysis-warning {
+      margin-top: 10px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--orange) 10%, transparent);
+      border: 1px solid color-mix(in srgb, var(--orange) 28%, transparent);
+      color: var(--orange);
+      font-size: .82rem;
+    }
+    .analysis-tip {
+      margin-top: 10px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--cyan) 8%, transparent);
+      border: 1px solid color-mix(in srgb, var(--cyan) 22%, transparent);
+      color: var(--cyan);
+      font-size: .82rem;
+    }
+    .live-preview-tokens {
+      margin-top: 12px;
+      padding: 14px 16px;
+      background: var(--panel-2);
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      font-family: var(--font-mono);
+      font-size: .83rem;
+      line-height: 1.9;
+    }
+
+    /* ── Takeaway section ─────────────────────────────────── */
+    .takeaway-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .takeaway-list li {
+      display: flex;
+      gap: 16px;
+      align-items: baseline;
+      padding: 20px 24px;
+      border-radius: 14px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+    }
+    .takeaway-num {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: color-mix(in srgb, var(--acid-fill) 14%, transparent);
+      color: var(--acid);
+      font-family: var(--font-mono);
+      font-size: .8rem;
+      font-weight: 800;
+      margin-top: 2px;
+    }
+    .takeaway-list li p { margin: 0; font-size: .97rem; line-height: 1.7; color: var(--muted); }
+    .takeaway-list li strong { color: var(--ink); }
+
+    /* FAQ disclosure */
+    .faq-list { display: flex; flex-direction: column; gap: 10px; margin-top: 28px; }
+    .faq-list details {
+      border-radius: 14px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      overflow: hidden;
+    }
+    .faq-list summary {
+      padding: 18px 22px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: .97rem;
+      list-style: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    .faq-list summary::-webkit-details-marker { display: none; }
+    .faq-arrow {
+      flex-shrink: 0;
+      color: var(--dim);
+      transition: transform .2s;
+      font-style: normal;
+    }
+    details[open] .faq-arrow { transform: rotate(180deg); }
+    .faq-list details > div {
+      padding: 0 22px 20px;
+      color: var(--muted);
+      font-size: .93rem;
+      line-height: 1.7;
+    }
+    .faq-list details > div p { margin: 0 0 10px; }
+    .faq-list details > div p:last-child { margin: 0; }
+
+    /* ── Lesson nav ───────────────────────────────────────── */
+    .lesson-nav {
+      padding: clamp(48px, 7vw, 80px) 0;
+    }
+    .lesson-nav-inner {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .nav-part-label {
+      font-family: var(--font-mono);
+      font-size: .7rem;
+      font-weight: 800;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-bottom: 6px;
+    }
+    .nav-next { text-align: right; }
+
+    /* ── Footer ───────────────────────────────────────────── */
+    .site-footer {
+      border-top: 1px solid var(--line);
+      padding: clamp(32px, 5vw, 56px) 0;
+    }
+    .footer-inner {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .footer-meta {
+      margin: 0;
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      color: var(--dim);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .footer-meta-plain {
+      margin: 0;
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      color: var(--dim);
+    }
+
+    /* ── Utility classes used in static HTML ─────────────── */
+    .topbar-inner-relative { position: relative; }
+    .cfg-explain-mono      { font-family: var(--font-mono); color: var(--cyan); }
+    .neg-label             { color: var(--dim); font-size: .75rem; display: block; margin-bottom: 8px; }
+    .neg-empty             { color: var(--dim); }
+    .field-hint            { margin: 6px 0 0; font-size: .75rem; color: var(--dim); }
+    .inline-code           { font-family: var(--font-mono); background: var(--panel-2); padding: 2px 6px; border-radius: 4px; }
+    .output-section-title-pos {
+      margin: 0 0 16px;
+      font-size: 1rem;
+      color: var(--acid);
+      font-family: var(--font-mono);
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .output-section-title-neg {
+      margin: 0 0 16px;
+      font-size: 1rem;
+      color: var(--red);
+      font-family: var(--font-mono);
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .output-cats-grid {
+      margin-top: 16px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .output-hr {
+      border: none;
+      border-top: 1px solid var(--line);
+      margin: 24px 0;
+    }
+    .token-unknown { color: var(--dim); font-family: var(--font-mono); font-size: .83rem; }
+
+    /* Analysis label color variants (JS-injected) */
+    .analysis-label-subject { color: var(--cyan); }
+    .analysis-label-style   { color: var(--acid); }
+    .analysis-label-quality { color: var(--orange); }
+    .analysis-label-motion  { color: #a78fff; }
+    .analysis-label-bad     { color: var(--red); }
+    .live-preview-neg {
+      border-color: color-mix(in srgb, var(--red) 20%, transparent);
+    }
+    .analysis-tip-spaced { margin-top: 10px; }
+    .analysis-warning-spaced { margin-top: 12px; }
+    .analysis-tip-spaced12 { margin-top: 12px; }
+
+    /* ── Production brief & knowledge links ──────────────── */
+    .production-brief, .related-grid { display: grid; gap: 16px; }
+    .production-brief { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .brief-card, .related-card, .source-note {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--panel);
+      padding: 20px;
+    }
+    .brief-card h3, .related-card h3 { margin: 0 0 8px; font-size: 1rem; }
+    .brief-card p, .related-card p, .source-note p { margin: 0; color: var(--muted); font-size: .9rem; line-height: 1.65; }
+    .brief-card strong { color: var(--ink); }
+    .brief-card.wide { grid-column: span 2; }
+    .brief-kicker, .source-note strong {
+      display: block; margin-bottom: 8px; color: var(--cyan); font-family: var(--font-mono);
+      font-size: .68rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+    }
+    .source-note { margin-top: 18px; border-left: 4px solid var(--cyan); }
+    .source-note a, .related-card a { color: var(--cyan); font-weight: 800; }
+    .related-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .related-card { display: flex; flex-direction: column; gap: 10px; }
+    .related-card a {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 3px;
+    }
+
+    /* ── Responsive ───────────────────────────────────────── */
+    @media (max-width: 780px) {
+      .hero-grid { grid-template-columns: 1fr; }
+      .cfg-diagram { display: none; } /* hide hero visual on small — content still in main */
+      .def-grid, .compare-grid, .anatomy-grid, .lab-inputs { grid-template-columns: 1fr; }
+      h1 { letter-spacing: -.05em; }
+      .production-brief, .related-grid { grid-template-columns: 1fr; }
+      .brief-card.wide { grid-column: auto; }
+    }
+    @media (max-width: 540px) {
+      .lab-actions { flex-direction: column; align-items: stretch; }
+      .lab-btn-analyze, .lab-btn-reset { width: 100%; justify-content: center; }
+      .lesson-nav-inner { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Bỏ qua điều hướng</a>
+
+  <!-- ── Topbar ───────────────────────────────────────────── -->
+  <header class="topbar" role="banner">
+    <div class="topbar-inner topbar-inner-relative">
+      <a class="brand" href="index.html" aria-label="Về trang chủ Video Generation Study">
+        <span class="brand-mark" aria-hidden="true"></span>
+        Video Gen Study
+      </a>
+      <nav class="topnav" aria-label="Điều hướng phần">
+        <a href="index.html">Tổng quan</a>
+        <a href="index.html#phan-7" aria-current="true">Phần 7</a>
+      </nav>
+      <!-- theme toggle injected by video-generation-theme.js -->
+      <div class="progress-track" aria-hidden="true">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── Hero ─────────────────────────────────────────────── -->
+  <div class="lesson-hero">
+    <div class="shell">
+      <div class="hero-grid">
+        <div>
+          <p class="eyebrow">Phần 7 · Bài 1 / Prompt Engineering</p>
+          <h1>Positive<br>&amp; Negative<br>Prompt</h1>
+          <p class="hero-lead">Cách biến một brief quay cụ thể thành điều kiện văn bản có thể kiểm thử — và hiểu đúng negative prompt là một <em>conditioning</em> phụ thuộc pipeline, không phải nút “xóa lỗi”.</p>
+          <div class="hero-actions">
+            <a href="#lab" class="button primary">Thực hành ngay</a>
+            <a href="#dinh-nghia" class="button">Đọc lý thuyết</a>
+          </div>
+        </div>
+        <!-- Hero diagram -->
+        <div class="cfg-diagram" aria-hidden="true">
+          <p class="cfg-label">CFG Guidance</p>
+          <div class="cfg-row">
+            <div class="cfg-pill pos">
+              <span class="cfg-dot pos"></span>
+              cinematic, sharp focus
+            </div>
+            <div class="cfg-arrow">↑</div>
+          </div>
+          <div class="cfg-row">
+            <div class="cfg-pill neg">
+              <span class="cfg-dot neg"></span>
+              blurry, watermark
+            </div>
+            <div class="cfg-arrow">↓</div>
+          </div>
+          <div class="cfg-output">✦ Output: video chất lượng cao</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Main content ──────────────────────────────────────── -->
+  <main id="main">
+
+    <!-- §1 Định nghĩa -->
+    <section class="lesson-section" id="dinh-nghia" aria-labelledby="h-dinh-nghia">
+      <div class="shell">
+        <div class="section-head">
+          <p class="section-index">01 — Định nghĩa</p>
+          <h2 id="h-dinh-nghia">Prompt là gì — và tại sao có hai loại?</h2>
+          <p class="section-lead">Positive prompt là điều kiện văn bản chính. Negative prompt chỉ tồn tại khi pipeline chọn dùng một điều kiện “không muốn”; nó không phải khả năng mặc định của mọi diffusion model hay mọi workflow video.</p>
+        </div>
+
+        <div class="def-grid">
+          <div class="def-panel positive" role="region" aria-label="Positive Prompt">
+            <div class="def-panel-tag">
+              <span aria-hidden="true">✦</span> Positive Prompt
+            </div>
+            <h3>Hướng dẫn model tạo ra điều bạn muốn</h3>
+            <p>Là chuỗi văn bản mô tả <strong>chủ thể, hành động, bối cảnh và ý đồ máy quay</strong>. Text encoder biến nó thành conditioning; cách encoder và model diễn giải phụ thuộc checkpoint và pipeline.</p>
+          </div>
+          <div class="def-panel negative" role="region" aria-label="Negative Prompt">
+            <div class="def-panel-tag">
+              <span aria-hidden="true">✗</span> Negative Prompt
+            </div>
+            <h3>Hướng dẫn model tránh xa điều bạn không muốn</h3>
+            <p>Là một conditioning thay thế cho nhánh “unconditional” trong <em>một số</em> implementation CFG. Nó có thể đẩy kết quả ra xa đặc điểm không mong muốn, nhưng không phải bộ lọc quy tắc và không bảo đảm sửa artifact.</p>
+          </div>
+        </div>
+
+        <div class="cfg-explain">
+          <p class="cfg-explain-label">Cơ chế — Classifier-Free Guidance (CFG)</p>
+          <p class="cfg-formula">guided = uncond + <span class="cfg">s</span> × (<span class="pos">cond</span> − uncond)</p>
+          <p>Đây là dạng khái niệm của CFG từ paper: kết hợp dự đoán có điều kiện và không điều kiện theo mỗi bước denoise. Một UI có thể đưa embedding negative vào vị trí <span class="cfg-explain-mono">uncond</span>, nhưng đó là lựa chọn của pipeline chứ không phải công thức “positive trừ negative” phổ quát. Đừng suy ra một dải CFG chung: repo Wan2.2 chính chủ minh hoạ <span class="cfg-explain-mono">guidance_scale=1.0</span> cho Diffusers; hãy đọc preset/model card của đúng checkpoint rồi chạy sweep có seed cố định.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- §2 So sánh trực quan -->
+    <section class="lesson-section" id="so-sanh" aria-labelledby="h-so-sanh">
+      <div class="shell">
+        <div class="section-head">
+          <p class="section-index">02 — So sánh trực quan</p>
+          <h2 id="h-so-sanh">Prompt tốt vs. Prompt yếu</h2>
+          <p class="section-lead">Độ dài không tự tạo chất lượng. Cặp prompt tốt nêu các quyết định có thể quan sát và test được; các từ như “8k” hay “masterpiece” không phải tham số chất lượng chuẩn của model video.</p>
+        </div>
+
+        <div class="compare-grid">
+          <!-- Good pair -->
+          <div class="compare-card good" role="region" aria-label="Cặp prompt tốt">
+            <p class="compare-card-label">✦ Prompt tốt</p>
+            <div class="prompt-box">
+              <span class="token token-subject">a young woman</span>
+              <span class="token token-subject">walking through a sunlit forest</span>,
+              <span class="token token-style">natural documentary light</span>,
+              <span class="token token-style">35 mm eye-level framing</span>,
+              <span class="token token-motion">one slow dolly forward; she keeps walking</span>
+            </div>
+            <div class="prompt-box neg-prompt">
+              <em class="neg-label">Negative:</em>
+              <span class="token token-bad">blurry</span>
+              <span class="token token-bad">watermark</span>
+              <span class="token token-bad">low quality</span>
+              <span class="token token-bad">bad anatomy</span>
+              <span class="token token-bad">overexposed</span>
+            </div>
+            <div class="compare-outcome">Giả thuyết để test: chủ thể, hướng di chuyển và ý đồ máy quay dễ chấm hơn; vẫn cần xem clip để xác nhận.</div>
+          </div>
+
+          <!-- Weak pair -->
+          <div class="compare-card bad" role="region" aria-label="Cặp prompt yếu">
+            <p class="compare-card-label">✗ Prompt yếu</p>
+            <div class="prompt-box">
+              woman in forest
+            </div>
+            <div class="prompt-box neg-prompt">
+              <em class="neg-label">Negative:</em>
+              <em class="neg-empty">(để trống)</em>
+            </div>
+            <div class="compare-outcome">Rủi ro: không có hành động, framing hay ánh sáng để đối chiếu; không thể kết luận negative prompt là nguyên nhân nếu clip lỗi.</div>
+          </div>
+        </div>
+
+        <!-- Token legend -->
+        <div class="token-legend" role="list" aria-label="Chú thích màu token">
+          <span class="legend-item subject" role="listitem">
+            <span class="legend-swatch" aria-hidden="true"></span> Subject
+          </span>
+          <span class="legend-item style" role="listitem">
+            <span class="legend-swatch" aria-hidden="true"></span> Style
+          </span>
+          <span class="legend-item quality" role="listitem">
+            <span class="legend-swatch" aria-hidden="true"></span> Quality
+          </span>
+          <span class="legend-item motion" role="listitem">
+            <span class="legend-swatch" aria-hidden="true"></span> Motion
+          </span>
+          <span class="legend-item bad" role="listitem">
+            <span class="legend-swatch" aria-hidden="true"></span> Negative token
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <!-- §3 Cấu trúc prompt cơ bản -->
+    <section class="lesson-section" id="cau-truc" aria-labelledby="h-cau-truc">
+      <div class="shell">
+        <div class="section-head">
+          <p class="section-index">03 — Cấu trúc</p>
+          <h2 id="h-cau-truc">Giải phẫu một prompt chuẩn</h2>
+          <p class="section-lead">Mỗi loại prompt gồm các thành phần đảm nhiệm vai trò khác nhau. Hiểu cấu trúc giúp bạn viết prompt có hệ thống thay vì đoán mò.</p>
+        </div>
+
+        <div class="anatomy-grid">
+          <!-- Positive anatomy -->
+          <div class="anatomy-card pos" role="region" aria-label="Cấu trúc Positive Prompt">
+            <p class="anatomy-card-title">✦ Positive Prompt — thành phần</p>
+
+            <div class="anatomy-row">
+              <span class="anatomy-part-name subject">Subject</span>
+              <div class="anatomy-chips">
+                <span class="chip subject">nhân vật / đối tượng</span>
+                <span class="chip subject">hành động</span>
+                <span class="chip subject">bối cảnh</span>
+              </div>
+            </div>
+
+            <div class="anatomy-row">
+              <span class="anatomy-part-name style">Style</span>
+              <div class="anatomy-chips">
+                <span class="chip style">cinematic</span>
+                <span class="chip style">anime</span>
+                <span class="chip style">golden hour</span>
+                <span class="chip style">noir</span>
+              </div>
+            </div>
+
+            <div class="anatomy-row">
+              <span class="anatomy-part-name quality">Framing</span>
+              <div class="anatomy-chips">
+                <span class="chip quality">cỡ cảnh</span>
+                <span class="chip quality">góc máy</span>
+                <span class="chip quality">nguồn sáng</span>
+                <span class="chip quality">mốc hành động</span>
+              </div>
+            </div>
+
+            <div class="anatomy-row">
+              <span class="anatomy-part-name motion">Motion</span>
+              <div class="anatomy-chips">
+                <span class="chip motion">slow dolly</span>
+                <span class="chip motion">handheld shake</span>
+                <span class="chip motion">zoom in</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Negative anatomy -->
+          <div class="anatomy-card neg" role="region" aria-label="Cấu trúc Negative Prompt">
+            <p class="anatomy-card-title">✗ Negative Prompt — thành phần</p>
+
+            <div class="anatomy-row">
+              <span class="anatomy-part-name bad">Artifacts</span>
+              <div class="anatomy-chips">
+                <span class="chip bad">blurry</span>
+                <span class="chip bad">noise</span>
+                <span class="chip bad">compression artifact</span>
+                <span class="chip bad">grain</span>
+              </div>
+            </div>
+
+            <div class="anatomy-row">
+              <span class="anatomy-part-name bad">Anatomy</span>
+              <div class="anatomy-chips">
+                <span class="chip bad">bad anatomy</span>
+                <span class="chip bad">extra limbs</span>
+                <span class="chip bad">deformed face</span>
+              </div>
+            </div>
+
+            <div class="anatomy-row">
+              <span class="anatomy-part-name bad">Unwanted</span>
+              <div class="anatomy-chips">
+                <span class="chip bad">watermark</span>
+                <span class="chip bad">text overlay</span>
+                <span class="chip bad">logo</span>
+                <span class="chip bad">subtitles</span>
+              </div>
+            </div>
+
+            <div class="anatomy-row">
+              <span class="anatomy-part-name bad">Quality</span>
+              <div class="anatomy-chips">
+                <span class="chip bad">low quality</span>
+                <span class="chip bad">low resolution</span>
+                <span class="chip bad">overexposed</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- §4 Interactive lab -->
+    <section class="lesson-section" id="lab" aria-labelledby="h-lab">
+      <div class="shell">
+        <div class="section-head">
+          <p class="section-index">04 — Lab tương tác</p>
+          <h2 id="h-lab">Phân tích prompt của bạn</h2>
+          <p class="section-lead">Đây là <strong>mô phỏng kiểm tra brief</strong>, không phải tokenizer hay benchmark của Wan2.2. Nhập hai điều kiện, rồi dùng kết quả để lập một A/B test có biến kiểm soát.</p>
+        </div>
+
+        <div class="lab-frame" role="region" aria-label="Công cụ phân tích prompt">
+          <div class="lab-header">
+            <div class="lab-header-dot" aria-hidden="true"></div>
+            <span class="lab-title">Prompt Brief Checker — mô phỏng</span>
+          </div>
+          <div class="lab-body">
+            <div class="lab-inputs">
+              <div class="lab-field pos">
+                <label for="pos-input">Positive Prompt</label>
+                <textarea
+                  id="pos-input"
+                  class="lab-textarea"
+                  placeholder="Ví dụ: a samurai warrior standing in the rain, cinematic, 8k, sharp focus, slow camera pan"
+                  aria-describedby="pos-hint"
+                ></textarea>
+                <p id="pos-hint" class="field-hint">Tách chủ thể, hành động, bối cảnh, framing và chuyển động bằng dấu phẩy.</p>
+              </div>
+              <div class="lab-field neg">
+                <label for="neg-input">Negative Prompt</label>
+                <textarea
+                  id="neg-input"
+                  class="lab-textarea"
+                  placeholder="Ví dụ: blurry, watermark, bad anatomy, low quality, overexposed"
+                  aria-describedby="neg-hint"
+                ></textarea>
+                <p id="neg-hint" class="field-hint">Liệt kê những gì bạn muốn model tránh.</p>
+              </div>
+            </div>
+
+            <div class="lab-actions">
+              <button type="button" class="lab-btn-analyze" id="btn-analyze" aria-controls="lab-output" aria-describedby="lab-method">
+                ✦ Kiểm tra brief
+              </button>
+              <button type="button" class="lab-btn-reset" id="btn-reset">
+                Đặt lại
+              </button>
+            </div>
+
+            <label class="field-hint" for="negative-supported"><input id="negative-supported" type="checkbox"> Workflow đang dùng có negative conditioning (xác nhận trong node/model card).</label>
+            <p id="lab-method" class="field-hint">Phản hồi dùng từ khoá minh hoạ, không xác nhận token, CFG hay hành vi của model.</p>
+
+            <div id="lab-output" class="lab-output" aria-live="polite" aria-atomic="true">
+              <div class="output-header">Kết quả phân tích</div>
+              <div class="output-body" id="output-body"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lesson-section" id="production-brief" aria-labelledby="h-production-brief">
+      <div class="shell">
+        <div class="section-head">
+          <p class="section-index">05 — Production brief</p>
+          <h2 id="h-production-brief">Case: B-roll mở màn cho thương hiệu cà phê</h2>
+          <p class="section-lead">Một test nhỏ, có kiểm soát, giúp phân biệt lỗi từ prompt với lỗi từ seed, model hoặc workflow.</p>
+        </div>
+        <div class="production-brief">
+          <article class="brief-card wide"><span class="brief-kicker">Mục tiêu &amp; bối cảnh</span><h3>Clip dọc 5 giây cho quảng cáo mạng xã hội</h3><p>Người pha cà phê đặt tách xuống quầy gỗ trong nắng sớm; đội social cần một opening shot 9:16 có không khí ấm, không logo hay chữ để chèn typography sau.</p></article>
+          <article class="brief-card"><span class="brief-kicker">Workflow giả định</span><p><strong>Wan2.2 TI2V 5B</strong> trong workflow ComfyUI, ảnh tham chiếu là set quay thật. Prompt extension <strong>tắt</strong> để biết chính xác điều kiện vào model.</p></article>
+          <article class="brief-card"><span class="brief-kicker">Giữ cố định</span><p>Checkpoint/version, workflow, ảnh tham chiếu, seed, resolution, số frame, sampler, steps và guidance theo preset đã chọn.</p></article>
+          <article class="brief-card"><span class="brief-kicker">Biến thử nghiệm</span><p>A: chỉ positive mô tả hành động + framing. B: giữ nguyên A, thêm negative ngắn “text overlay, logo, extra fingers”. Không đổi hơn một biến mỗi lượt.</p></article>
+          <article class="brief-card wide"><span class="brief-kicker">Đánh giá &amp; bước sau</span><p>Chấm từng clip: tách có được đặt xuống không, tay có ổn định không, có chữ/logo không, và chuyển động camera có lấn át hành động không. <strong>Thất bại:</strong> A và B cùng hỏng tay → đừng tuyên bố negative không hiệu quả; thử seed khác để đo độ bền, sau đó kiểm tra ảnh tham chiếu/model. Nếu B giảm chữ nhưng làm chuyển động xấu, giữ A và chỉ dùng negative cho lỗi đã quan sát.</p></article>
+        </div>
+        <aside class="source-note"><strong>Phạm vi kỹ thuật</strong><p>Ví dụ này không công bố benchmark. README Wan2.2 chính chủ có pipeline TI2V và ghi rõ prompt extension là tuỳ chọn; tham số thực tế phải được xác nhận theo node/preset và phiên bản đang chạy. <a href="https://github.com/Wan-Video/Wan2.2">Xem repository Wan2.2</a> · <a href="https://arxiv.org/abs/2207.12598">Đọc paper Classifier-Free Guidance</a>.</p></aside>
+      </div>
+    </section>
+
+    <!-- §5 Điểm chốt -->
+    <section class="lesson-section" id="diem-chot" aria-labelledby="h-diem-chot">
+      <div class="shell">
+        <div class="section-head">
+          <p class="section-index">06 — Điểm chốt</p>
+          <h2 id="h-diem-chot">Khi nào cần — khi nào không</h2>
+          <p class="section-lead">Negative prompt không phải lúc nào cũng cần thiết. Biết khi nào dùng sẽ giúp bạn tối ưu workflow.</p>
+        </div>
+
+        <ul class="takeaway-list">
+          <li>
+            <span class="takeaway-num" aria-hidden="true">1</span>
+            <p><strong>Positive prompt là điểm xuất phát để chẩn đoán.</strong> Mô tả chủ thể, hành động, bối cảnh và ý đồ máy quay trước; “quality words” không thay thế resolution, steps hay checkpoint.</p>
+          </li>
+          <li>
+            <span class="takeaway-num" aria-hidden="true">2</span>
+            <p><strong>Chỉ thêm negative khi pipeline hỗ trợ và lỗi đã được quan sát.</strong> Giữ seed/workflow cố định để so A/B. Không có ngưỡng CFG chung nào tự động khiến negative cần thiết.</p>
+          </li>
+          <li>
+            <span class="takeaway-num" aria-hidden="true">3</span>
+            <p><strong>Để trống negative là một baseline hợp lệ.</strong> Đặc biệt khi preset dùng guidance thấp hoặc pipeline không dùng negative conditioning; kết luận chỉ sau khi xem clip trong điều kiện đo giống nhau.</p>
+          </li>
+          <li>
+            <span class="takeaway-num" aria-hidden="true">4</span>
+            <p><strong>Không phủ định positive bằng negative.</strong> Ví dụ: positive có <em>"bright scene"</em> nhưng negative lại có <em>"bright"</em> — gây xung đột và output không đoán được.</p>
+          </li>
+        </ul>
+
+        <div class="faq-list" role="list" aria-label="Câu hỏi thường gặp">
+          <details>
+            <summary>
+              Tại sao negative prompt không xóa hoàn toàn được artifact?
+              <em class="faq-arrow" aria-hidden="true">▾</em>
+            </summary>
+            <div>
+              <p>Negative conditioning không phải rule-based filtering và không bảo đảm loại bỏ 100%. Nếu artifact còn, đừng tăng CFG theo phản xạ: xác nhận node/preset có thực sự dùng negative, giữ seed cố định, rồi thử một thay đổi nhỏ hoặc kiểm tra conditioning/ảnh tham chiếu.</p>
+            </div>
+          </details>
+          <details>
+            <summary>
+              Có nên copy nguyên bộ negative prompt từ Internet không?
+              <em class="faq-arrow" aria-hidden="true">▾</em>
+            </summary>
+            <div>
+              <p>Không nên copy mù quáng. Token limit và cú pháp phụ thuộc text encoder/node; không có ngưỡng “60 token” phổ quát. Ưu tiên điều kiện mô tả đúng lỗi đã thấy, ghi lại thay đổi, và so cùng seed trước khi giữ nó trong preset.</p>
+            </div>
+          </details>
+          <details>
+            <summary>
+              Wan2.2 có cần negative prompt khác các model khác không?
+              <em class="faq-arrow" aria-hidden="true">▾</em>
+            </summary>
+            <div>
+              <p>Wan2.2 là video model nhưng README chính chủ không định nghĩa một “bộ negative chuẩn” cho mọi workflow. Các nhãn như <code class="inline-code">flickering</code> hay <code class="inline-code">jitter</code> có thể là giả thuyết A/B nếu node nhận negative conditioning; temporal lỗi cũng có thể đến từ motion, reference image, seed hoặc sampling.</p>
+            </div>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <section class="lesson-section" id="bai-lien-quan" aria-labelledby="h-bai-lien-quan">
+      <div class="shell">
+        <div class="section-head">
+          <p class="section-index">07 — Bài liên quan</p>
+          <h2 id="h-bai-lien-quan">Nối prompt với đúng tầng của workflow</h2>
+          <p class="section-lead">Ba bài này giúp bạn biết phần nào là cơ chế nền, phần nào là tham số, và phần nào là nơi implementation có thể khác nhau.</p>
+        </div>
+        <div class="related-grid">
+          <article class="related-card"><h3><a href="video-generation-part-1-lesson-4.html">T5 → mT5 → UMT5</a></h3><p>Prompt chỉ trở thành conditioning sau text encoder; bài này giải thích vì sao token limit và ngôn ngữ phụ thuộc model.</p></article>
+          <article class="related-card"><h3><a href="video-generation-part-2-lesson-4.html">CFG — Điều khiển độ bám prompt</a></h3><p>Đi sâu cơ chế guidance và trade-off prompt adherence/đa dạng, thay vì coi negative như một công tắc độc lập.</p></article>
+          <article class="related-card"><h3><a href="video-generation-part-6-lesson-1.html">Node &amp; Workflow JSON</a></h3><p>Kiểm tra node và workflow thực tế để biết negative, seed hay preset nào thực sự được truyền vào lần chạy.</p></article>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ── Lesson nav ─────────────────────────────────────────── -->
+  <nav class="lesson-nav shell" aria-label="Điều hướng bài học">
+    <div class="lesson-nav-inner">
+      <div>
+        <p class="nav-part-label">← Quay lại</p>
+        <a href="index.html" class="button">Tổng quan khoá học</a>
+      </div>
+      <div class="nav-next">
+        <p class="nav-part-label">Bài tiếp theo →</p>
+        <a href="video-generation-part-7-lesson-2.html" class="button primary">Bài 2: CFG Scale &amp; Prompt Weight</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Footer ────────────────────────────────────────────── -->
+  <footer class="site-footer">
+    <div class="shell footer-inner">
+      <p class="footer-meta">
+        Video Generation Study · Phần 7 — Prompt Engineering
+      </p>
+      <p class="footer-meta-plain">
+        Bài 1 / Phần 7 of 7
+      </p>
+    </div>
+  </footer>
+
+  <script>
+    (() => {
+      // ── Progress bar on scroll ──────────────────────────────
+      const fill = document.getElementById('progress-fill');
+      if (fill) {
+        const updateProgress = () => {
+          const total = document.documentElement.scrollHeight - window.innerHeight;
+          const pct = total > 0 ? Math.min(100, (window.scrollY / total) * 100) : 0;
+          fill.style.width = pct + '%';
+        };
+        window.addEventListener('scroll', updateProgress, { passive: true });
+        updateProgress();
+      }
+
+      // ── Prompt lab ──────────────────────────────────────────
+      const SUBJECT_TOKENS = [
+        'man','woman','person','girl','boy','child','warrior','samurai','robot','cat','dog',
+        'city','forest','mountain','beach','ocean','sky','street','building','room','crowd',
+        'walking','running','sitting','standing','flying','fighting','dancing','swimming',
+        'young','old','tall','small','elderly','beautiful','handsome',
+      ];
+      const STYLE_TOKENS = [
+        'cinematic','anime','photorealistic','realistic','illustration','oil painting',
+        'watercolor','sketch','noir','vintage','retro','modern','fantasy','sci-fi',
+        'golden hour','sunset','sunrise','dramatic','moody','bright','dark','colorful',
+        'bokeh','depth of field','wide angle','macro',
+      ];
+      const QUALITY_TOKENS = [
+        'close-up','wide shot','medium shot','eye-level','overhead','backlit',
+        'soft light','hard light','shallow depth of field','35mm','50mm',
+      ];
+      const MOTION_TOKENS = [
+        'slow motion','dolly','pan','zoom','handheld','tracking shot','aerial',
+        'crane shot','dutch angle','timelapse','hyperlapse','smooth camera',
+        'camera pan','camera zoom','dolly forward','dolly back',
+        'slow dolly','fast zoom','rotating','orbit',
+      ];
+      const NEG_TOKENS = [
+        'blurry','blur','watermark','logo','text','subtitle','caption',
+        'bad anatomy','extra limbs','deformed','ugly','distorted','cropped',
+        'low quality','low resolution','worst quality','jpeg artifact','compression artifact',
+        'overexposed','underexposed','noise','grain','flickering','jitter',
+        'motion blur','temporal artifact','duplicate','clone','error',
+      ];
+
+      function classify(tokens, isNeg) {
+        if (isNeg) {
+          return tokens.map(t => ({ token: t, type: 'bad' }));
+        }
+        return tokens.map(t => {
+          const tl = t.toLowerCase();
+          if (SUBJECT_TOKENS.some(s => tl.includes(s))) return { token: t, type: 'subject' };
+          if (STYLE_TOKENS.some(s => tl.includes(s))) return { token: t, type: 'style' };
+          if (QUALITY_TOKENS.some(s => tl.includes(s))) return { token: t, type: 'quality' };
+          if (MOTION_TOKENS.some(s => tl.includes(s))) return { token: t, type: 'motion' };
+          return { token: t, type: null };
+        });
+      }
+
+      function tokenize(text) {
+        return text.split(/[,\n]+/)
+          .map(t => t.trim())
+          .filter(t => t.length > 0);
+      }
+
+      function renderToken(item) {
+        const cls = item.type ? `token token-${item.type}` : 'token-unknown';
+        return `<span class="${cls}">${escapeHtml(item.token)}</span>`;
+      }
+
+      function escapeHtml(s) {
+        return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      }
+
+      function catLabel(label, colorClass) {
+        return `<p class="analysis-label analysis-label-${colorClass}">${label}</p>`;
+      }
+
+      function analyze() {
+        const posText = document.getElementById('pos-input').value.trim();
+        const negText = document.getElementById('neg-input').value.trim();
+        const negativeSupported = document.getElementById('negative-supported').checked;
+        const outputEl = document.getElementById('lab-output');
+        const bodyEl = document.getElementById('output-body');
+
+        const posTokens = tokenize(posText);
+        const negTokens = tokenize(negText);
+        const posClassified = classify(posTokens, false);
+        const negClassified = classify(negTokens, true);
+
+        const subjects = posClassified.filter(i => i.type === 'subject');
+        const styles   = posClassified.filter(i => i.type === 'style');
+        const qualities= posClassified.filter(i => i.type === 'quality');
+        const motions  = posClassified.filter(i => i.type === 'motion');
+        const unknown  = posClassified.filter(i => i.type === null);
+
+        let html = '';
+
+        // Positive sections
+        html += `<h3 class="output-section-title-pos">✦ Positive Prompt</h3>`;
+
+        if (posTokens.length === 0) {
+          html += `<p class="analysis-empty">Chưa có nội dung.</p>`;
+        } else {
+          // Highlighted preview
+          html += `<div class="live-preview-tokens" aria-label="Token được highlight">`;
+          html += posClassified.map(renderToken).join(' ');
+          html += `</div>`;
+
+          // Per-category breakdown
+          html += `<div class="output-cats-grid">`;
+
+          const cats = [
+            { label: 'Subject', cls: 'subject', items: subjects },
+            { label: 'Style',   cls: 'style',   items: styles },
+            { label: 'Framing / light', cls: 'quality',  items: qualities },
+            { label: 'Motion',  cls: 'motion',   items: motions },
+          ];
+          cats.forEach(cat => {
+            html += `<div class="analysis-section">
+              <p class="analysis-label analysis-label-${cat.cls}">${cat.label}</p>`;
+            if (cat.items.length === 0) {
+              html += `<p class="analysis-empty">—</p>`;
+            } else {
+              html += `<div class="analysis-tokens">` + cat.items.map(renderToken).join('') + `</div>`;
+            }
+            html += `</div>`;
+          });
+          html += `</div>`;
+
+          // Warnings
+          if (subjects.length === 0) {
+            html += `<div class="analysis-warning">⚠ Thiếu Subject — model không biết phải tạo đối tượng gì. Hãy thêm mô tả nhân vật hoặc cảnh.</div>`;
+          }
+          if (qualities.length === 0) {
+            html += `<div class="analysis-tip">💡 Chưa nhận ra framing hoặc ánh sáng. Nếu chúng quan trọng cho brief, hãy mô tả cỡ cảnh, góc máy hoặc nguồn sáng theo cách bạn có thể chấm trong clip.</div>`;
+          }
+          if (motions.length === 0) {
+            html += `<div class="analysis-tip">💡 Chưa có Motion token. Với video generation, mô tả chuyển động camera giúp output tự nhiên hơn (vd: <em>slow dolly forward, camera pan</em>).</div>`;
+          }
+          if (unknown.length > 0) {
+            html += `<div class="analysis-tip analysis-tip-spaced">ℹ ${unknown.length} token không được nhận diện tự động — kiểm tra lại chính tả hoặc đây là token đặc thù model.</div>`;
+          }
+        }
+
+        // Separator
+        html += `<hr class="output-hr">`;
+
+        // Negative sections
+        html += `<h3 class="output-section-title-neg">✗ Negative Prompt</h3>`;
+
+        if (negTokens.length === 0) {
+          html += `<p class="analysis-empty">Để trống là một baseline hợp lệ.</p>`;
+          html += negativeSupported
+            ? `<div class="analysis-tip">💡 Nếu clip có một lỗi quan sát cụ thể, thêm đúng cụm mô tả lỗi đó vào nhánh B rồi A/B với seed và workflow cố định; không dùng template mặc định.</div>`
+            : `<div class="analysis-tip">💡 Chưa xác nhận negative conditioning. Hãy kiểm tra node/model card trước; hiện tại chỉ so baseline positive, không suy ra negative sẽ có tác dụng.</div>`;
+        } else {
+          html += `<div class="live-preview-tokens live-preview-neg" aria-label="Token negative được highlight">`;
+          html += negClassified.map(i => `<span class="token token-bad">${escapeHtml(i.token)}</span>`).join(' ');
+          html += `</div>`;
+
+          if (!negativeSupported) {
+            html += `<div class="analysis-warning analysis-warning-spaced">⚠ Chưa xác nhận workflow hỗ trợ negative conditioning. Ghi các cụm này vào brief, nhưng đừng diễn giải kết quả là tác động của negative cho đến khi kiểm tra node/model card.</div>`;
+          } else if (negTokens.length > 12) {
+            html += `<div class="analysis-warning analysis-warning-spaced">⚠ Có ${negTokens.length} cụm negative. Đây không phải token count của encoder; kiểm tra từng cụm có gắn với lỗi quan sát hay chỉ là template copy.</div>`;
+          } else {
+            html += `<div class="analysis-tip analysis-tip-spaced12">✓ ${negTokens.length} cụm negative — đủ gọn để lập một A/B test có ghi chú rõ ràng.</div>`;
+          }
+
+          // Conflict check
+          const posLower = posTokens.map(t => t.toLowerCase());
+          const negLower = negTokens.map(t => t.toLowerCase());
+          const conflicts = negLower.filter(n => posLower.some(p => p.includes(n) || n.includes(p)));
+          if (conflicts.length > 0) {
+            html += `<div class="analysis-warning analysis-tip-spaced">⚠ Xung đột phát hiện: <em class="inline-code">${conflicts.map(escapeHtml).join(', ')}</em> xuất hiện ở cả hai prompt — gây ra tín hiệu mâu thuẫn.</div>`;
+          }
+        }
+
+        bodyEl.innerHTML = html;
+        outputEl.classList.add('visible');
+        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        outputEl.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' });
+      }
+
+      function reset() {
+        document.getElementById('pos-input').value = '';
+        document.getElementById('neg-input').value = '';
+        document.getElementById('negative-supported').checked = false;
+        const outputEl = document.getElementById('lab-output');
+        outputEl.classList.remove('visible');
+        document.getElementById('output-body').innerHTML = '';
+        document.getElementById('pos-input').focus();
+      }
+
+      document.getElementById('btn-analyze').addEventListener('click', analyze);
+      document.getElementById('btn-reset').addEventListener('click', reset);
+
+      // Allow Ctrl+Enter / Cmd+Enter to trigger analyze from textareas
+      ['pos-input', 'neg-input'].forEach(id => {
+        document.getElementById(id).addEventListener('keydown', e => {
+          if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
+            analyze();
+          }
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

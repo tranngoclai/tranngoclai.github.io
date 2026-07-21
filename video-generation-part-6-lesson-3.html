@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Checkpoint & Model Loaders — Phần 6 Bài 3 | Video Gen Lab</title>
+  <meta name="description" content="Hiểu Checkpoint là gì, phân biệt các loại model loader trong ComfyUI và biết đặt file model đúng thư mục." />
+
+  <script src="video-generation-theme.js"></script>
+  <link rel="stylesheet" href="video-generation-design-system.css" />
+
+  <style>
+    /* ── Hero ── */
+    .hero {
+      padding: clamp(4rem, 10vw, 7rem) 0 clamp(3rem, 7vw, 5rem);
+    }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: clamp(2rem, 5vw, 4rem);
+      align-items: center;
+    }
+    .hero-eyebrow {
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--cyan);
+      margin: 0 0 1.1rem;
+    }
+    .hero-h1 {
+      font-size: clamp(2.6rem, 6.5vw, 5.8rem);
+      font-weight: 900;
+      letter-spacing: -.07em;
+      line-height: 1;
+      margin: 0 0 1.4rem;
+    }
+    .hero-lead {
+      color: var(--muted);
+      font-size: clamp(1rem, 1.6vw, 1.18rem);
+      max-width: 52ch;
+      margin: 0 0 2rem;
+    }
+    .hero-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    /* ── Hero visual panel ── */
+    .hero-visual {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      padding: 1.6rem;
+      font-family: var(--font-mono);
+      font-size: .82rem;
+    }
+    .hv-title {
+      font-size: .68rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin: 0 0 1rem;
+    }
+    .hv-row {
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+      padding: .45rem .6rem;
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: .8rem;
+    }
+    .hv-row + .hv-row { margin-top: .25rem; }
+    .hv-row.hi { background: color-mix(in srgb, var(--acid) 12%, transparent); color: var(--acid); }
+    .hv-row.hi .dot { background: var(--acid); box-shadow: 0 0 8px var(--acid); }
+    .hv-row .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--line); flex-shrink: 0;
+    }
+    .hv-row .ext { color: var(--dim); margin-left: auto; }
+    .hv-badge {
+      display: inline-block;
+      font-size: .65rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: color-mix(in srgb, var(--cyan) 14%, transparent);
+      color: var(--cyan);
+    }
+
+    /* ── Section scaffolding ── */
+    .section {
+      padding: clamp(3rem, 7vw, 5.5rem) 0;
+      border-top: 1px solid var(--line);
+    }
+    .section-index {
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin: 0 0 .6rem;
+    }
+    .section-h2 {
+      font-size: clamp(1.7rem, 3.5vw, 2.6rem);
+      font-weight: 900;
+      letter-spacing: -.05em;
+      line-height: 1.1;
+      margin: 0 0 .9rem;
+    }
+    .section-lead {
+      color: var(--muted);
+      max-width: 64ch;
+      margin: 0 0 2.4rem;
+    }
+
+    /* ── Definition panel ── */
+    .def-panel {
+      border-left: 3px solid var(--acid);
+      background: var(--panel);
+      border-radius: 0 14px 14px 0;
+      padding: 1.4rem 1.6rem;
+      margin-bottom: 1.6rem;
+    }
+    .def-label {
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--acid);
+      margin: 0 0 .5rem;
+    }
+    .def-text {
+      font-size: 1.05rem;
+      margin: 0;
+      color: var(--ink);
+    }
+
+    /* ── Comparison: checkpoint vs LoRA ── */
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-bottom: 1.6rem;
+    }
+    .compare-card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 1.4rem;
+      background: var(--panel);
+    }
+    .compare-card.accent { border-color: var(--acid); }
+    .compare-card-label {
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin: 0 0 .5rem;
+    }
+    .compare-card-title {
+      font-size: 1.15rem;
+      font-weight: 800;
+      margin: 0 0 .7rem;
+    }
+    .compare-card.accent .compare-card-title { color: var(--acid); }
+    .compare-card p { color: var(--muted); font-size: .92rem; margin: 0 0 .6rem; }
+    .compare-card p:last-child { margin: 0; }
+    .tag {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: .7rem;
+      padding: 3px 8px;
+      border-radius: 5px;
+      background: var(--panel-2);
+      color: var(--muted);
+      margin: .2rem .2rem 0 0;
+    }
+    .tag.cyan { background: color-mix(in srgb, var(--cyan) 12%, transparent); color: var(--cyan); }
+
+    /* ── Directory tree explorer ── */
+    .tree-shell {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      overflow: hidden;
+    }
+    .tree-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: .85rem 1.2rem;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel-2);
+    }
+    .tree-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .tree-dot:nth-child(1) { background: #ff6b6b; }
+    .tree-dot:nth-child(2) { background: #ff8a4c; }
+    .tree-dot:nth-child(3) { background: var(--acid); }
+    .tree-path {
+      font-family: var(--font-mono);
+      font-size: .75rem;
+      color: var(--dim);
+      margin-left: .4rem;
+    }
+    .tree-body {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      min-height: 280px;
+    }
+    .tree-left {
+      padding: 1.2rem 1rem;
+      border-right: 1px solid var(--line);
+      font-family: var(--font-mono);
+      font-size: .82rem;
+    }
+    .tree-right {
+      padding: 1.2rem 1.4rem;
+    }
+    .tree-item {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      font: inherit;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      padding: .38rem .55rem;
+      border-radius: 7px;
+      cursor: pointer;
+      color: var(--muted);
+      user-select: none;
+      transition: background .12s, color .12s;
+      min-height: 44px;
+    }
+    .tree-item:hover { background: var(--panel-2); color: var(--ink); }
+    .tree-item.active { background: color-mix(in srgb, var(--acid) 10%, transparent); color: var(--acid); }
+    .tree-item .ti-icon { width: 16px; text-align: center; flex-shrink: 0; }
+    .tree-item .ti-caret {
+      margin-left: auto;
+      color: var(--dim);
+      font-size: .7rem;
+      transition: transform .15s;
+    }
+    .tree-item.expanded .ti-caret { transform: rotate(90deg); }
+    .tree-children {
+      padding-left: 1.4rem;
+      display: none;
+    }
+    .tree-children.open { display: block; }
+    .tree-file {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      padding: .28rem .55rem;
+      border-radius: 6px;
+      color: var(--dim);
+      font-size: .78rem;
+      cursor: default;
+      pointer-events: none;
+      min-height: 36px;
+    }
+    .info-panel {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 1.1rem 1.2rem;
+      background: var(--panel-2);
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: .6rem;
+    }
+    .info-panel-empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--dim);
+      font-size: .85rem;
+      font-family: var(--font-mono);
+      text-align: center;
+    }
+    .info-title {
+      font-family: var(--font-mono);
+      font-size: .7rem;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--cyan);
+      margin: 0;
+    }
+    .info-name {
+      font-weight: 800;
+      font-size: 1rem;
+      margin: 0;
+    }
+    .info-desc { color: var(--muted); font-size: .88rem; margin: 0; }
+    .info-ext {
+      display: flex;
+      gap: .4rem;
+      flex-wrap: wrap;
+      margin-top: .2rem;
+    }
+
+    /* ── Loader comparison table ── */
+    .loader-table-wrap {
+      overflow-x: auto;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+    }
+    .loader-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .88rem;
+    }
+    .loader-table thead th {
+      background: var(--panel-2);
+      padding: .85rem 1.1rem;
+      text-align: left;
+      font-family: var(--font-mono);
+      font-size: .7rem;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--dim);
+      border-bottom: 1px solid var(--line);
+      white-space: nowrap;
+    }
+    .loader-table tbody tr:not(:last-child) td {
+      border-bottom: 1px solid var(--line);
+    }
+    .loader-table tbody td {
+      padding: .85rem 1.1rem;
+      vertical-align: top;
+      color: var(--muted);
+    }
+    .loader-table tbody td:first-child {
+      color: var(--ink);
+      font-weight: 700;
+    }
+    .loader-table tbody tr:hover td { background: var(--panel-2); }
+    .pro { color: var(--cyan); font-weight: 700; }
+    .con { color: var(--orange); font-weight: 700; }
+
+    /* ── Match warning panel ── */
+    .match-list {
+      display: flex;
+      flex-direction: column;
+      gap: .8rem;
+    }
+    .match-item {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: .6rem;
+      align-items: center;
+      padding: .9rem 1rem;
+      border-radius: 12px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+    }
+    .match-item.bad { border-color: var(--red); }
+    .match-item.good { border-color: color-mix(in srgb, var(--acid) 40%, transparent); }
+    .match-src, .match-tgt {
+      font-family: var(--font-mono);
+      font-size: .82rem;
+      padding: .4rem .7rem;
+      border-radius: 7px;
+      background: var(--panel-2);
+      text-align: center;
+    }
+    .match-arrow {
+      font-size: 1.1rem;
+      color: var(--dim);
+      text-align: center;
+    }
+    .match-item.bad .match-arrow { color: var(--red); }
+    .match-item.good .match-arrow { color: var(--acid); }
+    .match-badge {
+      grid-column: 1 / -1;
+      font-size: .72rem;
+      font-family: var(--font-mono);
+      letter-spacing: .1em;
+    }
+    .match-item.bad .match-badge { color: var(--red); }
+    .match-item.good .match-badge { color: var(--acid); }
+
+    /* ── Takeaways ── */
+    .takeaways {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      padding: clamp(1.6rem, 4vw, 2.5rem);
+    }
+    .takeaways-label {
+      font-family: var(--font-mono);
+      font-size: .7rem;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--acid);
+      margin: 0 0 1rem;
+    }
+    .takeaway-item {
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+      padding: .7rem 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .takeaway-item:last-child { border-bottom: none; }
+    .takeaway-num {
+      font-family: var(--font-mono);
+      font-size: .8rem;
+      color: var(--acid);
+      font-weight: 800;
+      min-width: 24px;
+      margin-top: .1rem;
+    }
+    .takeaway-text { color: var(--ink); font-size: .95rem; }
+
+    /* ── FAQ / disclosure ── */
+    .faq-list { display: flex; flex-direction: column; gap: .6rem; }
+    details.faq {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel);
+    }
+    details.faq[open] { border-color: var(--cyan); }
+    summary.faq-q {
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1rem 1.2rem;
+      font-weight: 700;
+      color: var(--ink);
+      font-size: .95rem;
+      min-height: 56px;
+    }
+    summary.faq-q::-webkit-details-marker { display: none; }
+    summary.faq-q::after {
+      content: '+';
+      font-size: 1.2rem;
+      color: var(--dim);
+      flex-shrink: 0;
+      transition: transform .2s;
+    }
+    details.faq[open] summary.faq-q::after {
+      transform: rotate(45deg);
+      color: var(--cyan);
+    }
+    .faq-a {
+      padding: 0 1.2rem 1rem;
+      color: var(--muted);
+      font-size: .92rem;
+      border-top: 1px solid var(--line);
+      padding-top: .85rem;
+    }
+    .faq-a code {
+      font-family: var(--font-mono);
+      background: var(--panel-2);
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-size: .88em;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      border-top: 1px solid var(--line);
+      padding: 2.5rem 0;
+      margin-top: 2rem;
+    }
+    .footer-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .footer-copy {
+      font-size: .78rem;
+      color: var(--dim);
+      font-family: var(--font-mono);
+    }
+    .footer-nav { display: flex; gap: 6px; flex-wrap: wrap; }
+    .footer-nav a {
+      font-size: .8rem;
+      color: var(--muted);
+      text-decoration: none;
+      padding: 6px 10px;
+      border-radius: 7px;
+    }
+    .footer-nav a:hover { color: var(--ink); background: var(--panel-2); }
+
+    /* ── Responsive ── */
+    @media (max-width: 860px) {
+      .hero-grid, .compare-grid, .case-grid, .related-grid { grid-template-columns: 1fr; }
+      .hero-visual { order: -1; }
+      .tree-body { grid-template-columns: 1fr; }
+      .tree-left { border-right: none; border-bottom: 1px solid var(--line); }
+      .tree-right { min-height: 160px; }
+    }
+    @media (max-width: 560px) {
+      .match-item { grid-template-columns: 1fr; }
+      .match-arrow { display: none; }
+      .footer-inner { flex-direction: column; align-items: flex-start; }
+      .case-card.wide { grid-column: auto; }
+      .hero-actions .button, .simulator-actions button { width: 100%; }
+    }
+
+    /* ── Utility helpers ── */
+    .hv-spacer { height: .8rem; }
+    .inline-code { font-family: var(--font-mono); font-size: .9em; }
+    .card-tags { margin-top: .4rem; }
+    .faq-constrained { max-width: 70ch; }
+    .faq-list-spaced { margin-top: 1.6rem; max-width: 70ch; }
+    .unet-sub { font-size: .7rem; color: var(--dim); }
+
+    /* ── Production triage simulator ── */
+    .case-grid, .related-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+    .case-card, .simulator, .related-card { border: 1px solid var(--line); border-radius: 14px; background: var(--panel); padding: clamp(1.15rem, 3vw, 1.6rem); }
+    .case-card h3, .simulator h3, .related-card h3 { margin: 0 0 .55rem; font-size: 1.05rem; }
+    .case-card p, .related-card p { margin: 0; color: var(--muted); font-size: .92rem; }
+    .case-card strong { color: var(--ink); }
+    .case-card.wide { grid-column: 1 / -1; }
+    .simulator { margin-top: 1rem; border-color: color-mix(in srgb, var(--cyan) 55%, var(--line)); }
+    .simulator-kicker { margin: 0 0 .45rem; font: .7rem var(--font-mono); color: var(--cyan); letter-spacing: .13em; text-transform: uppercase; }
+    .simulator fieldset { border: 0; margin: 1rem 0; padding: 0; display: grid; gap: .65rem; }
+    .simulator legend { font-weight: 800; }
+    .plan-option { display: flex; align-items: flex-start; gap: .7rem; min-height: 48px; padding: .75rem .85rem; border: 1px solid var(--line); border-radius: 10px; color: var(--muted); }
+    .plan-option:has(input:checked) { border-color: var(--cyan); color: var(--ink); background: color-mix(in srgb, var(--cyan) 8%, transparent); }
+    .plan-option input { margin-top: .32rem; accent-color: var(--cyan); }
+    .simulator-actions { display: flex; gap: .75rem; flex-wrap: wrap; }
+    .simulator-actions button { min-height: 48px; border: 1px solid var(--cyan); border-radius: 999px; padding: .65rem 1.1rem; background: color-mix(in srgb, var(--cyan) 13%, var(--panel)); color: var(--ink); font-weight: 800; }
+    .simulator-output { min-height: 3.8rem; margin: 1rem 0 0; padding: .85rem 1rem; border-left: 3px solid var(--dim); background: var(--panel-2); color: var(--muted); }
+    .simulator-output[data-state="pass"] { border-color: var(--acid); color: var(--ink); }
+    .simulator-output[data-state="warn"] { border-color: var(--orange); color: var(--ink); }
+    .related-card { display: flex; flex-direction: column; gap: .75rem; }
+    .related-card a { min-height: 44px; display: inline-flex; align-items: center; color: var(--cyan); font-weight: 800; text-underline-offset: .18em; }
+  </style>
+</head>
+<body>
+
+<a class="skip-link" href="#main">Bỏ qua điều hướng</a>
+
+<!-- Topbar -->
+<header class="topbar" role="banner">
+  <div class="topbar-inner shell">
+    <a class="brand" href="index.html" aria-label="Video Gen Lab – Trang chủ">
+      <span class="brand-mark" aria-hidden="true"></span>
+      Video Gen Lab
+    </a>
+    <nav class="topnav" aria-label="Phần học">
+      <a href="#main" aria-current="page">Phần 6: ComfyUI</a>
+    </nav>
+    <!-- theme toggle injected by video-generation-theme.js -->
+  </div>
+  <div class="progress-track" role="progressbar" aria-label="Tiến độ đọc" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+    <div class="progress-fill" id="progressFill"></div>
+  </div>
+</header>
+
+<!-- Main -->
+<main id="main">
+
+  <!-- Hero -->
+  <section class="hero shell" aria-labelledby="hero-heading">
+    <div class="hero-grid">
+      <div class="hero-text">
+        <p class="hero-eyebrow">Phần 6 · Bài 3 &mdash; ComfyUI / Workflow</p>
+        <h1 class="hero-h1" id="hero-heading">Checkpoint &amp; Model Loaders</h1>
+        <p class="hero-lead">Hiểu Checkpoint là gì, phân biệt các loại model loader trong ComfyUI và biết đặt file model đúng thư mục để workflow chạy được.</p>
+        <div class="hero-actions">
+          <a class="button primary" href="#checkpoint">Bắt đầu học</a>
+          <a class="button" href="#loaders">Xem các loader</a>
+        </div>
+      </div>
+
+      <div class="hero-visual" aria-label="Ví dụ file checkpoint trong ComfyUI">
+        <p class="hv-title">ComfyUI / models / checkpoints /</p>
+        <div class="hv-row hi">
+          <span class="dot" aria-hidden="true"></span>
+          dreamshaper_xl.safetensors
+          <span class="hv-badge">Checkpoint</span>
+        </div>
+        <div class="hv-row">
+          <span class="dot" aria-hidden="true"></span>
+          sd_xl_base_1.0.safetensors
+          <span class="ext">all-in-one (ví dụ)</span>
+        </div>
+        <div class="hv-spacer" aria-hidden="true"></div>
+        <p class="hv-title">ComfyUI / models / diffusion_models /</p>
+        <div class="hv-row">
+          <span class="dot" aria-hidden="true"></span>
+          wan2.1_t2v_1.3B.safetensors
+          <span class="ext">diffusion model (ví dụ)</span>
+        </div>
+        <div class="hv-spacer" aria-hidden="true"></div>
+        <p class="hv-title">ComfyUI / models / loras /</p>
+        <div class="hv-row">
+          <span class="dot" aria-hidden="true"></span>
+          detail_tweaker.safetensors
+          <span class="ext">adapter (ví dụ)</span>
+        </div>
+        <div class="hv-row">
+          <span class="dot" aria-hidden="true"></span>
+          anime_style.safetensors
+          <span class="ext">adapter (ví dụ)</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 1: Checkpoint là gì -->
+  <section class="section" id="checkpoint" aria-labelledby="s1-heading">
+    <div class="shell">
+      <p class="section-index">01 &mdash; Khái niệm</p>
+      <h2 class="section-h2" id="s1-heading">Checkpoint là gì?</h2>
+      <p class="section-lead">“Checkpoint” mô tả một gói trọng số đã lưu, nhưng thành phần bên trong phụ thuộc cách model được phát hành. Hãy xác định đúng gói trước khi chọn loader.</p>
+
+      <div class="def-panel">
+        <p class="def-label">Định nghĩa</p>
+        <p class="def-text">Checkpoint là trạng thái trọng số được lưu tại một thời điểm. Trong ComfyUI, một file trong <code class="inline-code">models/checkpoints/</code> <em>có thể</em> được node <code class="inline-code">CheckpointLoaderSimple</code> tách thành model, text encoder và VAE; các model lớn cũng thường được phát hành thành diffusion model, text encoder và VAE riêng. Định dạng file không tự nói lên kiến trúc hay khả năng tương thích.</p>
+      </div>
+
+      <div class="compare-grid">
+        <div class="compare-card accent">
+          <p class="compare-card-label">Checkpoint</p>
+          <p class="compare-card-title">Toàn bộ model</p>
+          <p>Với checkpoint “all-in-one”, thường đóng gói model chính, text encoder và VAE. Với bản phát hành tách component, từng file phải được load theo hướng dẫn của model card/workflow.</p>
+          <p>Chỉ dùng độc lập khi file và node thực sự khớp; không suy ra điều đó chỉ từ đuôi <code>.safetensors</code>.</p>
+          <div class="card-tags">
+            <span class="tag cyan">.safetensors</span>
+            <span class="tag cyan">.ckpt</span>
+            <span class="tag">2 – 20+ GB</span>
+          </div>
+        </div>
+        <div class="compare-card">
+          <p class="compare-card-label">LoRA</p>
+          <p class="compare-card-title">Delta weights</p>
+          <p>Một adapter trọng số nhỏ, được áp vào model nền tương thích. “Delta” là cách diễn đạt hữu ích, không phải lời hứa rằng mọi LoRA khớp mọi checkpoint.</p>
+          <p>Thường dùng cho style/nhân vật; cần kiểm tra base model, kiến trúc và khuyến nghị strength từ tác giả.</p>
+          <div class="card-tags">
+            <span class="tag">.safetensors</span>
+            <span class="tag">50 – 500 MB</span>
+          </div>
+        </div>
+      </div>
+
+      <details class="faq faq-constrained">
+        <summary class="faq-q">.safetensors khác .ckpt ở điểm nào?</summary>
+        <div class="faq-a">
+          Một số checkpoint <code>.ckpt</code> dựa trên Python pickle nên không nên lấy từ nguồn không tin cậy. Định dạng <code>.safetensors</code> được thiết kế để không thực thi mã tùy ý khi đọc tensor. Vẫn cần xác minh nguồn, checksum và hướng dẫn của model; tốc độ load phụ thuộc phần cứng, kích thước và implementation.
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <!-- Section 2: Directory tree explorer -->
+  <section class="section" id="directory" aria-labelledby="s2-heading">
+    <div class="shell">
+      <p class="section-index">02 &mdash; Cấu trúc thư mục</p>
+      <h2 class="section-h2" id="s2-heading">Đặt file model đúng thư mục</h2>
+      <p class="section-lead">ComfyUI nhận diện model dựa trên vị trí thư mục. Đặt sai chỗ, loader sẽ không thấy file. Nhấn vào từng thư mục để xem chi tiết.</p>
+
+      <div class="tree-shell" role="region" aria-label="Cây thư mục ComfyUI — nhấn thư mục để xem mô tả">
+        <div class="tree-toolbar" aria-hidden="true">
+          <span class="tree-dot"></span>
+          <span class="tree-dot"></span>
+          <span class="tree-dot"></span>
+          <span class="tree-path">ComfyUI / models /</span>
+        </div>
+        <div class="tree-body">
+          <div class="tree-left" role="tree" aria-label="Thư mục models">
+            <button id="tree-root" class="tree-item expanded" type="button" role="treeitem" aria-expanded="true" aria-selected="false" data-folder="root">
+              <span class="ti-icon" aria-hidden="true">📁</span>
+              <span>models/</span>
+              <span class="ti-caret" aria-hidden="true">▶</span>
+            </button>
+            <div id="tree-children-root" class="tree-children open" role="group">
+
+              <button class="tree-item" type="button" role="treeitem" aria-expanded="false" aria-selected="false" data-folder="checkpoints">
+                <span class="ti-icon" aria-hidden="true">📂</span>
+                <span>checkpoints/</span>
+                <span class="ti-caret" aria-hidden="true">▶</span>
+              </button>
+              <div id="tree-children-checkpoints" class="tree-children" role="group">
+                <div class="tree-file"><span class="ti-icon" aria-hidden="true">📄</span>dreamshaper_xl.safetensors</div>
+                <div class="tree-file"><span class="ti-icon" aria-hidden="true">📄</span>sd_xl_base_1.0.safetensors</div>
+              </div>
+
+              <button class="tree-item" type="button" role="treeitem" aria-expanded="false" aria-selected="false" data-folder="loras">
+                <span class="ti-icon" aria-hidden="true">📂</span>
+                <span>loras/</span>
+                <span class="ti-caret" aria-hidden="true">▶</span>
+              </button>
+              <div id="tree-children-loras" class="tree-children" role="group">
+                <div class="tree-file"><span class="ti-icon" aria-hidden="true">📄</span>detail_tweaker.safetensors</div>
+              </div>
+
+              <button class="tree-item" type="button" role="treeitem" aria-expanded="false" aria-selected="false" data-folder="vae">
+                <span class="ti-icon" aria-hidden="true">📂</span>
+                <span>vae/</span>
+                <span class="ti-caret" aria-hidden="true">▶</span>
+              </button>
+              <div id="tree-children-vae" class="tree-children" role="group">
+                <div class="tree-file"><span class="ti-icon" aria-hidden="true">📄</span>vae-ft-mse-840000.safetensors</div>
+              </div>
+
+              <button class="tree-item" type="button" role="treeitem" aria-expanded="false" aria-selected="false" data-folder="clip">
+                <span class="ti-icon" aria-hidden="true">📂</span>
+                <span>clip/</span>
+                <span class="ti-caret" aria-hidden="true">▶</span>
+              </button>
+              <div id="tree-children-clip" class="tree-children" role="group">
+                <div class="tree-file"><span class="ti-icon" aria-hidden="true">📄</span>t5xxl_fp16.safetensors</div>
+                <div class="tree-file"><span class="ti-icon" aria-hidden="true">📄</span>clip_l.safetensors</div>
+              </div>
+
+              <button class="tree-item" type="button" role="treeitem" aria-expanded="false" aria-selected="false" data-folder="unet">
+                <span class="ti-icon" aria-hidden="true">📂</span>
+                <span>unet/ <span class="unet-sub">(diffusion_models/)</span></span>
+                <span class="ti-caret" aria-hidden="true">▶</span>
+              </button>
+              <div id="tree-children-unet" class="tree-children" role="group">
+                <div class="tree-file"><span class="ti-icon" aria-hidden="true">📄</span>wan2.1_t2v_1.3B.safetensors</div>
+              </div>
+
+            </div><!-- /root children -->
+          </div><!-- /tree-left -->
+
+          <div class="tree-right" id="tree-info-panel">
+            <div class="info-panel-empty" id="tree-empty-msg">
+              ← Nhấn vào một thư mục để xem mô tả
+            </div>
+            <div class="info-panel" id="tree-info" hidden aria-live="polite">
+              <p class="info-title" id="info-label">Thư mục</p>
+              <p class="info-name" id="info-name"></p>
+              <p class="info-desc" id="info-desc"></p>
+              <div class="info-ext" id="info-ext"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 3: Loaders -->
+  <section class="section" id="loaders" aria-labelledby="s3-heading">
+    <div class="shell">
+      <p class="section-index">03 &mdash; Các loại Loader</p>
+      <h2 class="section-h2" id="s3-heading">CheckpointLoaderSimple vs Tách riêng components</h2>
+      <p class="section-lead">Đây là hành vi của node ComfyUI, không phải quy luật chung cho mọi model. Chọn theo layout file mà model phát hành và workflow mẫu của đúng phiên bản node.</p>
+
+      <div class="loader-table-wrap" role="region" aria-label="So sánh các loại loader">
+        <table class="loader-table">
+          <thead>
+            <tr>
+              <th scope="col">Loader</th>
+              <th scope="col">Load những gì</th>
+              <th scope="col">Ưu điểm</th>
+              <th scope="col">Nhược điểm</th>
+              <th scope="col">Dùng khi nào</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>CheckpointLoaderSimple</td>
+              <td>Từ một file trong <code>checkpoints/</code>, xuất model, CLIP và VAE khi checkpoint có các component tương ứng</td>
+              <td><span class="pro">✓</span> Đơn giản, 1 node duy nhất<br><span class="pro">✓</span> Ít lỗi do mismatch</td>
+              <td><span class="con">✗</span> Không phù hợp nếu model được phát hành tách file<br><span class="con">✗</span> Không thay thế việc đọc model card</td>
+              <td>Checkpoint all-in-one mà tài liệu ComfyUI/model card yêu cầu dùng node này</td>
+            </tr>
+            <tr>
+              <td>UNETLoader<br>+ CLIPLoader<br>+ VAELoader</td>
+              <td>Ba thành phần từ ba file riêng biệt</td>
+              <td><span class="pro">✓</span> Phù hợp layout phát hành tách component<br><span class="pro">✓</span> Cho phép thay component khi tài liệu xác nhận tương thích</td>
+              <td><span class="con">✗</span> Phức tạp hơn<br><span class="con">✗</span> Phải đảm bảo compatibility thủ công</td>
+              <td>Các bundle tách diffusion model, text encoder, VAE; ví dụ workflow video chính chủ thường nêu rõ từng file</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="faq-list faq-list-spaced">
+        <details class="faq">
+          <summary class="faq-q">Với Wan, khi nào cần các loader tách component?</summary>
+          <div class="faq-a">
+            Các workflow Wan được phát hành dưới dạng nhiều file cần loader tương ứng cho diffusion model, text encoder và VAE. Tên node, đường dẫn và precision có thể thay đổi theo bản ComfyUI; dùng workflow chính chủ đi kèm release thay vì suy luận từ việc model là DiT. Nếu node báo thiếu tensor hoặc không nhận file, kiểm tra lại đúng bundle và version trước khi đổi tham số sampler.
+          </div>
+        </details>
+        <details class="faq">
+          <summary class="faq-q">Flux luôn phải dùng loader tách riêng?</summary>
+          <div class="faq-a">
+            Không. ComfyUI có cả checkpoint Flux “easy-to-use” và bundle đầy đủ với text encoder/VAE/diffusion model riêng. Hãy làm theo bundle bạn tải: checkpoint đơn file có thể dùng loader checkpoint; bundle đầy đủ dùng các loader tách component mà workflow chính chủ chỉ định.
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 4: Model type matching -->
+  <section class="section" id="matching" aria-labelledby="s4-heading">
+    <div class="shell">
+      <p class="section-index">04 &mdash; Compatibility</p>
+      <h2 class="section-h2" id="s4-heading">Model type matching</h2>
+      <p class="section-lead">Compatibility là thuộc tính của một bundle và version cụ thể. Trộn component sai có thể làm node từ chối load, tạo output không hợp lệ hoặc giảm chất lượng — không có một triệu chứng duy nhất.</p>
+
+      <div class="match-list" aria-label="Các cặp model tương thích và không tương thích">
+        <div class="match-item bad" role="group" aria-label="Không tương thích">
+          <div class="match-src">SDXL Checkpoint</div>
+          <div class="match-arrow" aria-hidden="true">✕</div>
+          <div class="match-tgt">SD 1.5 VAE</div>
+          <p class="match-badge">❌ Không có bằng chứng bundle hỗ trợ cặp này — dừng và đối chiếu model card/workflow</p>
+        </div>
+        <div class="match-item good" role="group" aria-label="Tương thích">
+          <div class="match-src">SDXL Checkpoint</div>
+          <div class="match-arrow" aria-hidden="true">→</div>
+          <div class="match-tgt">SDXL VAE</div>
+          <p class="match-badge">✅ Ví dụ cặp cùng bundle; vẫn xác nhận version và config trước khi A/B test</p>
+        </div>
+        <div class="match-item bad" role="group" aria-label="Không tương thích">
+          <div class="match-src">Wan2.1 UNet</div>
+          <div class="match-arrow" aria-hidden="true">✕</div>
+          <div class="match-tgt">SDXL CLIP</div>
+          <p class="match-badge">❌ Text encoder từ bundle SDXL không thay thế encoder được workflow Wan yêu cầu</p>
+        </div>
+        <div class="match-item good" role="group" aria-label="Tương thích">
+          <div class="match-src">Wan2.1 UNet</div>
+          <div class="match-arrow" aria-hidden="true">→</div>
+          <div class="match-tgt">WanVideo VAE + T5</div>
+          <p class="match-badge">✅ Chỉ đúng khi là các file cùng release và đúng workflow/version ComfyUI</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="production-case" aria-labelledby="s5-heading">
+    <div class="shell">
+      <p class="section-index">05 &mdash; Production case</p>
+      <h2 class="section-h2" id="s5-heading">Case: chuẩn bị shot video product 5 giây</h2>
+      <p class="section-lead">Một nhóm hậu kỳ cần chọn đúng bundle trước khi đánh giá chuyển động. Đây là brief mô phỏng, không phải benchmark hay preset khuyến nghị cho mọi Wan workflow.</p>
+
+      <div class="case-grid">
+        <article class="case-card"><h3>Mục tiêu &amp; bối cảnh</h3><p><strong>Output:</strong> một shot 5 giây, 16:9 cho trang đích giày chạy bộ. Cần chuyển động camera ổn định để editor ghép với footage thật.</p></article>
+        <article class="case-card"><h3>Input &amp; workflow giả định</h3><p>Image-to-video từ key visual đã duyệt; bundle Wan theo workflow chính chủ: diffusion model + text encoder + VAE tương ứng.</p></article>
+        <article class="case-card"><h3>Giữ cố định</h3><p>Prompt, ảnh đầu vào, seed, số frame, resolution, sampler và môi trường GPU. Chỉ thay <strong>kế hoạch load</strong>.</p></article>
+        <article class="case-card"><h3>Đang thử nghiệm</h3><p>A/B giữa bundle đồng bộ với một cấu hình có text encoder từ bundle khác. Không so sánh tốc độ vì chưa cố định GPU/precision/offload.</p></article>
+        <article class="case-card wide"><h3>Giới hạn, đánh giá &amp; bước tiếp</h3><p><strong>Giới hạn:</strong> 24 GB VRAM và 20 phút/biến thể (mục tiêu vận hành, không phải thông số model). <strong>Đánh giá:</strong> job load thành công, không báo tensor mismatch, chủ thể bám key visual và chuyển động dùng được. <strong>Thất bại:</strong> loader không thấy file, lỗi thiếu tensor, màu/temporal coherence vỡ. <strong>Tiếp theo:</strong> xác minh path + release/version, quay lại workflow gốc, rồi mới cô lập một component để A/B.</p></article>
+      </div>
+
+      <div class="simulator" aria-labelledby="sim-heading">
+        <p class="simulator-kicker">Mô phỏng quyết định · không phải benchmark</p>
+        <h3 id="sim-heading">Triage kế hoạch load</h3>
+        <p class="section-lead">Chọn cách xử lý cho brief trên rồi kiểm tra. Phản hồi giải thích quan hệ giữa layout file, compatibility và bước chẩn đoán tiếp theo.</p>
+        <fieldset>
+          <legend>Kế hoạch bạn chọn</legend>
+          <label class="plan-option"><input type="radio" name="load-plan" value="single" /> Ép mọi file Wan vào <code>checkpoints/</code> và dùng CheckpointLoaderSimple vì cùng là <code>.safetensors</code>.</label>
+          <label class="plan-option"><input type="radio" name="load-plan" value="bundle" /> Đặt từng file theo đường dẫn bundle/workflow, load component tương ứng, rồi chạy một job kiểm tra trước A/B.</label>
+          <label class="plan-option"><input type="radio" name="load-plan" value="swap" /> Thay text encoder SDXL vào bundle Wan và đánh giá bằng một clip duy nhất.</label>
+        </fieldset>
+        <div class="simulator-actions"><button type="button" id="check-load-plan">Kiểm tra kế hoạch</button></div>
+        <p class="simulator-output" id="load-plan-feedback" role="status" aria-live="polite">Chưa chọn. Dùng Tab để vào các lựa chọn, phím mũi tên để đổi radio, rồi Enter/Space để kiểm tra.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 6: Takeaways -->
+  <section class="section" id="takeaways" aria-labelledby="s6-heading">
+    <div class="shell">
+      <p class="section-index">06 &mdash; Tổng kết</p>
+      <h2 class="section-h2" id="s6-heading">Điều cần nhớ</h2>
+      <p class="section-lead">Những điểm cốt lõi sau bài học này.</p>
+
+      <div class="takeaways">
+        <p class="takeaways-label">Checkpoint & Model Loaders</p>
+        <div class="takeaway-item">
+          <span class="takeaway-num">01</span>
+          <p class="takeaway-text">Đọc layout phát hành trước: checkpoint có thể all-in-one, còn bundle lớn có thể tách diffusion model, text encoder và VAE.</p>
+        </div>
+        <div class="takeaway-item">
+          <span class="takeaway-num">02</span>
+          <p class="takeaway-text">ComfyUI mặc định map <code>text_encoders/</code> và legacy <code>clip/</code>, cũng như <code>diffusion_models/</code> và legacy <code>unet/</code>; custom path có thể đổi các vị trí này.</p>
+        </div>
+        <div class="takeaway-item">
+          <span class="takeaway-num">03</span>
+          <p class="takeaway-text">Loader là hành vi ComfyUI: dùng checkpoint loader cho checkpoint phù hợp; dùng loader tách component khi bundle/workflow của đúng release yêu cầu.</p>
+        </div>
+        <div class="takeaway-item">
+          <span class="takeaway-num">04</span>
+          <p class="takeaway-text">Không đổi component chỉ vì cùng đuôi file. Cố định input/seed/setting, kiểm tra load rồi mới A/B một biến có giả thuyết rõ ràng.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="related" aria-labelledby="related-heading">
+    <div class="shell">
+      <p class="section-index">Liên kết kiến thức</p>
+      <h2 class="section-h2" id="related-heading">Bài liên quan</h2>
+      <p class="section-lead">Đi theo mối quan hệ workflow thực tế: từ JSON/node, sang bundle Wan, rồi đến giới hạn hạ tầng khi chạy production.</p>
+      <div class="related-grid">
+        <article class="related-card"><h3>Node &amp; Workflow JSON</h3><p>Hiểu graph, input/output và cách một workflow ghi lại node configuration trước khi thay loader.</p><a href="video-generation-part-6-lesson-1.html">Mở Phần 6 · Bài 1 →</a></article>
+        <article class="related-card"><h3>Bộ node WanVideo</h3><p>Áp dụng bundle đã load đúng vào các node video cụ thể; dùng làm bước tiếp theo cho case Wan ở bài này.</p><a href="video-generation-part-6-lesson-4.html">Mở Phần 6 · Bài 4 →</a></article>
+        <article class="related-card"><h3>Chạy trên RunPod</h3><p>Đặt các giới hạn VRAM, thời gian và storage của production brief vào bối cảnh hạ tầng thực.</p><a href="video-generation-part-6-lesson-5.html">Mở Phần 6 · Bài 5 →</a></article>
+        <article class="related-card"><h3>LoRA là gì</h3><p>Làm rõ adapter phụ thuộc model nền thế nào, để không nhầm LoRA với một checkpoint tự chạy độc lập.</p><a href="video-generation-part-3-lesson-1.html">Mở Phần 3 · Bài 1 →</a></article>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="shell footer-inner">
+    <p class="footer-copy">© 2025 Video Gen Lab — Phần 6 · Bài 3</p>
+    <nav class="footer-nav" aria-label="Điều hướng bài học">
+      <a href="video-generation-part-6-lesson-2.html">← Bài trước: Custom Node &amp; Manager</a>
+      <a href="video-generation-part-6-lesson-4.html">Bài tiếp: Bộ node WanVideo →</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+  // ── Progress bar ──
+  (function () {
+    const fill = document.getElementById('progressFill');
+    const track = fill && fill.closest('[role="progressbar"]');
+    if (!fill) return;
+    const update = () => {
+      const scrolled = window.scrollY;
+      const total = document.documentElement.scrollHeight - window.innerHeight;
+      const pct = total > 0 ? Math.min(100, (scrolled / total) * 100) : 0;
+      fill.style.width = pct + '%';
+      if (track) track.setAttribute('aria-valuenow', Math.round(pct));
+    };
+    window.addEventListener('scroll', update, { passive: true });
+    update();
+  })();
+
+  // ── Directory tree explorer ──
+  (function () {
+    const INFO = {
+      root: {
+        label: 'Root',
+        name: 'models/',
+        desc: 'Thư mục gốc của các model mặc định. extra_model_paths.yaml có thể bổ sung đường dẫn khác.',
+        exts: []
+      },
+      checkpoints: {
+        label: 'Checkpoint',
+        name: 'checkpoints/',
+        desc: 'Đường dẫn mặc định cho checkpoint. CheckpointLoaderSimple liệt kê file ở đây; kích thước và component trong file phụ thuộc model phát hành.',
+        exts: ['.safetensors', '.ckpt']
+      },
+      loras: {
+        label: 'LoRA',
+        name: 'loras/',
+        desc: 'Chứa LoRA adapter. LoraLoader liệt kê file ở đây; adapter cần model nền tương thích theo hướng dẫn của tác giả.',
+        exts: ['.safetensors', '.pt']
+      },
+      vae: {
+        label: 'VAE',
+        name: 'vae/',
+        desc: 'Chứa VAE riêng. Chỉ thay VAE khi model card/workflow xác nhận cặp tương thích.',
+        exts: ['.safetensors', '.pt']
+      },
+      clip: {
+        label: 'CLIP / Text Encoder',
+        name: 'text_encoders/ (clip/ là legacy)',
+        desc: 'ComfyUI tìm text encoder ở text_encoders/ và legacy clip/. Tên encoder cần khớp workflow của bundle.',
+        exts: ['.safetensors']
+      },
+      unet: {
+        label: 'UNet / Diffusion Model',
+        name: 'diffusion_models/ (unet/ là legacy)',
+        desc: 'ComfyUI tìm diffusion model ở diffusion_models/ và legacy unet/. Dùng đúng đường dẫn mà release/workflow yêu cầu.',
+        exts: ['.safetensors', '.gguf']
+      }
+    };
+
+    const items = document.querySelectorAll('[data-folder]');
+    const emptyMsg = document.getElementById('tree-empty-msg');
+    const infoPanel = document.getElementById('tree-info');
+    const infoLabel = document.getElementById('info-label');
+    const infoName = document.getElementById('info-name');
+    const infoDesc = document.getElementById('info-desc');
+    const infoExt = document.getElementById('info-ext');
+
+    function showInfo(key) {
+      const d = INFO[key];
+      if (!d) return;
+      emptyMsg.hidden = true;
+      infoPanel.hidden = false;
+      infoLabel.textContent = d.label;
+      infoName.textContent = d.name;
+      infoDesc.textContent = d.desc;
+      infoExt.innerHTML = d.exts.map(e =>
+        `<span class="tag cyan">${e}</span>`
+      ).join('');
+    }
+
+    function toggleFolder(item) {
+      const key = item.dataset.folder;
+      const childrenId = 'tree-children-' + key;
+      const childrenEl = document.getElementById(childrenId);
+
+      // deactivate all
+      items.forEach(i => {
+        i.classList.remove('active');
+        i.setAttribute('aria-selected', 'false');
+      });
+
+      item.classList.add('active');
+      item.setAttribute('aria-selected', 'true');
+
+      if (childrenEl) {
+        const isOpen = childrenEl.classList.toggle('open');
+        item.classList.toggle('expanded', isOpen);
+        item.setAttribute('aria-expanded', String(isOpen));
+      }
+
+      showInfo(key);
+    }
+
+    items.forEach(item => item.addEventListener('click', () => toggleFolder(item)));
+  })();
+
+  // ── Load-plan triage simulator ──
+  (function () {
+    const checkButton = document.getElementById('check-load-plan');
+    const feedback = document.getElementById('load-plan-feedback');
+    if (!checkButton || !feedback) return;
+
+    const responses = {
+      single: ['warn', 'Chưa an toàn: đuôi .safetensors không xác nhận layout. Đọc workflow/model card, đặt từng file ở path phù hợp, rồi kiểm tra loader nhận đủ component.'],
+      bundle: ['pass', 'Đúng hướng chẩn đoán: giữ nguyên bundle đồng bộ, xác nhận job load thành công trước. Sau đó chỉ thay một biến và lưu điều kiện A/B để phân biệt lỗi bundle với lỗi generation.'],
+      swap: ['warn', 'Chưa có cơ sở compatibility: một clip duy nhất không cô lập nguyên nhân. Quay về encoder trong bundle, xác nhận version/path, rồi A/B chỉ khi nguồn chính chủ nói cặp đó được hỗ trợ.']
+    };
+
+    checkButton.addEventListener('click', () => {
+      const selected = document.querySelector('input[name="load-plan"]:checked');
+      if (!selected) {
+        feedback.dataset.state = 'warn';
+        feedback.textContent = 'Hãy chọn một kế hoạch trước; radio dùng được với Tab và phím mũi tên.';
+        return;
+      }
+      const [state, message] = responses[selected.value];
+      feedback.dataset.state = state;
+      feedback.textContent = message;
+    });
+  })();
+</script>
+</body>
+</html>

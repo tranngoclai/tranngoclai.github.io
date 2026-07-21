@@ -1,0 +1,1890 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="video-generation-favicon.svg" type="image/svg+xml" />
+  <meta name="description" content="Cách thu thập, làm sạch và gán caption cho dataset khuôn mặt/nhân vật để huấn luyện LoRA, cùng kỹ thuật phát hiện và tránh overfitting." />
+  <title>Phần 3 · Bài 5 — Chuẩn bị Dataset &amp; Captioning</title>
+  <script src="video-generation-theme.js"></script>
+  <link rel="stylesheet" href="video-generation-design-system.css" />
+  <style>
+    main { overflow: hidden; }
+    section { scroll-margin-top: 86px; }
+
+    /* ── Hero ──────────────────────────────────────────────── */
+    .hero { padding: 80px 0 64px; border-bottom: 1px solid var(--line); }
+    .hero-meta {
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      letter-spacing: .14em;
+      color: var(--dim);
+      text-transform: uppercase;
+      margin: 0 0 20px;
+    }
+    .hero-title {
+      max-width: 900px;
+      font-size: clamp(2.6rem, 7vw, 5.4rem);
+      font-weight: 900;
+      letter-spacing: -.05em;
+      line-height: .96;
+      margin: 0 0 24px;
+      color: var(--ink);
+    }
+    .hero-title span { color: var(--acid); }
+    .hero-lead {
+      font-size: clamp(1.05rem, 1.8vw, 1.25rem);
+      color: var(--muted);
+      max-width: 660px;
+      margin: 0 0 28px;
+      line-height: 1.6;
+    }
+    .hero-badges { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 30px; }
+    .hero-badge {
+      font-family: var(--font-mono);
+      font-size: .65rem;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      padding: 5px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      color: var(--dim);
+    }
+    .hero-badge.acid { border-color: var(--acid); color: var(--acid); }
+    .hero-badge.cyan { border-color: var(--cyan); color: var(--cyan); }
+    .hero-badge.orange { border-color: var(--orange); color: var(--orange); }
+    .hero-cta-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+
+    /* ── Section scaffolding ───────────────────────────────── */
+    .label {
+      color: var(--acid);
+      font-family: var(--font-mono);
+      font-size: .76rem;
+      font-weight: 800;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    h2, h3, p { margin-top: 0; }
+    .content-section { padding-block: 100px; border-top: 1px solid var(--line); }
+    .section-head { display: grid; grid-template-columns: 1fr 1.3fr; gap: 48px; margin-bottom: 54px; align-items: end; }
+    .section-index { color: var(--dim); font-family: var(--font-mono); font-size: .82rem; }
+    h2 { margin: 10px 0 0; font-size: clamp(2.2rem, 5vw, 4.2rem); line-height: 1; letter-spacing: -.055em; }
+    .section-intro { max-width: 670px; margin: 0; color: var(--muted); font-size: 1.08rem; }
+
+    /* ── Definition panel ──────────────────────────────────── */
+    .definition {
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 24px;
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--acid);
+      border-radius: var(--radius);
+      padding: 30px;
+      background: linear-gradient(110deg, rgba(200,255,61,.055), transparent 55%), var(--panel);
+    }
+    .definition strong {
+      color: var(--acid);
+      font-family: var(--font-mono);
+      font-size: .78rem;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .definition p { margin: 0; font-size: clamp(1.15rem, 2vw, 1.5rem); line-height: 1.45; }
+
+    /* ── Image grid (dataset requirements) ─────────────────── */
+    .image-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 16px;
+      margin-top: 32px;
+    }
+    .img-card {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 20px 18px 16px;
+      background: var(--panel);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .img-card-icon { color: var(--cyan); font: 800 .65rem var(--font-mono); letter-spacing: .12em; line-height: 1; }
+    .img-card h3 { font-size: .92rem; font-weight: 800; margin: 0; color: var(--ink); }
+    .img-card p { font-size: .82rem; color: var(--muted); margin: 0; line-height: 1.5; }
+    .img-card.good { border-left: 3px solid var(--acid); }
+    .img-card.bad  { border-left: 3px solid var(--red); }
+
+    /* ── Dataset Director lab ─────────────────────────────── */
+    .director-lab {
+      margin-top: 34px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      overflow: hidden;
+    }
+    .director-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 24px;
+      align-items: start;
+      padding: 24px 28px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel-2);
+    }
+    .director-kicker {
+      margin: 0 0 5px;
+      color: var(--cyan);
+      font: 800 .68rem var(--font-mono);
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    .director-title { margin: 0; font-size: 1.15rem; line-height: 1.35; }
+    .director-presets { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+    .director-preset {
+      min-height: 44px;
+      padding: 8px 13px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--night);
+      color: var(--muted);
+      font: 800 .68rem var(--font-mono);
+      transition: border-color .2s ease, background .2s ease, color .2s ease;
+    }
+    .director-preset:hover { color: var(--ink); border-color: var(--dim); }
+    .director-preset[aria-pressed="true"] {
+      color: var(--ink);
+      border-color: var(--acid-fill);
+      background: color-mix(in srgb, var(--acid-fill) 12%, var(--night));
+    }
+    .director-body {
+      display: grid;
+      grid-template-columns: minmax(250px, .78fr) 1.22fr;
+      gap: 28px;
+      padding: 28px;
+    }
+    .director-controls { display: flex; flex-direction: column; gap: 18px; }
+    .director-control label,
+    .augmentation-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 8px;
+      color: var(--muted);
+      font: 700 .72rem var(--font-mono);
+      letter-spacing: .07em;
+      text-transform: uppercase;
+    }
+    .director-control output { color: var(--ink); }
+    .director-control input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--acid-fill); cursor: pointer; }
+    .augmentation-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--night);
+    }
+    .augmentation-row input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--acid-fill); cursor: pointer; }
+    .augmentation-row label { color: var(--muted); font-size: .84rem; line-height: 1.5; cursor: pointer; }
+    .augmentation-row strong { display: block; color: var(--ink); }
+    .director-stage { min-width: 0; }
+    .dataset-filmstrip {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 7px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--night);
+      overflow: hidden;
+    }
+    .dataset-frame {
+      --turn: 0deg;
+      --light-x: 30%;
+      position: relative;
+      aspect-ratio: 4 / 5;
+      border-radius: 9px;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at var(--light-x) 24%, rgba(255,255,255,.65), transparent 28%),
+        linear-gradient(150deg, #375868, #15242c 62%);
+      transition: filter .28s ease, transform .28s ease, background .28s ease;
+    }
+    .dataset-frame::before {
+      content: '';
+      position: absolute;
+      width: 48%;
+      aspect-ratio: .8;
+      left: 26%;
+      top: 19%;
+      border-radius: 48% 48% 44% 44%;
+      background: #d9a77f;
+      box-shadow: inset 5px 0 0 rgba(74,39,30,.34);
+      transform: rotate(var(--turn));
+      transform-origin: 50% 85%;
+    }
+    .dataset-frame::after {
+      content: '';
+      position: absolute;
+      width: 76%;
+      height: 45%;
+      left: 12%;
+      bottom: -20%;
+      border-radius: 50% 50% 0 0;
+      background: #243b49;
+    }
+    .dataset-frame.is-augmented { filter: hue-rotate(8deg) saturate(1.08); }
+    .dataset-frame.is-risk { filter: contrast(1.55) saturate(.45); }
+    .dataset-caption {
+      position: absolute;
+      inset: auto 5px 5px;
+      z-index: 2;
+      overflow: hidden;
+      padding: 4px 5px;
+      border-radius: 5px;
+      background: rgba(7,12,15,.78);
+      color: #f6f3ea;
+      font: .52rem/1.25 var(--font-mono);
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .scan-line {
+      position: absolute;
+      z-index: 5;
+      inset: 0 auto 0 -10%;
+      width: 3px;
+      opacity: 0;
+      background: var(--acid-fill);
+      box-shadow: 0 0 18px var(--acid-fill);
+      pointer-events: none;
+    }
+    .dataset-filmstrip.is-scanning .scan-line { animation: dataset-scan .9s ease-out both; }
+    @keyframes dataset-scan {
+      0% { left: 0; opacity: 0; }
+      10%, 80% { opacity: 1; }
+      100% { left: 100%; opacity: 0; }
+    }
+    .director-results {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .director-metric {
+      padding: 11px 12px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: var(--panel-2);
+    }
+    .director-metric span { display: block; color: var(--dim); font: .6rem var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
+    .director-metric strong { display: block; margin-top: 4px; font-size: .94rem; }
+    .generalization-value { color: var(--acid); }
+    .risk-value { color: var(--orange); }
+    .director-feedback {
+      min-height: 3.2em;
+      margin: 12px 0 0;
+      color: var(--muted);
+      font-size: .86rem;
+    }
+    .director-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    /* ── Caption format panel ──────────────────────────────── */
+    .caption-block {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--panel);
+      margin-top: 28px;
+    }
+    .caption-header {
+      padding: 14px 24px;
+      background: var(--panel-2);
+      border-bottom: 1px solid var(--line);
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+    .caption-body { padding: 24px; }
+    .caption-formula {
+      font-family: var(--font-mono);
+      font-size: clamp(.9rem, 2vw, 1.1rem);
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px 20px;
+      color: var(--ink);
+      margin-bottom: 18px;
+      word-break: break-word;
+    }
+    .caption-formula .trigger { color: var(--acid); font-weight: 800; }
+    .caption-formula .desc { color: var(--cyan); }
+    .caption-note { color: var(--muted); font-size: .9rem; margin: 0; }
+
+    /* ── Strategy comparison ────────────────────────────────── */
+    .strategy-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 28px;
+    }
+    .strategy-card {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 24px;
+      background: var(--panel);
+    }
+    .strategy-card .stag {
+      font-family: var(--font-mono);
+      font-size: .65rem;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      color: var(--dim);
+      margin-bottom: 14px;
+      display: inline-block;
+    }
+    .strategy-card h3 { font-size: 1.1rem; font-weight: 800; margin-bottom: 10px; }
+    .strategy-card p { font-size: .86rem; color: var(--muted); margin: 0; line-height: 1.55; }
+    .strategy-card .pro { margin-top: 14px; font-size: .8rem; color: var(--acid); font-family: var(--font-mono); }
+    .strategy-card .con { font-size: .8rem; color: var(--red); font-family: var(--font-mono); }
+    .strategy-card.recommended { border-color: var(--acid); }
+    .strategy-card.recommended .stag { border-color: var(--acid); color: var(--acid); }
+
+    /* ── Overfitting visualizer ─────────────────────────────── */
+    .overfit-panel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--panel);
+      box-shadow: 0 16px 60px rgba(0,0,0,.18);
+      margin-top: 32px;
+    }
+    .overfit-header {
+      padding: 16px 24px;
+      background: var(--panel-2);
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .overfit-title {
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+    .overfit-controls { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+    .overfit-controls label { font-family: var(--font-mono); font-size: .72rem; color: var(--muted); }
+    .slider-wrap { display: flex; align-items: center; gap: 10px; }
+    .slider-wrap input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 140px;
+      height: 4px;
+      border-radius: 4px;
+      background: var(--line);
+      outline: none;
+      cursor: pointer;
+    }
+    .slider-wrap input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--acid-fill);
+      cursor: pointer;
+      border: 2px solid var(--night);
+    }
+    .slider-wrap input[type=range]::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--acid-fill);
+      cursor: pointer;
+      border: 2px solid var(--night);
+    }
+    .slider-val {
+      font-family: var(--font-mono);
+      font-size: .78rem;
+      color: var(--ink);
+      min-width: 44px;
+      text-align: right;
+    }
+    .overfit-body {
+      padding: 28px 24px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    .overfit-graph canvas {
+      width: 100%;
+      height: 200px;
+      display: block;
+      border-radius: 12px;
+    }
+    .overfit-legend {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-mono);
+      font-size: .7rem;
+      color: var(--muted);
+    }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
+    .overfit-status { display: flex; flex-direction: column; justify-content: center; gap: 14px; }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 999px;
+      font-family: var(--font-mono);
+      font-size: .78rem;
+      font-weight: 800;
+      border: 1px solid var(--line);
+      transition: background .3s, border-color .3s, color .3s;
+    }
+    .status-badge.ok   { border-color: var(--acid);   color: var(--acid);   background: rgba(200,255,61,.08); }
+    .status-badge.warn { border-color: var(--orange); color: var(--orange); background: rgba(255,138,76,.08); }
+    .status-badge.bad  { border-color: var(--red);    color: var(--red);    background: rgba(255,107,107,.08); }
+    .status-desc { font-size: .88rem; color: var(--muted); line-height: 1.55; margin: 0; }
+
+    /* ── Signs list ─────────────────────────────────────────── */
+    .sign-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 24px;
+    }
+    .sign-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--panel);
+    }
+    .sign-icon { color: var(--cyan); font: 800 .68rem var(--font-mono); flex: 0 0 auto; line-height: 1; margin-top: 5px; }
+    .sign-text h3 { font-size: .9rem; font-weight: 800; margin-bottom: 4px; }
+    .sign-text p { font-size: .82rem; color: var(--muted); margin: 0; }
+
+    /* ── Anti-overfitting techniques ───────────────────────── */
+    .technique-list { display: flex; flex-direction: column; gap: 12px; margin-top: 28px; }
+    .technique-item {
+      display: grid;
+      grid-template-columns: 48px 1fr;
+      gap: 16px;
+      align-items: start;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--panel);
+    }
+    .technique-num {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font: 800 1rem var(--font-mono);
+      color: var(--acid);
+      flex: 0 0 auto;
+    }
+    .technique-text h3 { font-size: .98rem; font-weight: 800; margin-bottom: 6px; }
+    .technique-text p { font-size: .86rem; color: var(--muted); margin: 0; line-height: 1.55; }
+    .technique-tag {
+      display: inline-block;
+      margin-top: 8px;
+      font: .7rem var(--font-mono);
+      color: var(--cyan);
+      background: rgba(98,231,245,.08);
+      border: 1px solid rgba(98,231,245,.25);
+      border-radius: 6px;
+      padding: 2px 8px;
+    }
+
+    /* ── Caption quiz ───────────────────────────────────────── */
+    .quiz-container { display: flex; flex-direction: column; gap: 32px; margin-top: 32px; }
+    .quiz-item {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--panel);
+    }
+    .quiz-q-header {
+      padding: 16px 24px;
+      background: var(--panel-2);
+      border-bottom: 1px solid var(--line);
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+    .quiz-body { padding: 24px; }
+    .quiz-context { font-size: .9rem; color: var(--muted); margin-bottom: 16px; }
+    .quiz-options { display: flex; flex-direction: column; gap: 10px; }
+    .quiz-option {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px 16px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: transparent;
+      cursor: pointer;
+      text-align: left;
+      color: var(--ink);
+      transition: border-color .2s, background .2s;
+      min-height: 44px;
+      width: 100%;
+      font: inherit;
+    }
+    .quiz-option:hover:not(:disabled) { border-color: var(--dim); background: var(--panel-2); }
+    .quiz-option .opt-letter {
+      flex: 0 0 auto;
+      width: 26px;
+      height: 26px;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font: 800 .75rem var(--font-mono);
+      color: var(--dim);
+      transition: background .2s, border-color .2s, color .2s;
+    }
+    .quiz-option .opt-text { font-size: .88rem; line-height: 1.5; margin-top: 2px; }
+    .quiz-option .opt-code { font-family: var(--font-mono); font-size: .82rem; color: var(--cyan); }
+    .quiz-option.correct { border-color: var(--acid); background: rgba(200,255,61,.07); }
+    .quiz-option.correct .opt-letter { border-color: var(--acid); background: var(--acid-fill); color: #111; }
+    .quiz-option.wrong { border-color: var(--red); background: rgba(255,107,107,.07); }
+    .quiz-option.wrong .opt-letter { border-color: var(--red); color: var(--red); }
+    .quiz-feedback {
+      margin-top: 16px;
+      padding: 14px 16px;
+      border-radius: 12px;
+      font-size: .88rem;
+      line-height: 1.6;
+      display: none;
+    }
+    .quiz-feedback.show { display: block; }
+    .quiz-feedback.ok  { background: rgba(200,255,61,.08);  border: 1px solid rgba(200,255,61,.3);  color: var(--ink); }
+    .quiz-feedback.bad { background: rgba(255,107,107,.08); border: 1px solid rgba(255,107,107,.3); color: var(--ink); }
+
+    /* ── Checklist panel ────────────────────────────────────── */
+    .checklist-panel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--panel);
+      margin-top: 32px;
+    }
+    .checklist-head {
+      padding: 16px 24px;
+      background: var(--panel-2);
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .checklist-title { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+    .checklist-progress-text { font-family: var(--font-mono); font-size: .78rem; color: var(--acid); }
+    .checklist-progress-bar { height: 3px; background: var(--line); }
+    .checklist-bar-fill { width: 0; height: 100%; background: linear-gradient(90deg, var(--acid), var(--cyan)); transition: width .3s ease; }
+    .checklist-body { padding: 24px; display: flex; flex-direction: column; gap: 4px; }
+    .check-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .check-item:hover { background: var(--panel-2); }
+    .check-item input[type=checkbox] {
+      width: 20px;
+      height: 20px;
+      flex: 0 0 auto;
+      margin-top: 2px;
+      accent-color: var(--acid-fill);
+      cursor: pointer;
+    }
+    .check-item label { font-size: .9rem; color: var(--muted); cursor: pointer; line-height: 1.5; }
+    .check-item input:checked + label { color: var(--ink); text-decoration: line-through; text-decoration-color: var(--dim); }
+    .checklist-reset {
+      display: block;
+      width: calc(100% - 48px);
+      margin: 0 24px 24px;
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-size: .84rem;
+      cursor: pointer;
+      transition: background .2s, border-color .2s;
+    }
+    .checklist-reset:hover { background: var(--panel-2); border-color: var(--dim); }
+
+    /* ── Checkpoint ─────────────────────────────────────────── */
+    .checkpoint-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-top: 32px; }
+    .checkpoint-card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--panel);
+    }
+    .checkpoint-q-head {
+      padding: 14px 20px;
+      background: var(--panel-2);
+      border-bottom: 1px solid var(--line);
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+    .checkpoint-body { padding: 20px; }
+    .checkpoint-body p { font-size: .94rem; color: var(--ink); margin-bottom: 16px; line-height: 1.55; }
+    .cp-options { display: flex; flex-direction: column; gap: 8px; }
+    .cp-option {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 11px 14px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: transparent;
+      cursor: pointer;
+      text-align: left;
+      color: var(--ink);
+      font: inherit;
+      font-size: .86rem;
+      min-height: 44px;
+      width: 100%;
+      transition: border-color .2s, background .2s;
+    }
+    .cp-option:hover:not(:disabled) { border-color: var(--dim); background: var(--panel-2); }
+    .cp-option.correct { border-color: var(--acid); background: rgba(200,255,61,.07); color: var(--acid); }
+    .cp-option.wrong   { border-color: var(--red);  background: rgba(255,107,107,.07); color: var(--red); }
+    .cp-feedback { margin-top: 12px; font-size: .84rem; color: var(--muted); display: none; line-height: 1.5; }
+    .cp-feedback.show { display: block; }
+
+    /* ── Caption body helpers ───────────────────────────────── */
+    .caption-note-gap { margin-bottom: 12px; }
+    .caption-formula-gap { margin-bottom: 10px; }
+    .caption-note-top { margin-top: 16px; }
+    .caption-note-strong { color: var(--ink); }
+
+    /* ── Details / disclosure ───────────────────────────────── */
+    .tool-details {
+      margin-top: 28px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    .tool-details summary {
+      padding: 18px 24px;
+      cursor: pointer;
+      background: var(--panel);
+      font-weight: 700;
+      list-style: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      min-height: 44px;
+      color: var(--ink);
+    }
+    .tool-details summary::-webkit-details-marker { display: none; }
+    .tool-details-caret {
+      font-family: var(--font-mono);
+      font-size: .8rem;
+      color: var(--dim);
+    }
+    .tool-details-body {
+      padding: 20px 24px;
+      background: var(--panel-2);
+      border-top: 1px solid var(--line);
+    }
+    .tool-list {
+      margin: 0;
+      padding-left: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .tool-list li { color: var(--muted); font-size: .9rem; }
+    .tool-list strong { color: var(--ink); }
+
+    /* ── Production brief + knowledge links ────────────────── */
+    .production-brief, .related-panel {
+      margin-top: 30px;
+      padding: 28px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+    }
+    .production-brief { border-left: 4px solid var(--cyan); }
+    .brief-kicker { margin: 0 0 8px; color: var(--cyan); font: 800 .7rem var(--font-mono); letter-spacing: .12em; text-transform: uppercase; }
+    .production-brief h3, .related-panel h2 { margin-bottom: 10px; font-size: 1.35rem; }
+    .brief-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 20px 0; }
+    .brief-cell { padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel-2); }
+    .brief-cell strong { display: block; margin-bottom: 4px; color: var(--cyan); font: 800 .66rem var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
+    .brief-cell span { color: var(--muted); font-size: .88rem; line-height: 1.5; }
+    .brief-next { margin: 0; padding: 14px 16px; border: 1px solid color-mix(in srgb, var(--acid) 45%, var(--line)); border-radius: 12px; color: var(--muted); }
+    .brief-next strong { color: var(--acid); }
+    .related-list { display: grid; gap: 10px; margin: 18px 0 0; padding: 0; list-style: none; }
+    .related-list a { display: block; min-height: 44px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; text-decoration: none; background: var(--panel-2); }
+    .related-list a:hover { border-color: var(--cyan); }
+    .related-list strong { display: block; color: var(--ink); font-size: .9rem; }
+    .related-list span { display: block; margin-top: 2px; color: var(--muted); font-size: .82rem; line-height: 1.45; }
+    .source-note { margin: 16px 0 0; color: var(--dim); font-size: .8rem; }
+    .source-note a { color: var(--cyan); }
+
+    /* ── Legend dots (specific colors) ─────────────────────── */
+    .legend-dot-acid { background: var(--acid); }
+    .legend-dot-red  { background: var(--red); }
+
+    /* ── Section h3 variants ────────────────────────────────── */
+    .subsection-h3 { margin-top: 48px; font-size: 1.3rem; }
+
+    /* ── Quiz trigger code ──────────────────────────────────── */
+    .trigger-code { font-family: var(--font-mono); color: var(--cyan); }
+
+    /* ── Checklist section headings ─────────────────────────── */
+    .checklist-h2 { margin-bottom: 12px; }
+    .checklist-lead { margin-bottom: 0; }
+    .checkpoint-lead { margin-bottom: 32px; }
+
+    /* ── Checklist bar (JS sets width via style, that's ok) ─── */
+
+    /* ── Footer back-to-top button ──────────────────────────── */
+    .back-to-top { font-size: .8rem; min-height: 40px; }
+
+    /* ── Lesson nav + footer ────────────────────────────────── */
+    .lesson-nav {
+      padding-block: 60px;
+      border-top: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .site-footer { padding: 40px 0; border-top: 1px solid var(--line); }
+    .footer-inner { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+    .footer-copy { font-family: var(--font-mono); font-size: .72rem; color: var(--dim); letter-spacing: .06em; margin: 0; }
+
+    /* ── Responsive ─────────────────────────────────────────── */
+    @media (max-width: 860px) {
+      .section-head { grid-template-columns: 1fr; gap: 16px; }
+      .strategy-grid { grid-template-columns: 1fr; }
+      .overfit-body { grid-template-columns: 1fr; }
+      .sign-grid { grid-template-columns: 1fr; }
+      .checkpoint-grid { grid-template-columns: 1fr; }
+      .definition { grid-template-columns: 1fr; }
+      .brief-grid { grid-template-columns: 1fr; }
+      .slider-wrap input[type=range] { width: 110px; }
+      .director-head, .director-body { grid-template-columns: 1fr; }
+      .director-presets { justify-content: flex-start; }
+    }
+    @media (max-width: 640px) {
+      .hero-title { letter-spacing: -.04em; }
+      .lesson-nav { justify-content: center; }
+      .image-grid { grid-template-columns: 1fr 1fr; }
+      .director-head, .director-body { padding: 20px; }
+      .dataset-filmstrip { grid-template-columns: repeat(2, 1fr); }
+      .director-results { grid-template-columns: 1fr; }
+      .director-actions .button { width: 100%; }
+      .topnav { display: none; }
+    }
+    @media (max-width: 420px) {
+      .image-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Bỏ qua điều hướng</a>
+
+  <!-- TOPBAR -->
+  <header class="topbar" role="banner">
+    <div class="topbar-inner">
+      <a class="brand" href="index.html" aria-label="Trang chủ Video Generation">
+        <span class="brand-mark" aria-hidden="true"></span>
+        Video Gen Lab
+      </a>
+      <nav class="topnav" aria-label="Điều hướng bài học">
+        <a href="video-generation-part-3-lesson-4.html">← Bài 4</a>
+        <a href="#main" aria-current="page">Bài 5</a>
+        <a href="video-generation-part-3-lesson-6.html">Bài 6 →</a>
+      </nav>
+      <!-- theme toggle injected by video-generation-theme.js -->
+    </div>
+    <div class="progress-track" aria-hidden="true">
+      <div class="progress-fill" id="progress-fill"></div>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <!-- HERO -->
+    <section class="hero" aria-labelledby="hero-heading">
+      <div class="shell">
+        <p class="hero-meta">Phần 3 · Bài 5 &nbsp;·&nbsp; LoRA Training</p>
+        <h1 class="hero-title" id="hero-heading">
+          Chuẩn bị<br><span>Dataset</span><br>&amp; Captioning
+        </h1>
+        <p class="hero-lead">
+          Thu thập đúng ảnh, gán caption chính xác, và biết khi nào model bị overfitting — ba kỹ năng cốt lõi để huấn luyện LoRA khuôn mặt/nhân vật thành công.
+        </p>
+        <div class="hero-badges">
+          <span class="hero-badge acid">Dataset Captioning</span>
+          <span class="hero-badge cyan">LoRA Training</span>
+          <span class="hero-badge orange">Overfitting</span>
+          <span class="hero-badge">Trung cấp</span>
+        </div>
+        <div class="hero-cta-row">
+          <a class="button primary" href="#dataset-requirements">Bắt đầu học</a>
+          <a class="button" href="#checkpoint">Kiểm tra kiến thức</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 1: Dataset Requirements -->
+    <section class="content-section" id="dataset-requirements" aria-labelledby="s1-heading">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <p class="section-index label">01 / 05</p>
+            <h2 id="s1-heading">Yêu cầu<br>Dataset</h2>
+          </div>
+          <p class="section-intro">
+            Dataset là một biến của thí nghiệm LoRA, không phải một con số thần kỳ. Số ảnh, base model, resolution, optimizer và mục tiêu điều khiển cùng quyết định kết quả.
+          </p>
+        </div>
+
+        <div class="definition">
+          <strong>Heuristic có điều kiện</strong>
+          <p>Với character LoRA nhỏ, 10–30 ảnh được chọn kỹ là một điểm xuất phát thực hành, không phải yêu cầu của DreamBooth hay LoRA. Hãy giữ danh tính nhất quán, loại ảnh lỗi và đo bằng prompt giữ-out thay vì suy luận từ số ảnh.</p>
+        </div>
+
+        <div class="director-lab" aria-labelledby="director-title">
+          <div class="director-head">
+            <div>
+              <p class="director-kicker">Dataset Director · Mô phỏng tương tác (đơn vị tương đối)</p>
+              <h3 class="director-title" id="director-title">Bạn đang chuẩn bị 24 ảnh cho character LoRA</h3>
+            </div>
+            <div class="director-presets" aria-label="Preset dataset">
+              <button class="director-preset" type="button" data-preset="repeat" aria-pressed="false">12 ảnh lặp</button>
+              <button class="director-preset" type="button" data-preset="balanced" aria-pressed="true">24 ảnh cân bằng</button>
+              <button class="director-preset" type="button" data-preset="augmented" aria-pressed="false">Augment quá tay</button>
+            </div>
+          </div>
+          <div class="director-body">
+            <div class="director-controls">
+              <div class="director-control">
+                <label for="diversity-slider">Diversity thật <output id="diversity-output" for="diversity-slider">4 / 5</output></label>
+                <input id="diversity-slider" type="range" min="1" max="5" value="4" step="1" aria-describedby="diversity-help" />
+                <p class="caption-note" id="diversity-help">Thay đổi góc, ánh sáng, biểu cảm và khoảng cách camera.</p>
+              </div>
+              <div class="director-control">
+                <label for="specificity-slider">Caption specificity <output id="specificity-output" for="specificity-slider">4 / 5</output></label>
+                <input id="specificity-slider" type="range" min="1" max="5" value="4" step="1" aria-describedby="specificity-help" />
+                <p class="caption-note" id="specificity-help">Mô tả phần có thể thay đổi; không gắn mọi chi tiết vào trigger.</p>
+              </div>
+              <div class="augmentation-row">
+                <input id="augmentation-toggle" type="checkbox" checked />
+                <label for="augmentation-toggle"><strong>Augmentation nhẹ</strong>Flip/crop nhỏ và color jitter vừa đủ; không thay thế góc chụp thật.</label>
+              </div>
+              <div class="director-actions">
+                <button class="button primary" id="test-generalization" type="button">Test prompt mới</button>
+                <button class="button" id="reset-director" type="button">Đặt lại</button>
+              </div>
+            </div>
+            <div class="director-stage">
+              <div class="dataset-filmstrip" id="dataset-filmstrip" role="img" aria-describedby="director-feedback">
+                <span class="scan-line" aria-hidden="true"></span>
+              </div>
+              <div class="director-results">
+                <div class="director-metric"><span>Generalization (mô phỏng)</span><strong class="generalization-value" id="generalization-value">86%</strong></div>
+                <div class="director-metric"><span>Overfit risk</span><strong class="risk-value" id="overfit-risk-value">Thấp</strong></div>
+                <div class="director-metric"><span>Caption signal</span><strong id="caption-signal-value">Rõ</strong></div>
+              </div>
+              <p class="director-feedback" id="director-feedback" role="status" aria-live="polite">Bộ ảnh có nhiều góc và caption đủ cụ thể. Augmentation nhẹ bổ sung biến thể mà không làm lệch danh tính.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="image-grid" role="list">
+          <div class="img-card good" role="listitem">
+            <div class="img-card-icon" aria-hidden="true">LUX</div>
+            <h3>Ánh sáng đa dạng</h3>
+            <p>Natural, studio, indoor, outdoor. Tránh chỉ dùng ảnh chụp trong một điều kiện ánh sáng.</p>
+          </div>
+          <div class="img-card good" role="listitem">
+            <div class="img-card-icon" aria-hidden="true">ANG</div>
+            <h3>Góc chụp đa dạng</h3>
+            <p>Thẳng mặt, 3/4, nghiêng. Ảnh cận mặt kết hợp với toàn thân.</p>
+          </div>
+          <div class="img-card good" role="listitem">
+            <div class="img-card-icon" aria-hidden="true">EXP</div>
+            <h3>Biểu cảm đa dạng</h3>
+            <p>Nghiêm túc, cười, trung tính. Giúp model học cách giữ bản sắc qua nhiều trạng thái cảm xúc.</p>
+          </div>
+          <div class="img-card good" role="listitem">
+            <div class="img-card-icon" aria-hidden="true">BG</div>
+            <h3>Nền sạch (khuyến nghị)</h3>
+            <p>Nền đơn giản có thể giảm tương quan không mong muốn khi mục tiêu là identity; nếu sản phẩm cần cảnh cụ thể, giữ cảnh đó và caption nhất quán.</p>
+          </div>
+          <div class="img-card bad" role="listitem">
+            <div class="img-card-icon" aria-hidden="true">RISK</div>
+            <h3>Tránh: Makeup thay đổi nhiều</h3>
+            <p>Chỉ là rủi ro khi makeup không phải biến cần điều khiển mà lại tương quan với identity; giữ nó nếu đó là phần chủ đích của concept.</p>
+          </div>
+          <div class="img-card bad" role="listitem">
+            <div class="img-card-icon" aria-hidden="true">RISK</div>
+            <h3>Tránh: Phụ kiện thay đổi</h3>
+            <p>Đừng để phụ kiện vô tình xuất hiện gần như mọi ảnh. Nếu cần điều khiển phụ kiện, caption rõ sự hiện diện/vắng mặt và test prompt A/B.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 2: Image Captioning -->
+    <section class="content-section" id="captioning" aria-labelledby="s2-heading">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <p class="section-index label">02 / 05</p>
+            <h2 id="s2-heading">Image<br>Captioning</h2>
+          </div>
+          <p class="section-intro">
+            Caption là supervision văn bản mà trainer/model thực sự đọc. Cách tokenizer, text encoder và trainer dùng caption thay đổi theo checkpoint và phiên bản pipeline; trigger ở đầu là convention kiểm tra dữ liệu, không phải định luật của model.
+          </p>
+        </div>
+
+        <div class="caption-block" aria-label="Công thức caption DreamBooth">
+          <div class="caption-header">Một convention caption cho workflow LoRA có file .txt</div>
+          <div class="caption-body">
+            <div class="caption-formula" aria-label="Cú pháp: trigger_word, mô tả ảnh">
+              <span class="trigger">[trigger_word]</span>, <span class="desc">[mô tả ảnh]</span>
+            </div>
+            <p class="caption-note caption-note-gap">Ví dụ cụ thể:</p>
+            <div class="caption-formula caption-formula-gap">
+              <span class="trigger">john_doe_v1</span>, <span class="desc">a photo of a man smiling, outdoor, warm lighting, casual shirt</span>
+            </div>
+            <div class="caption-formula">
+              <span class="trigger">john_doe_v1</span>, <span class="desc">portrait of a man, serious expression, studio background, frontal view</span>
+            </div>
+            <p class="caption-note caption-note-top">
+              <strong class="caption-note-strong">Tại sao thường đặt trigger word ở đầu?</strong><br>
+              Đây là quy ước dễ quét và dễ kiểm tra hàng loạt trong workflow caption-file. Trigger luôn nhất quán, phần sau mô tả những gì có thể thay đổi. Nó không chứng minh rằng mọi checkpoint, tokenizer hay trainer đều ưu tiên token đầu câu.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 3: Captioning Strategies -->
+    <section class="content-section" id="strategies" aria-labelledby="s3-heading">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <p class="section-index label">03 / 05</p>
+            <h2 id="s3-heading">Chiến lược<br>Captioning</h2>
+          </div>
+          <p class="section-intro">
+            Ba cách tiếp cận phổ biến — mỗi cách có sự đánh đổi khác nhau về độ chính xác và thời gian.
+          </p>
+        </div>
+
+        <div class="strategy-grid" role="list">
+          <div class="strategy-card" role="listitem">
+            <span class="stag">Thủ công</span>
+            <h3>Manual Captioning</h3>
+            <p>Tự viết hoặc duyệt từng caption. Có quyền kiểm soát cao, nhưng chất lượng phụ thuộc taxonomy và review của người viết.</p>
+            <p class="pro">✓ Kiểm soát signal cao</p>
+            <p class="con">✗ Tốn thời gian với dataset lớn</p>
+          </div>
+          <div class="strategy-card" role="listitem">
+            <span class="stag">Tự động</span>
+            <h3>Auto-captioning</h3>
+            <p>Dùng captioner để tạo bản nháp. Khả năng nhận ra identity, chi tiết nhỏ, văn bản, style hoặc thuộc tính nhạy cảm phụ thuộc model/checkpoint và ảnh; đừng giả định nó tự thêm trigger đúng.</p>
+            <p class="pro">✓ Nhanh cho dataset lớn</p>
+            <p class="con">✗ Caption generic, cần kiểm tra</p>
+          </div>
+          <div class="strategy-card recommended" role="listitem">
+            <span class="stag">Workflow hay dùng</span>
+            <h3>Hybrid Approach</h3>
+            <p>Auto-caption trước, sau đó duyệt mẫu lỗi và chỉnh những thuộc tính cần điều khiển. Chỉ thêm trigger nếu trainer của bạn dùng caption-file và bạn đã chọn convention đó.</p>
+            <p class="pro">✓ Dễ chạy A/B và audit</p>
+            <p class="con">✗ Cần review từng caption</p>
+          </div>
+        </div>
+
+        <details class="tool-details">
+          <summary>
+            <span>Công cụ auto-captioning phổ biến</span>
+            <span class="tool-details-caret" aria-hidden="true">▾</span>
+          </summary>
+          <div class="tool-details-body">
+            <ul class="tool-list">
+              <li><strong>BLIP-2</strong> — vision-language model để sinh mô tả có điều kiện; paper không đặt nó thành captioner chuẩn cho LoRA.</li>
+              <li><strong>JoyCaption</strong> — chọn đúng checkpoint/prompt theo model card và kiểm tra output thực tế trên dữ liệu của bạn.</li>
+              <li><strong>LLaVA / InternVL</strong> — VLM đa dụng; VRAM, tốc độ và độ chi tiết thay đổi theo phiên bản, quantization và độ phân giải input.</li>
+              <li><strong>Florence-2</strong> — model đa tác vụ; dùng output như bản nháp và xác thực các thuộc tính có ảnh hưởng đến training.</li>
+            </ul>
+          </div>
+        </details>
+
+        <article class="production-brief" aria-labelledby="production-brief-heading">
+          <p class="brief-kicker">Production brief · ví dụ giả định, không phải benchmark</p>
+          <h3 id="production-brief-heading">Social cutdown: nhân vật “Aria” trong ba bối cảnh mới</h3>
+          <p class="section-intro">Đội hậu kỳ cần một LoRA identity để tạo storyboard 9:16 trước khi quay. Mục tiêu là nhận ra nhân vật khi đổi bối cảnh, không phải tái tạo ảnh train.</p>
+          <div class="brief-grid">
+            <div class="brief-cell"><strong>Đầu ra &amp; bối cảnh</strong><span>12 keyframe storyboard cho quảng cáo dọc: ga tàu mưa, studio trắng, quán cà phê; dùng để duyệt art direction.</span></div>
+            <div class="brief-cell"><strong>Input / workflow</strong><span>24 ảnh đã có quyền sử dụng; base checkpoint SDXL đã chốt bởi đội; caption .txt theo convention nội bộ; trainer/version phải ghi trong run log.</span></div>
+            <div class="brief-cell"><strong>Giữ cố định</strong><span>Checkpoint, seed set, resolution, prompt template, sampler và evaluator. Không đổi nhiều biến trong cùng một lượt A/B.</span></div>
+            <div class="brief-cell"><strong>Đang thử nghiệm</strong><span>A: caption VLM nguyên bản. B: VLM + review thủ công các pose/ánh sáng/phụ kiện. C: B + tập ảnh có góc nghiêng thật.</span></div>
+            <div class="brief-cell"><strong>Giới hạn</strong><span>GPU 24 GB và một buổi 90 phút: ưu tiên checkpoint sớm có thể so sánh, không tuyên bố “best config” từ một run.</span></div>
+            <div class="brief-cell"><strong>Tiêu chí đánh giá</strong><span>Ba reviewer ẩn biến thể chấm identity, prompt-following và artifact trên cùng prompt giữ-out; ghi cả seed, model hash và resolution.</span></div>
+            <div class="brief-cell"><strong>Dấu hiệu thất bại</strong><span>Ảnh mưa bị kéo về ánh sáng studio, kính xuất hiện khi prompt không yêu cầu, hoặc identity chỉ đúng ở góc chính diện.</span></div>
+            <div class="brief-cell"><strong>Bước tiếp theo</strong><span>Khoanh vùng caption/ảnh gây tương quan, thêm góc thật thiếu, rồi train lại một biến. Nếu val/prompt set xấu đi, quay về checkpoint trước.</span></div>
+          </div>
+          <p class="brief-next"><strong>Cách A/B:</strong> giữ prompt set và seed set cố định; chỉ đổi một biến dataset/caption; lưu grid đầu ra cùng run log. “Generalization” trong lab trên trang là điểm mô phỏng tương đối, không phải điểm benchmark.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- SECTION 4: Overfitting -->
+    <section class="content-section" id="overfitting" aria-labelledby="s4-heading">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <p class="section-index label">04 / 05</p>
+            <h2 id="s4-heading">Overfitting<br>&amp; Cách tránh</h2>
+          </div>
+          <p class="section-intro">
+            Overfitting là giả thuyết cần kiểm tra trên prompt/ảnh giữ-out. Loss có thể hữu ích khi trainer có validation split tương ứng, nhưng một curve mô phỏng hoặc train loss đơn lẻ không đủ kết luận chất lượng sinh ảnh.
+          </p>
+        </div>
+
+        <!-- Interactive loss visualizer -->
+        <div class="overfit-panel" aria-label="Mô phỏng training vs validation loss">
+          <div class="overfit-header">
+            <span class="overfit-title">Mô phỏng minh hoạ: training vs validation loss (đơn vị tương đối)</span>
+            <div class="overfit-controls">
+              <div class="slider-wrap">
+                <label for="steps-slider">Steps:</label>
+                <input type="range" id="steps-slider" min="100" max="2000" step="100" value="500"
+                  aria-valuemin="100" aria-valuemax="2000" aria-valuenow="500" />
+                <span class="slider-val" id="steps-val" aria-live="polite" aria-atomic="true">500</span>
+              </div>
+              <div class="slider-wrap">
+                <label for="lr-slider">LR:</label>
+                <input type="range" id="lr-slider" min="1" max="10" step="1" value="4"
+                  aria-valuemin="1" aria-valuemax="10" aria-valuenow="4" />
+                <span class="slider-val" id="lr-val" aria-live="polite" aria-atomic="true">1e-4</span>
+              </div>
+            </div>
+          </div>
+          <div class="overfit-body">
+            <div class="overfit-graph">
+              <canvas id="loss-canvas" width="500" height="200"
+                aria-label="Biểu đồ training loss (xanh) và validation loss (đỏ) theo số bước huấn luyện. Khu vực đỏ là vùng overfitting."></canvas>
+              <div class="overfit-legend" aria-hidden="true">
+                <span class="legend-item"><span class="legend-dot legend-dot-acid"></span>Train Loss</span>
+                <span class="legend-item"><span class="legend-dot legend-dot-red"></span>Val Loss</span>
+              </div>
+            </div>
+            <div class="overfit-status">
+              <div id="status-badge" class="status-badge ok" role="status" aria-live="polite" aria-atomic="true">
+                <span id="status-label">Đang học tốt</span>
+              </div>
+              <p class="status-desc" id="status-desc">
+                Steps và learning rate hợp lý. Train loss và validation loss giảm song song — model đang học đặc điểm tổng quát.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Signs of overfitting -->
+        <h3 class="subsection-h3">Dấu hiệu nhận biết Overfitting</h3>
+        <div class="sign-grid" role="list">
+          <div class="sign-item" role="listitem">
+            <span class="sign-icon" aria-hidden="true">01</span>
+            <div class="sign-text">
+              <h3>Output giống hệt ảnh training</h3>
+              <p>Kết quả luôn trông như copy-paste từ dataset, không có variation.</p>
+            </div>
+          </div>
+          <div class="sign-item" role="listitem">
+            <span class="sign-icon" aria-hidden="true">02</span>
+            <div class="sign-text">
+              <h3>Thất bại với pose/ánh sáng mới</h3>
+              <p>Prompt yêu cầu góc chụp hoặc ánh sáng không có trong training → output méo hoặc mất nhận dạng.</p>
+            </div>
+          </div>
+          <div class="sign-item" role="listitem">
+            <span class="sign-icon" aria-hidden="true">03</span>
+            <div class="sign-text">
+              <h3>Mất coherence với prompt</h3>
+              <p>Thêm chi tiết vào prompt (trang phục, bối cảnh) nhưng model bỏ qua, chỉ tái tạo khuôn mặt từ training.</p>
+            </div>
+          </div>
+          <div class="sign-item" role="listitem">
+            <span class="sign-icon" aria-hidden="true">04</span>
+            <div class="sign-text">
+              <h3>Val loss tăng khi train loss giảm</h3>
+              <p>Training loss tiếp tục giảm nhưng validation loss bắt đầu tăng — model đang ghi nhớ thay vì học.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Anti-overfitting techniques -->
+        <h3 class="subsection-h3">Kỹ thuật chống Overfitting</h3>
+        <div class="technique-list" role="list">
+          <div class="technique-item" role="listitem">
+            <div class="technique-num" aria-hidden="true">1</div>
+            <div class="technique-text">
+              <h3>Giảm số Training Steps</h3>
+              <p>Đặt checkpoint cadence rồi so sánh prompt giữ-out. Số steps phụ thuộc base model, batch/repeats, optimizer, rank, resolution và trainer; đừng chuyển con số từ workflow khác thành preset chung.</p>
+              <span class="technique-tag">Heuristic workflow · đo bằng checkpoint</span>
+            </div>
+          </div>
+          <div class="technique-item" role="listitem">
+            <div class="technique-num" aria-hidden="true">2</div>
+            <div class="technique-text">
+              <h3>Hạ Learning Rate</h3>
+              <p>Learning rate cao có thể làm run bất ổn; ngưỡng phụ thuộc optimizer, parameter groups và implementation trainer. Thay đổi LR một mình, giữ các biến còn lại, rồi đọc lại output/checkpoint.</p>
+              <span class="technique-tag">Không có LR phổ quát</span>
+            </div>
+          </div>
+          <div class="technique-item" role="listitem">
+            <div class="technique-num" aria-hidden="true">3</div>
+            <div class="technique-text">
+              <h3>Class-preservation Loss (DreamBooth)</h3>
+              <p>DreamBooth paper giới thiệu prior-preservation loss để giữ prior class. Trainer LoRA có thể không triển khai hoặc đặt tên khác; chỉ bật khi documentation của trainer/checkpoint xác nhận cách tính loss.</p>
+              <span class="technique-tag">Paper mechanism ≠ mọi trainer LoRA</span>
+            </div>
+          </div>
+          <div class="technique-item" role="listitem">
+            <div class="technique-num" aria-hidden="true">4</div>
+            <div class="technique-text">
+              <h3>Validate trên Held-out Images</h3>
+              <p>Giữ một prompt/ảnh evaluation set và seed set riêng. “Held-out image” không trực tiếp là validation loss cho diffusion training; hãy mô tả rõ cách evaluator dùng nó.</p>
+              <span class="technique-tag">Evaluation protocol trước, checkpoint sau</span>
+            </div>
+          </div>
+          <div class="technique-item" role="listitem">
+            <div class="technique-num" aria-hidden="true">5</div>
+            <div class="technique-text">
+              <h3>Tăng kích thước Dataset</h3>
+              <p>Thêm ảnh chỉ hữu ích khi chúng thêm coverage hoặc sửa bias. Flip/crop/jitter là augmentation của workflow; chúng không tạo view 3D mới và có thể làm hỏng tín hiệu nếu không phù hợp domain.</p>
+              <span class="technique-tag">Coverage thật trước augmentation</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 5: Caption Quiz -->
+    <section class="content-section" id="caption-quiz" aria-labelledby="s5-heading">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <p class="section-index label">05 / 05</p>
+            <h2 id="s5-heading">Quiz:<br>Caption nào tốt?</h2>
+          </div>
+          <p class="section-intro">
+            Xác định caption tốt nhất cho mỗi tình huống. Chú ý vị trí trigger word, độ chi tiết, và tính nhất quán.
+          </p>
+        </div>
+
+        <div class="quiz-container" id="caption-quiz-container">
+
+          <!-- Quiz 1 -->
+          <div class="quiz-item" aria-labelledby="quiz1-head">
+            <div class="quiz-q-header" id="quiz1-head">Câu 1 / 3 — Chọn caption phù hợp nhất cho ảnh chân dung nghiêm túc</div>
+            <div class="quiz-body">
+              <p class="quiz-context">Context: ảnh chân dung, nhân vật nhìn thẳng vào ống kính, ánh sáng studio, nền trắng.</p>
+              <div class="quiz-options" role="group" aria-labelledby="quiz1-head">
+                <button class="quiz-option" type="button" data-q="1" data-v="A" data-correct="false" aria-describedby="q1-feedback">
+                  <span class="opt-letter" aria-hidden="true">A</span>
+                  <span class="opt-text"><span class="opt-code">a person looking at camera, white background</span></span>
+                </button>
+                <button class="quiz-option" type="button" data-q="1" data-v="B" data-correct="true" aria-describedby="q1-feedback">
+                  <span class="opt-letter" aria-hidden="true">B</span>
+                  <span class="opt-text"><span class="opt-code">jane_smith_v1, portrait of a woman, serious expression, studio lighting, white background, frontal view</span></span>
+                </button>
+                <button class="quiz-option" type="button" data-q="1" data-v="C" data-correct="false" aria-describedby="q1-feedback">
+                  <span class="opt-letter" aria-hidden="true">C</span>
+                  <span class="opt-text"><span class="opt-code">portrait of jane_smith_v1, beautiful woman, professional headshot</span></span>
+                </button>
+              </div>
+              <div class="quiz-feedback" id="q1-feedback" role="status" aria-live="polite"></div>
+            </div>
+          </div>
+
+          <!-- Quiz 2 -->
+          <div class="quiz-item" aria-labelledby="quiz2-head">
+            <div class="quiz-q-header" id="quiz2-head">Câu 2 / 3 — Caption nào gây nhầm lẫn cho model nhất?</div>
+            <div class="quiz-body">
+              <p class="quiz-context">Context: tất cả các caption dưới đây dùng cho cùng một dataset. Caption nào sẽ dạy model SAI nhất?</p>
+              <div class="quiz-options" role="group" aria-labelledby="quiz2-head">
+                <button class="quiz-option" type="button" data-q="2" data-v="A" data-correct="false" aria-describedby="q2-feedback">
+                  <span class="opt-letter" aria-hidden="true">A</span>
+                  <span class="opt-text"><span class="opt-code">mike_lora, man in blue shirt, outdoor park, sunny</span></span>
+                </button>
+                <button class="quiz-option" type="button" data-q="2" data-v="B" data-correct="false" aria-describedby="q2-feedback">
+                  <span class="opt-letter" aria-hidden="true">B</span>
+                  <span class="opt-text"><span class="opt-code">mike_lora, man smiling, indoor cafe, warm light</span></span>
+                </button>
+                <button class="quiz-option" type="button" data-q="2" data-v="C" data-correct="true" aria-describedby="q2-feedback">
+                  <span class="opt-letter" aria-hidden="true">C</span>
+                  <span class="opt-text"><span class="opt-code">a handsome young man with blue eyes and brown hair wearing glasses</span></span>
+                </button>
+              </div>
+              <div class="quiz-feedback" id="q2-feedback" role="status" aria-live="polite"></div>
+            </div>
+          </div>
+
+          <!-- Quiz 3 -->
+          <div class="quiz-item" aria-labelledby="quiz3-head">
+            <div class="quiz-q-header" id="quiz3-head">Câu 3 / 3 — Format nào nhất quán và dễ kiểm tra hàng loạt nhất?</div>
+            <div class="quiz-body">
+              <p class="quiz-context">Context: training face LoRA với trigger word <code class="trigger-code">lenaV2</code>. Ảnh: chân dung ngoài trời, ánh sáng vàng.</p>
+              <div class="quiz-options" role="group" aria-labelledby="quiz3-head">
+                <button class="quiz-option" type="button" data-q="3" data-v="A" data-correct="true" aria-describedby="q3-feedback">
+                  <span class="opt-letter" aria-hidden="true">A</span>
+                  <span class="opt-text"><span class="opt-code">lenaV2, outdoor portrait, golden hour lighting, natural smile</span></span>
+                </button>
+                <button class="quiz-option" type="button" data-q="3" data-v="B" data-correct="false" aria-describedby="q3-feedback">
+                  <span class="opt-letter" aria-hidden="true">B</span>
+                  <span class="opt-text"><span class="opt-code">outdoor portrait, golden hour lighting, natural smile, lenaV2</span></span>
+                </button>
+                <button class="quiz-option" type="button" data-q="3" data-v="C" data-correct="false" aria-describedby="q3-feedback">
+                  <span class="opt-letter" aria-hidden="true">C</span>
+                  <span class="opt-text"><span class="opt-code">outdoor portrait of lenaV2, golden hour lighting, natural smile</span></span>
+                </button>
+              </div>
+              <div class="quiz-feedback" id="q3-feedback" role="status" aria-live="polite"></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- CHECKLIST -->
+    <section class="content-section" id="checklist" aria-labelledby="checklist-heading">
+      <div class="shell">
+        <p class="label">Công cụ</p>
+        <h2 id="checklist-heading" class="checklist-h2">Checklist<br>Dataset</h2>
+        <p class="section-intro checklist-lead">
+          Dùng checklist này để ghi coverage và giả định của run trước khi bắt đầu training. Các con số chỉ là điểm xuất phát để A/B, không phải điều kiện pass cho mọi model/trainer.
+        </p>
+        <div class="checklist-panel" aria-label="Dataset quality checklist">
+          <div class="checklist-head">
+            <span class="checklist-title">Dataset Quality Checklist</span>
+            <span class="checklist-progress-text" id="checklist-count" aria-live="polite" aria-atomic="true">0 / 12</span>
+          </div>
+          <div class="checklist-progress-bar" aria-hidden="true">
+            <div class="checklist-bar-fill" id="checklist-bar"></div>
+          </div>
+          <div class="checklist-body" id="checklist-items">
+            <div class="check-item">
+              <input type="checkbox" id="ck1" />
+              <label for="ck1">Ghi số ảnh và coverage thực; nếu dùng 10–30 ảnh làm điểm xuất phát, đánh giá lại theo subject, repeats/batch và held-out prompts</label>
+            </div>
+            <div class="check-item">
+              <input type="checkbox" id="ck2" />
+              <label for="ck2">Ghi native/bucket resolution, crop policy và model/trainer/version mục tiêu; đối chiếu yêu cầu của pipeline trước khi chuẩn hóa ảnh</label>
+            </div>
+            <div class="check-item">
+              <input type="checkbox" id="ck3" />
+              <label for="ck3">Đa dạng ánh sáng (tự nhiên, studio, trong nhà, ngoài trời)</label>
+            </div>
+            <div class="check-item">
+              <input type="checkbox" id="ck4" />
+              <label for="ck4">Đa dạng góc chụp (thẳng mặt, 3/4, nghiêng, cận cảnh)</label>
+            </div>
+            <div class="check-item">
+              <input type="checkbox" id="ck5" />
+              <label for="ck5">Đa dạng biểu cảm khuôn mặt (nghiêm, cười, trung tính)</label>
+            </div>
+            <div class="check-item">
+              <input type="checkbox" id="ck6" />
+              <label for="ck6">Nhận dạng nhân vật nhất quán qua tất cả ảnh</label>
+            </div>
+            <div class="check-item">
+              <input type="checkbox" id="ck7" />
+              <label for="ck7">Không có ảnh blur, thiếu sáng nặng, hoặc khuôn mặt bị che khuất</label>
+            </div>
+            <div class="check-item">
+              <input type="checkbox" id="ck8" />
+              <label for="ck8">Mỗi ảnh có file caption (.txt) kèm theo cùng tên file</label>
+            </div>
+            <div class="check-item">
+              <input type="checkbox" id="ck9" />
+              <label for="ck9">Caption bắt đầu bằng trigger word nhất quán</label>
+            </div>
+            <div class="check-item">
+              <input type="checkbox" id="ck10" />
+              <label for="ck10">Caption mô tả đủ bối cảnh (ánh sáng, góc, biểu cảm)</label>
+            </div>
+            <div class="check-item">
+              <input type="checkbox" id="ck11" />
+              <label for="ck11">Đã giữ lại 2–3 ảnh held-out để validate sau training</label>
+            </div>
+            <div class="check-item">
+              <input type="checkbox" id="ck12" />
+              <label for="ck12">Đã xác định số steps và learning rate phù hợp với dataset size</label>
+            </div>
+          </div>
+          <button class="checklist-reset" id="checklist-reset" type="button">Đặt lại checklist</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- CHECKPOINT -->
+    <section class="content-section" id="checkpoint" aria-labelledby="checkpoint-heading">
+      <div class="shell">
+        <p class="label">Kiểm tra</p>
+        <h2 id="checkpoint-heading" class="checklist-h2">Checkpoint</h2>
+        <p class="section-intro checkpoint-lead">
+          Ba tình huống để xác nhận bạn phân biệt được overfitting, class preservation và giới hạn của augmentation.
+        </p>
+        <div class="checkpoint-grid" id="checkpoint-grid">
+
+          <div class="checkpoint-card" aria-labelledby="cp1-head">
+            <div class="checkpoint-q-head" id="cp1-head">Câu hỏi 1</div>
+            <div class="checkpoint-body">
+              <p>Bạn training face LoRA với 8 ảnh, chạy 3000 steps. Model output luôn giống hệt ảnh training và không respond với prompt. Nguyên nhân khả năng cao nhất là gì?</p>
+              <div class="cp-options" role="group" aria-labelledby="cp1-head">
+                <button class="cp-option" type="button" data-cpq="1" data-cpv="A" data-correct="false" aria-describedby="cp1-fb">
+                  Caption thiếu chi tiết về ánh sáng
+                </button>
+                <button class="cp-option" type="button" data-cpq="1" data-cpv="B" data-correct="true" aria-describedby="cp1-fb">
+                  Dataset nhỏ + quá nhiều steps → overfitting
+                </button>
+                <button class="cp-option" type="button" data-cpq="1" data-cpv="C" data-correct="false" aria-describedby="cp1-fb">
+                  Trigger word đặt ở cuối caption
+                </button>
+              </div>
+              <p class="cp-feedback" id="cp1-fb" aria-live="polite"></p>
+            </div>
+          </div>
+
+          <div class="checkpoint-card" aria-labelledby="cp2-head">
+            <div class="checkpoint-q-head" id="cp2-head">Câu hỏi 2</div>
+            <div class="checkpoint-body">
+              <p>Trong DreamBooth-style LoRA, mục đích của "regularization images" (class preservation) là gì?</p>
+              <div class="cp-options" role="group" aria-labelledby="cp2-head">
+                <button class="cp-option" type="button" data-cpq="2" data-cpv="A" data-correct="false" aria-describedby="cp2-fb">
+                  Tăng tốc độ training
+                </button>
+                <button class="cp-option" type="button" data-cpq="2" data-cpv="B" data-correct="false" aria-describedby="cp2-fb">
+                  Cải thiện chất lượng caption tự động
+                </button>
+                <button class="cp-option" type="button" data-cpq="2" data-cpv="C" data-correct="true" aria-describedby="cp2-fb">
+                  Giúp model giữ khái niệm class chung, tránh quên cách vẽ "người nói chung" khi học subject cụ thể
+                </button>
+              </div>
+              <p class="cp-feedback" id="cp2-fb" aria-live="polite"></p>
+            </div>
+          </div>
+
+          <div class="checkpoint-card" aria-labelledby="cp3-head">
+            <div class="checkpoint-q-head" id="cp3-head">Câu hỏi 3</div>
+            <div class="checkpoint-body">
+              <p>Bạn có 12 ảnh đều chụp thẳng mặt trong studio. Flip và color jitter có đủ để biến chúng thành dataset đa dạng góc chụp không?</p>
+              <div class="cp-options" role="group" aria-labelledby="cp3-head">
+                <button class="cp-option" type="button" data-cpq="3" data-cpv="A" data-correct="false" aria-describedby="cp3-fb">Có — augmentation có thể tạo mọi góc còn thiếu</button>
+                <button class="cp-option" type="button" data-cpq="3" data-cpv="B" data-correct="true" aria-describedby="cp3-fb">Không — augmentation nhẹ chỉ bổ sung biến thể, không tạo thông tin góc nhìn mới thật sự</button>
+                <button class="cp-option" type="button" data-cpq="3" data-cpv="C" data-correct="false" aria-describedby="cp3-fb">Có, miễn tăng training steps lên gấp đôi</button>
+              </div>
+              <p class="cp-feedback" id="cp3-fb" aria-live="polite"></p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <section class="content-section" id="related-lessons" aria-labelledby="related-heading">
+      <div class="shell">
+        <div class="related-panel">
+          <p class="label">Điều hướng theo kiến thức</p>
+          <h2 id="related-heading">Bài liên quan</h2>
+          <p class="section-intro">Đi tiếp theo cơ chế và workflow, không phải chỉ vì tên bài giống nhau.</p>
+          <ul class="related-list">
+            <li><a href="video-generation-part-3-lesson-1.html"><strong>Phần 3 · Bài 1 — LoRA fundamentals</strong><span>Nền tảng: xác định phần adapter học gì trước khi quy lỗi output cho dataset hay caption.</span></a></li>
+            <li><a href="video-generation-part-3-lesson-4.html"><strong>Phần 3 · Bài 4 — DreamBooth &amp; Trigger Word</strong><span>Cùng cơ chế: unique identifier, prior preservation và phạm vi DreamBooth-style workflow.</span></a></li>
+            <li><a href="video-generation-part-3-lesson-6.html"><strong>Phần 3 · Bài 6 — Train với kohya_ss &amp; SimpleTuner</strong><span>Bước kế tiếp: ghi trainer/version và chuyển dataset experiment thành run có checkpoint để chẩn đoán.</span></a></li>
+            <li><a href="video-generation-part-4-lesson-1.html"><strong>Phần 4 · Bài 1 — I2V, T2V, FLF2V</strong><span>Ứng dụng tiếp theo: phân biệt input mode trước khi suy rộng kết quả image personalization sang video workflow.</span></a></li>
+          </ul>
+          <p class="source-note">Nguồn kỹ thuật: <a href="https://arxiv.org/abs/2208.12242">DreamBooth paper</a> (unique identifier và prior preservation), <a href="https://arxiv.org/abs/2106.09685">LoRA paper</a> (adapter method), <a href="https://arxiv.org/abs/2301.12597">BLIP-2 paper</a> (VLM caption draft) và model card/repository của captioner bạn thực sự dùng. Kiểm tra documentation trainer trước khi áp dụng tham số.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- LESSON NAV -->
+    <div class="shell">
+      <nav class="lesson-nav" aria-label="Điều hướng bài học">
+        <a class="button" href="video-generation-part-3-lesson-4.html">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+          Bài 4
+        </a>
+        <a class="button primary" href="video-generation-part-3-lesson-6.html">
+          Bài 6
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </a>
+      </nav>
+    </div>
+
+  </main>
+
+  <footer class="site-footer" role="contentinfo">
+    <div class="shell footer-inner">
+      <p class="footer-copy">© 2024 Video Gen Lab · Phần 3 · Bài 5</p>
+      <a class="button back-to-top" href="#hero-heading">↑ Lên đầu trang</a>
+    </div>
+  </footer>
+
+  <script>
+    // ── Scroll progress ─────────────────────────────────────────
+    (function () {
+      var fill = document.getElementById('progress-fill');
+      if (!fill) return;
+      function update() {
+        var total = document.documentElement.scrollHeight - window.innerHeight;
+        fill.style.width = (total > 0 ? (window.scrollY / total) * 100 : 0) + '%';
+      }
+      window.addEventListener('scroll', update, { passive: true });
+      update();
+    })();
+
+    // ── Dataset Director ─────────────────────────────────────────
+    (function () {
+      var filmstrip = document.getElementById('dataset-filmstrip');
+      var diversitySlider = document.getElementById('diversity-slider');
+      var specificitySlider = document.getElementById('specificity-slider');
+      var augmentationToggle = document.getElementById('augmentation-toggle');
+      var diversityOutput = document.getElementById('diversity-output');
+      var specificityOutput = document.getElementById('specificity-output');
+      var scoreValue = document.getElementById('generalization-value');
+      var riskValue = document.getElementById('overfit-risk-value');
+      var signalValue = document.getElementById('caption-signal-value');
+      var feedback = document.getElementById('director-feedback');
+      var testButton = document.getElementById('test-generalization');
+      var resetButton = document.getElementById('reset-director');
+      var presetButtons = Array.from(document.querySelectorAll('.director-preset'));
+      var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+      var augmentationMode = 'light';
+      var testTimer = 0;
+      var turns = ['-12deg', '-6deg', '0deg', '7deg', '12deg'];
+      var lights = ['18%', '32%', '50%', '68%', '82%'];
+
+      function captionFor(level, index) {
+        var parts = ['ariaV4'];
+        if (level >= 2) parts.push('portrait');
+        if (level >= 3) parts.push(index % 2 ? 'three-quarter view' : 'frontal view');
+        if (level >= 4) parts.push(index % 3 ? 'soft studio light' : 'outdoor shade');
+        if (level >= 5) parts.push(index % 2 ? 'green jacket' : 'blurred station background');
+        return parts.join(', ');
+      }
+
+      function scoreDataset(diversity, specificity) {
+        var score = 38 + diversity * 9 + specificity * 5;
+        if (specificity === 5) score -= 4;
+        if (augmentationMode === 'light') score += diversity >= 3 ? 5 : 2;
+        if (augmentationMode === 'heavy') score -= 15;
+        return Math.max(24, Math.min(96, score));
+      }
+
+      function presetName() {
+        if (Number(diversitySlider.value) === 1 && Number(specificitySlider.value) === 1 && augmentationMode === 'off') return 'repeat';
+        if (Number(diversitySlider.value) === 4 && Number(specificitySlider.value) === 4 && augmentationMode === 'light') return 'balanced';
+        if (Number(diversitySlider.value) === 2 && Number(specificitySlider.value) === 3 && augmentationMode === 'heavy') return 'augmented';
+        return '';
+      }
+
+      function render() {
+        var diversity = Number(diversitySlider.value);
+        var specificity = Number(specificitySlider.value);
+        var score = scoreDataset(diversity, specificity);
+        diversityOutput.textContent = diversity + ' / 5';
+        specificityOutput.textContent = specificity + ' / 5';
+        diversitySlider.setAttribute('aria-valuetext', diversity + ' trên 5 mức đa dạng thật');
+        specificitySlider.setAttribute('aria-valuetext', specificity + ' trên 5 mức chi tiết caption');
+        scoreValue.textContent = score + '%';
+        riskValue.textContent = score >= 80 ? 'Thấp' : score >= 62 ? 'Vừa' : 'Cao';
+        signalValue.textContent = specificity <= 1 ? 'Mơ hồ' : specificity >= 5 ? 'Dễ dính chi tiết' : specificity >= 3 ? 'Rõ' : 'Còn thiếu';
+        riskValue.style.color = score >= 80 ? 'var(--acid)' : score >= 62 ? 'var(--orange)' : 'var(--red)';
+
+        Array.from(filmstrip.querySelectorAll('.dataset-frame')).forEach(function (frame) { frame.remove(); });
+        for (var i = 0; i < 8; i += 1) {
+          var frame = document.createElement('span');
+          frame.className = 'dataset-frame';
+          if (augmentationMode !== 'off' && i % 3 === 1) frame.classList.add('is-augmented');
+          if (augmentationMode === 'heavy' && i % 2 === 0) frame.classList.add('is-risk');
+          var variation = i % diversity;
+          frame.style.setProperty('--turn', turns[variation]);
+          frame.style.setProperty('--light-x', lights[(variation * 2 + i) % lights.length]);
+          var caption = document.createElement('span');
+          caption.className = 'dataset-caption';
+          caption.textContent = captionFor(specificity, i);
+          frame.appendChild(caption);
+          filmstrip.appendChild(frame);
+        }
+        var activePreset = presetName();
+        presetButtons.forEach(function (button) {
+          button.setAttribute('aria-pressed', String(button.dataset.preset === activePreset));
+        });
+        filmstrip.setAttribute('aria-label', 'Tám ảnh dataset mô phỏng với diversity ' + diversity + ' trên 5, caption specificity ' + specificity + ' trên 5 và augmentation ' + (augmentationMode === 'off' ? 'tắt' : augmentationMode === 'heavy' ? 'quá mạnh' : 'nhẹ'));
+
+        if (augmentationMode === 'heavy') {
+          feedback.textContent = 'Augmentation quá mạnh đang đổi màu và tương phản đến mức làm lệch danh tính. Biến đổi nhân tạo không thể thay thế góc chụp và ánh sáng thật.';
+        } else if (diversity <= 2) {
+          feedback.textContent = 'Nhiều frame vẫn gần như bản sao. Model có thể nhớ pose và ánh sáng này; augmentation chỉ giảm trùng lặp bề mặt, không tạo góc nhìn mới thật sự.';
+        } else if (specificity <= 2) {
+          feedback.textContent = 'Caption quá chung khiến model khó tách danh tính khỏi pose, ánh sáng và background. Hãy gọi tên những phần có thể thay đổi.';
+        } else if (specificity === 5) {
+          feedback.textContent = 'Caption rất chi tiết nhưng dễ gắn cả trang phục hoặc background ngẫu nhiên vào subject. Chỉ mô tả chi tiết hiện diện và có ích cho điều khiển.';
+        } else {
+          feedback.textContent = 'Bộ ảnh có nhiều góc và caption đủ cụ thể. Augmentation nhẹ bổ sung biến thể mà không làm lệch danh tính.';
+        }
+      }
+
+      function applyPreset(name) {
+        if (name === 'repeat') {
+          diversitySlider.value = '1'; specificitySlider.value = '1'; augmentationToggle.checked = false; augmentationMode = 'off';
+        } else if (name === 'augmented') {
+          diversitySlider.value = '2'; specificitySlider.value = '3'; augmentationToggle.checked = true; augmentationMode = 'heavy';
+        } else {
+          diversitySlider.value = '4'; specificitySlider.value = '4'; augmentationToggle.checked = true; augmentationMode = 'light';
+        }
+        render();
+      }
+
+      diversitySlider.addEventListener('input', render);
+      specificitySlider.addEventListener('input', render);
+      augmentationToggle.addEventListener('change', function () {
+        augmentationMode = augmentationToggle.checked ? 'light' : 'off';
+        render();
+      });
+      presetButtons.forEach(function (button) {
+        button.addEventListener('click', function () { applyPreset(button.dataset.preset); });
+      });
+      resetButton.addEventListener('click', function () { applyPreset('balanced'); });
+      testButton.addEventListener('click', function () {
+        window.clearTimeout(testTimer);
+        filmstrip.classList.remove('is-scanning');
+        void filmstrip.offsetWidth;
+        if (!reduceMotion.matches) filmstrip.classList.add('is-scanning');
+        testButton.disabled = true;
+        testButton.textContent = 'Đang test prompt mới…';
+        feedback.textContent = 'Held-out prompt: “ariaV4, profile view, rainy night, blue coat”. Đang kiểm tra xem model có rời khỏi pose training được không…';
+        var finish = function () {
+          var score = scoreDataset(Number(diversitySlider.value), Number(specificitySlider.value));
+          feedback.textContent = score >= 80
+            ? 'Mô phỏng: pass held-out test. Subject vẫn nhận ra ở góc nghiêng và ánh sáng mưa mới — tín hiệu để kiểm tra bằng grid thật.'
+            : score >= 62
+              ? 'Mô phỏng: pass một phần. Danh tính còn nhận ra nhưng pose hoặc màu bị kéo về dataset; nên thêm diversity thật trước khi tăng steps.'
+              : 'Mô phỏng: fail held-out test. Output quay về pose/ánh sáng training — một giả thuyết cần xác nhận bằng grid thật.';
+          testButton.disabled = false;
+          testButton.textContent = 'Test lại prompt mới';
+          filmstrip.classList.remove('is-scanning');
+        };
+        if (reduceMotion.matches) finish();
+        else testTimer = window.setTimeout(finish, 950);
+      });
+      render();
+    })();
+
+    // ── Loss visualizer canvas ──────────────────────────────────
+    (function () {
+      var canvas = document.getElementById('loss-canvas');
+      if (!canvas || !canvas.getContext) return;
+      var ctx = canvas.getContext('2d');
+      var stepsSlider = document.getElementById('steps-slider');
+      var lrSlider = document.getElementById('lr-slider');
+      var stepsVal = document.getElementById('steps-val');
+      var lrVal = document.getElementById('lr-val');
+      var statusBadge = document.getElementById('status-badge');
+      var statusLabel = document.getElementById('status-label');
+      var statusDesc = document.getElementById('status-desc');
+
+      var LR_LABELS = ['1e-5','2e-5','5e-5','1e-4','2e-4','5e-4','1e-3','2e-3','5e-3','1e-2'];
+
+      function css(prop) {
+        return getComputedStyle(document.documentElement).getPropertyValue(prop).trim();
+      }
+
+      function draw() {
+        var steps = parseInt(stepsSlider.value, 10);
+        var lr = parseInt(lrSlider.value, 10);
+        stepsVal.textContent = steps;
+        stepsSlider.setAttribute('aria-valuenow', steps);
+        lrVal.textContent = LR_LABELS[lr - 1] || lr;
+        lrSlider.setAttribute('aria-valuenow', lr);
+
+        // Resize canvas to actual rendered size
+        var rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width || 500;
+        canvas.height = 200;
+        var W = canvas.width;
+        var H = canvas.height;
+
+        ctx.clearRect(0, 0, W, H);
+
+        var acid = css('--acid') || '#c8ff3d';
+        var red  = css('--red')  || '#ff6b6b';
+        var dim  = css('--dim')  || '#777d80';
+        var line = css('--line') || '#2a3237';
+
+        // Grid lines
+        ctx.strokeStyle = line;
+        ctx.lineWidth = 1;
+        for (var gi = 1; gi < 4; gi++) {
+          ctx.beginPath();
+          ctx.moveTo(0, H * gi / 4);
+          ctx.lineTo(W, H * gi / 4);
+          ctx.stroke();
+        }
+
+        // Overfitting factor: high steps + high lr = more overfit
+        var ovFactor = (steps / 2000) * 0.55 + (lr / 10) * 0.45;
+        // Overfitting onset: fraction of x-axis
+        var ovStart = Math.max(0.28, 1.05 - ovFactor * 1.0);
+
+        var N = 80;
+        var trainPts = [];
+        var valPts = [];
+        var PAD = 12;
+
+        for (var i = 0; i <= N; i++) {
+          var t = i / N;
+          var noise1 = Math.sin(i * 6.7) * 0.03 + Math.cos(i * 3.1) * 0.02;
+          var noise2 = Math.sin(i * 5.3) * 0.025 + Math.cos(i * 8.9) * 0.02;
+
+          // Train loss: monotonically decreasing with noise
+          var trainL = 0.88 * Math.exp(-t * (2.2 + lr * 0.35)) + 0.06 + noise1 * (1 - t * 0.6);
+
+          // Val loss: decreases to min then increases after ovStart
+          var valL;
+          if (t <= ovStart) {
+            valL = 0.84 * Math.exp(-t * 1.9) + 0.13 + noise2;
+          } else {
+            var ex = t - ovStart;
+            var base = 0.84 * Math.exp(-ovStart * 1.9) + 0.13;
+            valL = base + ex * ex * (1.4 + lr * 0.18) + noise2;
+          }
+          valL = Math.min(valL, 1.05);
+
+          var px = PAD + (i / N) * (W - PAD * 2);
+          trainPts.push([px, H - PAD - trainL * (H - PAD * 2) * 0.85]);
+          valPts.push([px, H - PAD - valL * (H - PAD * 2) * 0.85]);
+        }
+
+        // Overfitting zone shading
+        var ovX = PAD + ovStart * (W - PAD * 2);
+        if (ovStart < 0.98) {
+          ctx.fillStyle = 'rgba(255,107,107,0.06)';
+          ctx.fillRect(ovX, 0, W - ovX, H);
+          ctx.setLineDash([5, 4]);
+          ctx.strokeStyle = dim;
+          ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(ovX, 4); ctx.lineTo(ovX, H - 4); ctx.stroke();
+          ctx.setLineDash([]);
+        }
+
+        function curve(pts, color) {
+          ctx.beginPath();
+          ctx.moveTo(pts[0][0], pts[0][1]);
+          for (var j = 1; j < pts.length - 1; j++) {
+            var mx = (pts[j][0] + pts[j+1][0]) / 2;
+            var my = (pts[j][1] + pts[j+1][1]) / 2;
+            ctx.quadraticCurveTo(pts[j][0], pts[j][1], mx, my);
+          }
+          ctx.lineTo(pts[pts.length-1][0], pts[pts.length-1][1]);
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 2.5;
+          ctx.lineJoin = 'round';
+          ctx.stroke();
+        }
+
+        curve(trainPts, acid);
+        curve(valPts, red);
+
+        // Status update
+        if (ovFactor > 0.65) {
+          statusBadge.className = 'status-badge bad';
+          statusLabel.textContent = 'Mô phỏng: rủi ro overfit cao';
+          statusDesc.textContent = 'Trong mô phỏng, steps/LR cao làm validation curve tách khỏi train curve. Trainer thực tế cần validation protocol và output grid riêng để kết luận.';
+        } else if (ovFactor > 0.33) {
+          statusBadge.className = 'status-badge warn';
+          statusLabel.textContent = 'Mô phỏng: cần kiểm tra';
+          statusDesc.textContent = 'Trong mô phỏng, validation curve bắt đầu tách. Hãy so sánh checkpoint/prompt set trước khi chỉ đổi steps hoặc learning rate.';
+        } else {
+          statusBadge.className = 'status-badge ok';
+          statusLabel.textContent = 'Mô phỏng: curve ổn định';
+          statusDesc.textContent = 'Hai curve giảm song song trong minh hoạ; đây không thay thế đánh giá identity, prompt-following và artifact trên output thật.';
+        }
+      }
+
+      stepsSlider.addEventListener('input', draw);
+      lrSlider.addEventListener('input', draw);
+      window.addEventListener('themechange', draw);
+
+      if (typeof ResizeObserver !== 'undefined') {
+        new ResizeObserver(draw).observe(canvas.parentElement);
+      }
+
+      draw();
+    })();
+
+    // ── Caption quiz ─────────────────────────────────────────────
+    (function () {
+      var ANSWERS = {
+        '1': {
+          correct: 'B',
+          ok: '✓ Đúng! Caption B tốt nhất vì: (1) trigger word đứng đầu, (2) mô tả chi tiết ánh sáng và góc chụp, (3) không dùng từ chủ quan. Model học được đặc điểm trung lập và có thể tái tạo đa dạng.',
+          wrong: {
+            A: '✗ Caption A không có trigger word — model không thể liên kết đặc điểm nhận dạng với bất kỳ từ khóa nào. Caption B là đáp án đúng.',
+            C: '✗ Caption C đặt trigger word vào giữa câu và dùng từ chủ quan "beautiful" — model có thể học nhầm tính chủ quan thay vì đặc điểm nhận dạng. Caption B là đáp án đúng.'
+          }
+        },
+        '2': {
+          correct: 'C',
+          ok: '✓ Đúng! Caption C không có trigger word và mô tả đặc điểm cụ thể (blue eyes, brown hair, glasses) như thể chúng là cố định. Nếu những đặc điểm này thay đổi giữa các ảnh, model sẽ bị nhầm lẫn và học sai.',
+          wrong: {
+            A: '✗ Caption A đúng format — trigger word đầu, bối cảnh thay đổi được. Caption C là đáp án gây nhầm lẫn nhất.',
+            B: '✗ Caption B cũng đúng format — trigger word đầu, mô tả bối cảnh. Caption C mới là đáp án gây nhầm lẫn nhất.'
+          }
+        },
+        '3': {
+          correct: 'A',
+          ok: 'Đúng. Đặt trigger ở đầu là quy ước nhất quán, dễ quét và dễ kiểm tra bằng script; phần sau dành cho các thuộc tính có thể thay đổi.',
+          wrong: {
+            B: 'Trigger ở cuối vẫn có thể hoạt động, nhưng khó duy trì format nhất quán khi review hàng trăm caption. Đáp án A dễ kiểm tra hơn.',
+            C: 'Cấu trúc này có thể hoạt động, nhưng trigger bị trộn vào câu tự nhiên nên khó xác thực hàng loạt hơn format A.'
+          }
+        }
+      };
+
+      document.getElementById('caption-quiz-container').addEventListener('click', function (e) {
+        var btn = e.target.closest('.quiz-option');
+        if (!btn || btn.disabled) return;
+        var q = btn.dataset.q;
+        var v = btn.dataset.v;
+        var isCorrect = btn.dataset.correct === 'true';
+        var ans = ANSWERS[q];
+        if (!ans) return;
+
+        document.querySelectorAll('.quiz-option[data-q="' + q + '"]').forEach(function (opt) {
+          opt.disabled = true;
+          if (opt.dataset.v === ans.correct) opt.classList.add('correct');
+          else if (opt.dataset.v === v && !isCorrect) opt.classList.add('wrong');
+        });
+
+        var fb = document.getElementById('q' + q + '-feedback');
+        if (isCorrect) {
+          fb.textContent = ans.ok;
+          fb.className = 'quiz-feedback show ok';
+        } else {
+          fb.textContent = (ans.wrong[v] || '✗ Chưa đúng. ') + ' — ' + ans.ok;
+          fb.className = 'quiz-feedback show bad';
+        }
+      });
+    })();
+
+    // ── Checklist ────────────────────────────────────────────────
+    (function () {
+      var items = document.querySelectorAll('#checklist-items input[type=checkbox]');
+      var countEl = document.getElementById('checklist-count');
+      var barEl = document.getElementById('checklist-bar');
+      var total = items.length;
+
+      function update() {
+        var checked = Array.from(items).filter(function (cb) { return cb.checked; }).length;
+        countEl.textContent = checked + ' / ' + total;
+        barEl.style.width = (checked / total * 100) + '%';
+      }
+
+      items.forEach(function (cb) { cb.addEventListener('change', update); });
+      document.getElementById('checklist-reset').addEventListener('click', function () {
+        items.forEach(function (cb) { cb.checked = false; });
+        update();
+      });
+
+      update();
+    })();
+
+    // ── Checkpoint ───────────────────────────────────────────────
+    (function () {
+      var CP = {
+        '1': {
+          correct: 'B',
+          ok: '✓ Chính xác. 8 ảnh và 3000 updates là một giả thuyết hợp lý cần điều tra, không đủ để suy ra preset giảm steps. Khóa model/trainer/version, repeats, batch, rank, resolution và prompt/seed; so sánh checkpoint theo held-out rubric trước khi đổi một biến.',
+          wrong: '✗ Chưa đúng. Dataset nhỏ kết hợp exposure cao có thể gây memorization, nhưng không thể kết luận chỉ từ hai số. Ghi run context và A/B checkpoint với held-out prompt/seed để phân biệt data coverage, caption, steps hay các biến khác.'
+        },
+        '2': {
+          correct: 'C',
+          ok: '✓ Đúng. Regularization images giữ cho base model nhớ cách vẽ "người nói chung" — không chỉ subject cụ thể. Điều này ngăn "language drift" và cho phép prompt bình thường vẫn hoạt động ngoài trigger word.',
+          wrong: '✗ Chưa đúng. Regularization images giải quyết vấn đề "language drift" — khi model quá tập trung vào subject cụ thể đến mức quên cách vẽ class chung. Chúng không ảnh hưởng đến tốc độ training hay captioning.'
+        },
+        '3': {
+          correct: 'B',
+          ok: 'Đúng. Flip, crop và color jitter hữu ích cho độ bền, nhưng không thể phát minh cấu trúc khuôn mặt ở góc nghiêng chưa từng xuất hiện.',
+          wrong: 'Chưa đúng. Augmentation chỉ biến đổi dữ liệu đang có. Muốn model học góc nghiêng, bạn vẫn cần ảnh góc nghiêng thật hoặc dữ liệu tổng hợp được kiểm soát kỹ.'
+        }
+      };
+
+      document.getElementById('checkpoint-grid').addEventListener('click', function (e) {
+        var btn = e.target.closest('.cp-option');
+        if (!btn || btn.disabled) return;
+        var q = btn.dataset.cpq;
+        var v = btn.dataset.cpv;
+        var isCorrect = btn.dataset.correct === 'true';
+        var cp = CP[q];
+        if (!cp) return;
+
+        document.querySelectorAll('.cp-option[data-cpq="' + q + '"]').forEach(function (opt) {
+          opt.disabled = true;
+          if (opt.dataset.cpv === cp.correct) opt.classList.add('correct');
+          else if (opt.dataset.cpv === v && !isCorrect) opt.classList.add('wrong');
+        });
+
+        var fb = document.getElementById('cp' + q + '-fb');
+        fb.textContent = isCorrect ? cp.ok : cp.wrong;
+        fb.className = 'cp-feedback show';
+      });
+    })();
+  </script>
+</body>
+</html>

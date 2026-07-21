@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bài 4: Bộ node WanVideo — Phần 6 ComfyUI / Workflow | Video Gen Lab</title>
+  <meta name="description" content="Nắm vững 4 node chính của WanVideo pipeline trong ComfyUI: WanVideoVAELoader, WanVideoClipVisionEncode, WanVideoLoraSelectMulti, và WanVideoSampler." />
+  <script src="video-generation-theme.js"></script>
+  <link rel="stylesheet" href="video-generation-design-system.css" />
+  <style>
+    /* ── Hero ───────────────────────────────────────────────── */
+    .hero {
+      padding: 88px 0 72px;
+    }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1fr 420px;
+      gap: 48px;
+      align-items: center;
+    }
+    .hero-eyebrow {
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--cyan);
+      margin: 0 0 18px;
+    }
+    .hero h1 {
+      font-size: clamp(2.6rem, 6vw, 5.8rem);
+      font-weight: 900;
+      letter-spacing: -.07em;
+      line-height: 1;
+      margin: 0 0 22px;
+    }
+    .hero-lead {
+      color: var(--muted);
+      font-size: 1.05rem;
+      max-width: 46ch;
+      margin: 0 0 32px;
+    }
+    .hero-cta { display: flex; gap: 12px; flex-wrap: wrap; }
+    .hero-visual {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 28px 24px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero-visual::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 70% 30%, rgba(98,231,245,.07), transparent 60%);
+      pointer-events: none;
+    }
+    .hv-label {
+      font-family: var(--font-mono);
+      font-size: .65rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin: 0 0 16px;
+    }
+    .hv-nodes { display: flex; flex-direction: column; gap: 10px; }
+    .hv-node {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: .82rem;
+    }
+    .hv-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .hv-dot.vae   { background: var(--orange); box-shadow: 0 0 10px rgba(255,138,76,.6); }
+    .hv-dot.clip  { background: var(--cyan);   box-shadow: 0 0 10px rgba(98,231,245,.6); }
+    .hv-dot.lora  { background: var(--acid);   box-shadow: 0 0 10px rgba(200,255,61,.6); }
+    .hv-dot.sampler { background: var(--red);  box-shadow: 0 0 10px rgba(255,107,107,.6); }
+    .hv-name { font-weight: 700; color: var(--ink); flex: 1; }
+    .hv-role { color: var(--dim); font-family: var(--font-mono); font-size: .68rem; }
+
+    /* ── Sections ───────────────────────────────────────────── */
+    .section { padding: 80px 0; border-top: 1px solid var(--line); }
+    .section-meta {
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin: 0 0 12px;
+    }
+    .section h2 {
+      font-size: clamp(1.6rem, 3.5vw, 2.4rem);
+      font-weight: 900;
+      letter-spacing: -.045em;
+      line-height: 1.1;
+      margin: 0 0 14px;
+    }
+    .section-lead {
+      color: var(--muted);
+      max-width: 60ch;
+      margin: 0 0 40px;
+    }
+
+    /* ── Node card ──────────────────────────────────────────── */
+    .node-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .node-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 22px 28px;
+      border-bottom: 1px solid var(--line);
+    }
+    .node-icon {
+      width: 38px; height: 38px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+    .node-icon.vae    { background: rgba(255,138,76,.15); border: 1px solid rgba(255,138,76,.35); }
+    .node-icon.clip   { background: rgba(98,231,245,.12); border: 1px solid rgba(98,231,245,.3); }
+    .node-icon.lora   { background: rgba(200,255,61,.1);  border: 1px solid rgba(200,255,61,.3); }
+    .node-icon.sampler{ background: rgba(255,107,107,.12); border: 1px solid rgba(255,107,107,.3); }
+    .node-title { margin: 0; font-size: 1rem; font-weight: 800; }
+    .node-subtitle {
+      font-family: var(--font-mono);
+      font-size: .7rem;
+      color: var(--dim);
+      margin: 2px 0 0;
+    }
+    .node-body { padding: 24px 28px; }
+    .node-desc { color: var(--muted); margin: 0 0 24px; }
+
+    /* ── IO table ───────────────────────────────────────────── */
+    .io-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .io-group-label {
+      font-family: var(--font-mono);
+      font-size: .65rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin: 0 0 10px;
+    }
+    .io-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+    .io-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: .82rem;
+    }
+    .io-badge {
+      font-family: var(--font-mono);
+      font-size: .63rem;
+      padding: 2px 7px;
+      border-radius: 5px;
+      white-space: nowrap;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .io-badge.in  { background: rgba(98,231,245,.12); color: var(--cyan); border: 1px solid rgba(98,231,245,.25); }
+    .io-badge.out { background: rgba(200,255,61,.1);  color: var(--acid); border: 1px solid rgba(200,255,61,.25); }
+    .io-name { font-weight: 600; color: var(--ink); }
+    .io-desc { color: var(--dim); font-size: .75rem; margin: 2px 0 0; }
+
+    /* ── Param table (Sampler) ──────────────────────────────── */
+    .param-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .84rem;
+      margin-top: 12px;
+    }
+    .param-table th {
+      text-align: left;
+      font-family: var(--font-mono);
+      font-size: .65rem;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--dim);
+      padding: 0 12px 10px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .param-table td {
+      padding: 10px 12px 10px 0;
+      border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent);
+      vertical-align: top;
+    }
+    .param-table tr:last-child td { border-bottom: none; }
+    .param-name { font-family: var(--font-mono); color: var(--ink); font-weight: 600; }
+    .param-type { color: var(--cyan); font-family: var(--font-mono); font-size: .72rem; }
+    .param-desc { color: var(--muted); }
+
+    /* ── Pipeline diagram ───────────────────────────────────── */
+    .pipeline-section { padding: 80px 0; border-top: 1px solid var(--line); }
+    /* This is a component inventory, not a literal edge-by-edge workflow. */
+    .diagram .d-arrow { display: none; }
+
+    .mode-switch {
+      display: inline-flex;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px;
+      gap: 4px;
+      margin-bottom: 40px;
+    }
+    .mode-btn {
+      min-height: 44px;
+      padding: 6px 18px;
+      border: none;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      font-size: .84rem;
+      font-weight: 700;
+      transition: background .15s ease, color .15s ease;
+    }
+    .mode-btn[aria-pressed="true"] {
+      background: var(--acid-fill);
+      color: #111;
+    }
+    [data-theme="light"] .mode-btn[aria-pressed="true"] { color: #fff; background: var(--acid); }
+
+    .diagram-wrapper {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 40px 32px;
+      overflow-x: auto;
+    }
+    .diagram {
+      display: flex;
+      align-items: flex-start;
+      gap: 0;
+      min-width: 640px;
+      position: relative;
+    }
+
+    /* Each column = one node + optional connector */
+    .d-col { display: flex; align-items: center; }
+    .d-node-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+    }
+
+    .d-node {
+      background: var(--panel-2);
+      border: 1.5px solid var(--line);
+      border-radius: 12px;
+      padding: 14px 18px;
+      min-width: 148px;
+      cursor: pointer;
+      transition: border-color .15s ease, box-shadow .15s ease;
+      text-align: left;
+    }
+    .d-node:hover,
+    .d-node:focus-visible {
+      border-color: var(--cyan);
+      box-shadow: 0 0 0 3px rgba(98,231,245,.18);
+      outline: none;
+    }
+    .d-node[aria-expanded="true"] {
+      border-color: var(--acid-fill);
+      box-shadow: 0 0 0 3px rgba(200,255,61,.18);
+    }
+    .d-node-label {
+      font-family: var(--font-mono);
+      font-size: .65rem;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      margin: 0 0 4px;
+    }
+    .d-node-label.vae    { color: var(--orange); }
+    .d-node-label.clip   { color: var(--cyan); }
+    .d-node-label.lora   { color: var(--acid); }
+    .d-node-label.sampler{ color: var(--red); }
+    .d-node-name {
+      font-weight: 800;
+      font-size: .84rem;
+      color: var(--ink);
+      margin: 0 0 2px;
+    }
+    .d-node-hint { font-size: .7rem; color: var(--dim); margin: 0; }
+
+    /* Arrow connector */
+    .d-arrow {
+      display: flex;
+      align-items: center;
+      color: var(--dim);
+      padding: 0 8px;
+      font-size: 1.1rem;
+      flex-shrink: 0;
+    }
+    .d-arrow svg { display: block; }
+
+    /* I2V branch: clip node above sampler with vertical connector */
+    .d-branch {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .d-branch-arrow {
+      color: var(--dim);
+      font-size: 1.1rem;
+      line-height: 1;
+      margin: 4px 0;
+      text-align: center;
+    }
+
+    /* Expandable detail panel below diagram node */
+    .d-detail {
+      display: none;
+      background: var(--night);
+      border: 1px solid var(--line);
+      border-top: none;
+      border-radius: 0 0 12px 12px;
+      padding: 12px 14px;
+      font-size: .78rem;
+      color: var(--muted);
+      width: 100%;
+      max-width: 148px;
+    }
+    .d-detail.open { display: block; }
+    .d-detail strong { color: var(--ink); display: block; margin-bottom: 4px; }
+
+    /* Ghost node (disabled in T2V) */
+    .d-node.ghost {
+      opacity: .35;
+      cursor: default;
+      pointer-events: none;
+    }
+    .d-ghost-label {
+      font-size: .7rem;
+      color: var(--dim);
+      text-align: center;
+      margin-top: 4px;
+      font-style: italic;
+    }
+
+    /* Legend */
+    .diagram-legend {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      margin-top: 20px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: .76rem;
+      color: var(--muted);
+    }
+    .legend-dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    }
+
+    /* ── Tips / note ────────────────────────────────────────── */
+    .note-panel {
+      background: color-mix(in srgb, var(--panel) 70%, var(--night));
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--cyan);
+      border-radius: 10px;
+      padding: 16px 20px;
+      font-size: .88rem;
+      color: var(--muted);
+      margin: 24px 0 0;
+    }
+    .note-panel strong { color: var(--ink); }
+
+    /* ── Takeaways ──────────────────────────────────────────── */
+    .takeaway-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+    }
+    .takeaway-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 20px 22px;
+    }
+    .takeaway-num {
+      font-family: var(--font-mono);
+      font-size: .7rem;
+      color: var(--dim);
+      margin: 0 0 8px;
+    }
+    .takeaway-card p { margin: 0; font-size: .88rem; color: var(--muted); }
+    .takeaway-card p strong { color: var(--ink); }
+
+    /* ── Footer ─────────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--line);
+      padding: 36px 0;
+      text-align: center;
+      color: var(--dim);
+      font-size: .8rem;
+    }
+    footer a { color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
+
+    /* ── Responsive ─────────────────────────────────────────── */
+    @media (max-width: 900px) {
+      .hero-grid { grid-template-columns: 1fr; }
+      .hero-visual { display: none; }
+      .io-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .hero { padding: 56px 0 48px; }
+      .section, .pipeline-section { padding: 56px 0; }
+      .node-body { padding: 18px; }
+      .node-header { padding: 16px 18px; }
+    }
+
+    /* ── Utility classes (replaces inline styles) ───────────── */
+    .io-grid-mt { margin-top: 24px; }
+    .d-col-branch {
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+    .clip-branch {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+    }
+    .clip-branch.hidden { display: none; }
+    .d-node-decode {
+      opacity: .6;
+      cursor: default;
+    }
+    .d-node-label-dim { color: var(--dim); }
+    .legend-dot-vae    { background: var(--orange); }
+    .legend-dot-cyan   { background: var(--cyan); }
+    .legend-dot-acid   { background: var(--acid-fill); }
+    .legend-dot-red    { background: var(--red); }
+    .legend-item-i2v   { display: none; }
+    .legend-item-i2v.visible { display: flex; }
+    .legend-item-i2v-text { color: var(--muted); }
+    .pipeline-details  { margin-top: 24px; }
+    .pipeline-details summary {
+      cursor: pointer;
+      color: var(--muted);
+      font-size: .88rem;
+      padding: 8px 0;
+    }
+    .pipeline-note-panel {
+      margin-top: 12px;
+      border-left-color: var(--cyan);
+    }
+    .scope-note { margin-top: 18px; color: var(--muted); font-size: .86rem; }
+    .production-brief {
+      border: 1px solid var(--cyan); border-radius: var(--radius); padding: clamp(20px, 4vw, 32px);
+      background: color-mix(in srgb, var(--panel) 92%, var(--cyan));
+    }
+    .brief-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 28px; margin: 20px 0 0; }
+    .brief-grid dt { font: 700 .7rem var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--cyan); }
+    .brief-grid dd { margin: 4px 0 0; color: var(--muted); font-size: .9rem; }
+    .brief-next { margin: 20px 0 0; padding: 14px 16px; border-left: 3px solid var(--acid); background: var(--panel-2); color: var(--ink); }
+    .related-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .related-list a { display: block; min-height: 116px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--ink); text-decoration: none; }
+    .related-list a:hover { border-color: var(--cyan); background: var(--panel-2); }
+    .related-list strong { display: block; font-size: .92rem; }
+    .related-list span { display: block; margin-top: 6px; color: var(--muted); font-size: .82rem; line-height: 1.55; }
+    .lesson-nav { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 28px; }
+    @media (max-width: 680px) { .brief-grid, .related-list { grid-template-columns: 1fr; } .lesson-nav .button { width: 100%; } }
+  </style>
+</head>
+<body>
+
+<a class="skip-link" href="#main">Chuyển tới nội dung chính</a>
+
+<header class="topbar" role="banner">
+  <div class="topbar-inner">
+    <a href="index.html" class="brand" aria-label="Video Gen Lab – trang chủ">
+      <span class="brand-mark" aria-hidden="true"></span>
+      Video Gen Lab
+    </a>
+    <nav class="topnav" aria-label="Điều hướng chính">
+      <a href="index.html">Trang chủ</a>
+      <a href="#heroHeading" aria-current="page">Phần 6</a>
+    </nav>
+    <div class="progress-track" aria-hidden="true">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- HERO -->
+  <section class="hero shell" aria-labelledby="heroHeading">
+    <div class="hero-grid">
+      <div>
+        <p class="hero-eyebrow">Phần 6 · Bài 4 &mdash; ComfyUI / Workflow</p>
+        <h1 id="heroHeading">Bộ node<br>WanVideo</h1>
+        <p class="hero-lead">Nắm vững 4 node cốt lõi của WanVideo pipeline: load VAE, encode vision, chọn LoRA đa tầng, và sinh video với sampler chính.</p>
+        <div class="hero-cta">
+          <a href="#pipeline" class="button primary">Xem pipeline →</a>
+          <a href="#wanvideo-vae-loader" class="button">Bắt đầu học</a>
+        </div>
+      </div>
+      <div class="hero-visual" aria-hidden="true">
+        <p class="hv-label">4 node chính</p>
+        <div class="hv-nodes">
+          <div class="hv-node">
+            <span class="hv-dot vae"></span>
+            <span class="hv-name">WanVideoVAELoader</span>
+            <span class="hv-role">VAE</span>
+          </div>
+          <div class="hv-node">
+            <span class="hv-dot clip"></span>
+            <span class="hv-name">ClipVisionEncode</span>
+            <span class="hv-role">I2V</span>
+          </div>
+          <div class="hv-node">
+            <span class="hv-dot lora"></span>
+            <span class="hv-name">LoraSelectMulti</span>
+            <span class="hv-role">LoRA</span>
+          </div>
+          <div class="hv-node">
+            <span class="hv-dot sampler"></span>
+            <span class="hv-name">WanVideoSampler</span>
+            <span class="hv-role">Sampler</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- NODE 1: VAELoader -->
+  <section class="section shell" id="wanvideo-vae-loader" aria-labelledby="vaeHeading">
+    <p class="section-meta">01 — WanVideoVAELoader</p>
+    <h2 id="vaeHeading">Load VAE riêng cho Wan model</h2>
+    <p class="section-lead">Một workflow Wan cần VAE tương thích với checkpoint và implementation đang dùng để biến latent video thành frame. Tên node, kiểu cổng và file model thay đổi theo implementation.</p>
+
+    <div class="node-card">
+      <div class="node-header">
+        <div class="node-icon vae" aria-hidden="true">🎞</div>
+        <div>
+          <h3 class="node-title">WanVideoVAELoader</h3>
+          <p class="node-subtitle">Đọc file VAE từ thư mục models/vae/</p>
+        </div>
+      </div>
+      <div class="node-body">
+        <p class="node-desc">
+          Trong <code>ComfyUI-WanVideoWrapper</code>, loader trả về kiểu VAE riêng của wrapper để dùng ở bước encode/decode. Đây là hành vi của <em>custom node này</em>, không phải quy tắc cho mọi workflow Wan hoặc ComfyUI core.
+        </p>
+        <div class="io-grid">
+          <div>
+            <p class="io-group-label">Inputs</p>
+            <ul class="io-list">
+              <li class="io-item">
+                <span class="io-badge in">in</span>
+                <div>
+                  <div class="io-name">vae_name</div>
+                  <div class="io-desc">Tên file VAE trong thư mục models/vae/ (ví dụ: wan_2.1_vae.safetensors)</div>
+                </div>
+              </li>
+            </ul>
+          </div>
+          <div>
+            <p class="io-group-label">Output</p>
+            <ul class="io-list">
+              <li class="io-item">
+                <span class="io-badge out">out</span>
+                <div>
+                  <div class="io-name">VAE</div>
+                  <div class="io-desc">Object VAE dùng cho image encode/decode; sampler main hiện tại không có cổng vae trực tiếp.</div>
+                </div>
+              </li>
+            </ul>
+          </div>
+        </div>
+        <div class="note-panel">
+          <strong>Kiểm tra trước khi nối:</strong> mở tooltip/cổng của workflow đúng phiên bản và nối đúng kiểu dữ liệu. Không thay VAE theo tên gọi; mismatch có thể báo type error hoặc tạo output không hợp lệ, tùy implementation.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- NODE 2: ClipVisionEncode -->
+  <section class="section shell" id="wanvideo-clip-vision-encode" aria-labelledby="clipHeading">
+    <p class="section-meta">02 — WanVideoImageClipEncode</p>
+    <h2 id="clipHeading">Encode ảnh tham chiếu cho I2V</h2>
+    <p class="section-lead">Một số workflow I2V của wrapper dùng encoder thị giác và VAE để tạo conditioning ảnh; workflow native của ComfyUI có thể dùng node và cổng khác.</p>
+
+    <div class="node-card">
+      <div class="node-header">
+        <div class="node-icon clip" aria-hidden="true">🖼</div>
+        <div>
+          <h3 class="node-title">WanVideoImageClipEncode</h3>
+          <p class="node-subtitle">Chỉ dùng trong pipeline I2V, bỏ qua khi T2V</p>
+        </div>
+      </div>
+      <div class="node-body">
+        <p class="node-desc">
+          Với main branch của wrapper khi bài được audit, node nhận model vision, ảnh và VAE rồi trả về <code>WANVIDIMAGE_EMBEDS</code>. Export JSON từ đúng commit: tên node/cổng có thể đổi.
+        </p>
+        <div class="io-grid">
+          <div>
+            <p class="io-group-label">Inputs</p>
+            <ul class="io-list">
+              <li class="io-item">
+                <span class="io-badge in">in</span>
+                <div>
+                  <div class="io-name">clip_vision</div>
+                  <div class="io-desc">CLIP Vision model (từ CLIPVisionLoader), phiên bản tương thích Wan I2V</div>
+                </div>
+              </li>
+              <li class="io-item">
+                <span class="io-badge in">in</span>
+                <div>
+                  <div class="io-name">image</div>
+                  <div class="io-desc">Ảnh tham chiếu dạng IMAGE tensor (load từ LoadImage node)</div>
+                </div>
+              </li>
+            </ul>
+          </div>
+          <div>
+            <p class="io-group-label">Output</p>
+            <ul class="io-list">
+              <li class="io-item">
+                <span class="io-badge out">out</span>
+                <div>
+                  <div class="io-name">WANVIDIMAGE_EMBEDS</div>
+                  <div class="io-desc">Embedding ảnh của wrapper, nối vào input image_embeds của sampler.</div>
+                </div>
+              </li>
+            </ul>
+          </div>
+        </div>
+        <div class="note-panel">
+          <strong>Phạm vi:</strong> đây là đường I2V của custom wrapper. Với T2V, bỏ nhánh ảnh nếu workflow không yêu cầu nó; với I2V, giữ model, VAE và node encoder khớp workflow đã xuất bản.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- NODE 3: LoraSelectMulti -->
+  <section class="section shell" id="wanvideo-lora-select-multi" aria-labelledby="loraHeading">
+    <p class="section-meta">03 — WanVideoLoraSelectMulti</p>
+    <h2 id="loraHeading">Chọn nhiều LoRA cùng lúc</h2>
+    <p class="section-lead">Thay vì chain từng LoraLoader thủ công, node này cho phép chọn tối đa nhiều LoRA trong một bước, mỗi LoRA có strength độc lập.</p>
+
+    <div class="node-card">
+      <div class="node-header">
+        <div class="node-icon lora" aria-hidden="true">🔗</div>
+        <div>
+          <h3 class="node-title">WanVideoLoraSelectMulti</h3>
+          <p class="node-subtitle">Stack LoRA để nối vào WanVideoSampler</p>
+        </div>
+      </div>
+      <div class="node-body">
+        <p class="node-desc">
+          Trong wrapper, node chọn LoRA từ thư mục cấu hình và tạo danh sách cấu hình có strength. Số slot, tên input và việc merge/offload phụ thuộc commit của extension; hãy pin commit khi cần tái lập kết quả.
+        </p>
+        <div class="io-grid">
+          <div>
+            <p class="io-group-label">Inputs (mỗi slot)</p>
+            <ul class="io-list">
+              <li class="io-item">
+                <span class="io-badge in">in</span>
+                <div>
+                  <div class="io-name">lora_name_N</div>
+                  <div class="io-desc">Tên file LoRA (ví dụ: wan-motion-smooth.safetensors), chọn "None" để bỏ slot</div>
+                </div>
+              </li>
+              <li class="io-item">
+                <span class="io-badge in">in</span>
+                <div>
+                  <div class="io-name">strength_N</div>
+                  <div class="io-desc">Cường độ LoRA; bắt đầu theo model card tương thích, rồi A/B từng biến.</div>
+                </div>
+              </li>
+            </ul>
+          </div>
+          <div>
+            <p class="io-group-label">Output</p>
+            <ul class="io-list">
+              <li class="io-item">
+                <span class="io-badge out">out</span>
+                <div>
+                  <div class="io-name">WANVIDLORA</div>
+                  <div class="io-desc">Cấu hình adapter của wrapper; nối vào ModelLoader theo JSON workflow, không mặc định vào sampler.</div>
+                </div>
+              </li>
+            </ul>
+          </div>
+        </div>
+        <div class="note-panel">
+          <strong>Heuristic để A/B test, không phải preset:</strong> thử một LoRA trước ở strength ghi trong model card, khóa seed/prompt/steps; sau đó thêm LoRA thứ hai và so artifact, nhận diện và chuyển động. Không có ngưỡng tổng strength áp dụng cho mọi LoRA.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- NODE 4: Sampler -->
+  <section class="section shell" id="wanvideo-sampler" aria-labelledby="samplerHeading">
+    <p class="section-meta">04 — WanVideoSampler</p>
+    <h2 id="samplerHeading">Node chính sinh video</h2>
+    <p class="section-lead">WanVideoSampler là trung tâm của pipeline — nhận tất cả thông tin từ các node khác và chạy quá trình denoising để tạo ra latent video.</p>
+
+    <div class="node-card">
+      <div class="node-header">
+        <div class="node-icon sampler" aria-hidden="true">⚙</div>
+        <div>
+          <h3 class="node-title">WanVideoSampler</h3>
+          <p class="node-subtitle">Denoising loop — đầu ra LATENT, decode bằng WanVideoDecode của wrapper</p>
+        </div>
+      </div>
+      <div class="node-body">
+        <p class="node-desc">
+          Node thực thi vòng lặp diffusion denoising. Bảng dưới là schema main branch đã audit, không phải contract chung cho native ComfyUI hay mọi commit wrapper.
+        </p>
+
+        <table class="param-table" aria-label="Các input chính của WanVideoSampler">
+          <thead>
+            <tr>
+              <th>Input</th>
+              <th>Kiểu</th>
+              <th>Mô tả</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="param-name">model</td>
+              <td class="param-type">MODEL</td>
+              <td class="param-desc">Wan diffusion model (từ WanVideoModelLoader)</td>
+            </tr>
+            <tr>
+              <td class="param-name">image_embeds</td>
+              <td class="param-type">WANVIDIMAGE_EMBEDS</td>
+              <td class="param-desc">Required ở schema main đã audit; nhận từ encoder ảnh tương thích.</td>
+            </tr>
+            <tr>
+              <td class="param-name">text_embeds</td>
+              <td class="param-type">WANVIDEOTEXTEMBEDS</td>
+              <td class="param-desc">Optional ở schema main đã audit.</td>
+            </tr>
+            <tr>
+              <td class="param-name">samples</td>
+              <td class="param-type">LATENT</td>
+              <td class="param-desc">Optional latent samples của workflow.</td>
+            </tr>
+            <tr>
+              <td class="param-name">shift</td>
+              <td class="param-type">FLOAT</td>
+              <td class="param-desc">Tham số sampler; giữ cố định khi A/B biến khác.</td>
+            </tr>
+            <tr>
+              <td class="param-name">cfg</td>
+              <td class="param-type">FLOAT</td>
+              <td class="param-desc">CFG của wrapper. Quét nhỏ quanh preset workflow; trade-off bám prompt/artifact phụ thuộc model, scheduler và version.</td>
+            </tr>
+            <tr>
+              <td class="param-name">steps</td>
+              <td class="param-type">INT</td>
+              <td class="param-desc">Số bước của wrapper. Giữ scheduler, seed, resolution và model cố định khi so chất lượng với thời gian.</td>
+            </tr>
+            <tr>
+              <td class="param-name">force_offload</td>
+              <td class="param-type">BOOLEAN</td>
+              <td class="param-desc">Offload sau sampling: trade-off VRAM/thời gian của wrapper.</td>
+            </tr>
+            <tr>
+              <td class="param-name">scheduler</td>
+              <td class="param-type">ENUM</td>
+              <td class="param-desc">Danh sách schedule là implementation-specific; đánh giá bằng clip A/B, không chỉ nhìn một frame.</td>
+            </tr>
+            <tr>
+              <td class="param-name">seed</td>
+              <td class="param-type">INT</td>
+              <td class="param-desc">Seed hỗ trợ tái lập; thường còn cần cùng model/node commit, runtime, GPU và thiết lập deterministic.</td>
+            </tr>
+            <tr>
+              <td class="param-name">Schema</td>
+              <td class="param-type">versioned</td>
+              <td class="param-desc">Kiểm tra INPUT_TYPES và JSON của commit thực tế trước khi chạy.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="io-grid io-grid-mt">
+          <div>
+            <p class="io-group-label">Output</p>
+            <ul class="io-list">
+              <li class="io-item">
+                <span class="io-badge out">out</span>
+                <div>
+                  <div class="io-name">LATENT</div>
+                  <div class="io-desc">Latent video tensor — nối vào WanVideoDecode của wrapper để lấy images/video.</div>
+                </div>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PIPELINE DIAGRAM -->
+  <section class="pipeline-section shell" id="pipeline" aria-labelledby="pipelineHeading">
+    <p class="section-meta">05 — Pipeline đầy đủ</p>
+    <h2 id="pipelineHeading">Kết nối 4 node trong workflow</h2>
+    <p class="section-lead">Chọn chế độ để xem cách các node kết nối. Nhấn vào từng node để xem chi tiết inputs/outputs.</p>
+
+    <div class="mode-switch" role="group" aria-label="Chọn chế độ pipeline">
+      <button class="mode-btn" id="btnT2V" type="button" aria-pressed="true" onclick="setPipelineMode('t2v')">T2V — Text to Video</button>
+      <button class="mode-btn" id="btnI2V" type="button" aria-pressed="false" onclick="setPipelineMode('i2v')">I2V — Image to Video</button>
+    </div>
+
+    <p class="scope-note">Inventory mô phỏng của <a href="https://github.com/kijai/ComfyUI-WanVideoWrapper">ComfyUI-WanVideoWrapper</a>, không phải sơ đồ nối cổng: JSON workflow và commit extension là nguồn quyết định về wiring thực tế.</p>
+    <div class="diagram-wrapper" role="region" aria-label="Sơ đồ tương tác kết nối các node WanVideo">
+      <p id="pipelineStatus" class="scope-note" role="status" aria-live="polite">Đang xem sơ đồ khái niệm T2V; JSON commit thực tế quyết định nguồn image_embeds bắt buộc.</p>
+      <div class="diagram" id="diagram">
+
+        <!-- VAE Loader -->
+        <div class="d-col">
+          <div class="d-node-wrap">
+            <button
+              class="d-node"
+              id="dn-vae"
+              type="button"
+              aria-expanded="false"
+              aria-controls="dd-vae"
+              onclick="toggleDetail('vae')"
+            >
+              <p class="d-node-label vae">01 · VAE</p>
+              <p class="d-node-name">WanVideoVAELoader</p>
+              <p class="d-node-hint">vae_name →</p>
+            </button>
+            <div class="d-detail" id="dd-vae" role="region" aria-label="Chi tiết WanVideoVAELoader">
+              <strong>Output: VAE</strong>
+              Kết nối → image encode/decode; không phải cổng vae trực tiếp của sampler main hiện tại
+            </div>
+          </div>
+        </div>
+
+        <div class="d-arrow" aria-hidden="true">
+          <svg width="32" height="18" viewBox="0 0 32 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <line x1="0" y1="9" x2="24" y2="9" stroke="currentColor" stroke-width="1.5"/>
+            <polyline points="20,4 28,9 20,14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+          </svg>
+        </div>
+
+        <!-- Branching column: CLIP (I2V) on top, empty on T2V + Sampler below -->
+        <div class="d-col d-col-branch">
+          <!-- CLIP Vision (only visible in I2V) -->
+          <div id="clipBranch" class="clip-branch hidden">
+            <div class="d-node-wrap">
+              <button
+                class="d-node"
+                id="dn-clip"
+                type="button"
+                aria-expanded="false"
+                aria-controls="dd-clip"
+                onclick="toggleDetail('clip')"
+              >
+                <p class="d-node-label clip">02 · CLIP</p>
+                <p class="d-node-name">ImageClipEncode</p>
+                <p class="d-node-hint">image →</p>
+              </button>
+              <div class="d-detail" id="dd-clip" role="region" aria-label="Chi tiết ImageClipEncode">
+                <strong>Output: WANVIDIMAGE_EMBEDS</strong>
+                → image_embeds của sampler (schema main đã audit)
+              </div>
+            </div>
+            <div class="d-branch-arrow" aria-hidden="true">↓</div>
+          </div>
+
+          <!-- LoRA Select -->
+          <div class="d-node-wrap">
+            <button
+              class="d-node"
+              id="dn-lora"
+              type="button"
+              aria-expanded="false"
+              aria-controls="dd-lora"
+              onclick="toggleDetail('lora')"
+            >
+              <p class="d-node-label lora">03 · LoRA</p>
+              <p class="d-node-name">LoraSelect → ModelLoader</p>
+              <p class="d-node-hint">lora_name, strength →</p>
+            </button>
+            <div class="d-detail" id="dd-lora" role="region" aria-label="Chi tiết WanVideoLoraSelectMulti">
+              <strong>Output: WANVIDLORA</strong>
+              → ModelLoader → model của sampler
+            </div>
+          </div>
+        </div>
+
+        <div class="d-arrow" aria-hidden="true">
+          <svg width="32" height="18" viewBox="0 0 32 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <line x1="0" y1="9" x2="24" y2="9" stroke="currentColor" stroke-width="1.5"/>
+            <polyline points="20,4 28,9 20,14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+          </svg>
+        </div>
+
+        <!-- Sampler -->
+        <div class="d-col">
+          <div class="d-node-wrap">
+            <button
+              class="d-node"
+              id="dn-sampler"
+              type="button"
+              aria-expanded="false"
+              aria-controls="dd-sampler"
+              onclick="toggleDetail('sampler')"
+            >
+              <p class="d-node-label sampler">04 · Sampler</p>
+              <p class="d-node-name">WanVideoSampler</p>
+              <p class="d-node-hint">model, image_embeds, steps…</p>
+            </button>
+            <div class="d-detail" id="dd-sampler" role="region" aria-label="Chi tiết WanVideoSampler">
+              <strong>Output: LATENT</strong>
+              → WanVideoDecode → images/video export
+            </div>
+          </div>
+        </div>
+
+        <div class="d-arrow" aria-hidden="true">
+          <svg width="32" height="18" viewBox="0 0 32 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <line x1="0" y1="9" x2="24" y2="9" stroke="currentColor" stroke-width="1.5"/>
+            <polyline points="20,4 28,9 20,14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+          </svg>
+        </div>
+
+        <!-- Decode -->
+        <div class="d-col">
+          <div class="d-node-wrap">
+            <div class="d-node d-node-decode" aria-label="WanVideoDecode — decode latent thành images hoặc video export">
+              <p class="d-node-label d-node-label-dim">Decode</p>
+              <p class="d-node-name">WanVideoDecode</p>
+              <p class="d-node-hint">→ VIDEO</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="diagram-legend" aria-label="Chú thích màu sắc">
+        <div class="legend-item"><span class="legend-dot legend-dot-vae"></span>VAE Loader</div>
+        <div class="legend-item"><span class="legend-dot legend-dot-cyan"></span>CLIP Vision (I2V)</div>
+        <div class="legend-item"><span class="legend-dot legend-dot-acid"></span>LoRA Stack</div>
+        <div class="legend-item"><span class="legend-dot legend-dot-red"></span>Sampler</div>
+        <div class="legend-item legend-item-i2v" id="i2vLegend"><span aria-hidden="true">🖼</span><span class="legend-item-i2v-text">Nét đứt = chỉ I2V</span></div>
+      </div>
+    </div>
+
+    <details class="pipeline-details">
+      <summary>Tại sao I2V cần thêm ClipVisionEncode?</summary>
+      <div class="note-panel pipeline-note-panel">
+        Trong T2V, sampler chỉ biết mục tiêu qua text conditioning. Trong I2V, ta muốn video bắt đầu từ hoặc trung thành với một ảnh cụ thể. CLIP Vision encode ảnh đó thành embedding không gian đặc trưng mà sampler dùng như một "anchor" bổ sung — giúp giữ nhân vật, màu sắc, và bố cục từ ảnh tham chiếu trong suốt quá trình denoising.
+      </div>
+    </details>
+  </section>
+
+  <section class="section shell" id="production-brief" aria-labelledby="briefHeading">
+    <p class="section-meta">06 — Case study production</p>
+    <h2 id="briefHeading">Shot mở đầu cho quảng cáo đồ uống: A/B pipeline I2V</h2>
+    <div class="production-brief">
+      <p class="section-lead">Brief giả định để luyện chẩn đoán — không phải benchmark hay preset của Wan.</p>
+      <dl class="brief-grid">
+        <div><dt>Mục tiêu</dt><dd>Clip 5 giây: lon nước giữ logo và góc máy, mặt bàn có chuyển động ánh sáng nhẹ.</dd></div>
+        <div><dt>Bối cảnh</dt><dd>Previsualization trước ngày quay; chỉ dùng nội bộ agency.</dd></div>
+        <div><dt>Input / workflow</dt><dd>Một keyframe 16:9 đã duyệt + workflow I2V Wan wrapper đã pin commit.</dd></div>
+        <div><dt>Giữ cố định</dt><dd>Checkpoint, VAE, prompt, seed, resolution, số frame, scheduler và GPU.</dd></div>
+        <div><dt>Biến thử</dt><dd>A: không LoRA. B: một LoRA motion có strength theo model card; đổi đúng một biến/lần.</dd></div>
+        <div><dt>Giới hạn</dt><dd>Ngân sách 20 phút GPU; render preview ngắn trước, chỉ upscale candidate đạt yêu cầu.</dd></div>
+        <div><dt>Đánh giá</dt><dd>Logo đọc được ở frame đầu/cuối, bố cục giữ ổn định, chuyển động không giật.</dd></div>
+        <div><dt>Dấu hiệu thất bại</dt><dd>Logo biến dạng, drift màu lon, rung camera, hoặc motion lấn át sản phẩm.</dd></div>
+      </dl>
+      <p class="brief-next"><strong>Bước tiếp:</strong> nếu B làm logo drift, quay về A; xác nhận node/LoRA tương thích checkpoint, rồi chỉ quét strength trong phạm vi model card với seed cố định. Nếu cả A/B đều drift, kiểm tra image-conditioning và keyframe trước khi đổi sampler.</p>
+    </div>
+  </section>
+
+  <!-- TAKEAWAYS -->
+  <section class="section shell" aria-labelledby="takeawayHeading">
+    <p class="section-meta">Tổng kết</p>
+    <h2 id="takeawayHeading">4 điểm cần nhớ</h2>
+    <div class="takeaway-grid">
+      <div class="takeaway-card">
+        <p class="takeaway-num">01</p>
+        <p><strong>Giữ VAE khớp workflow.</strong> Dùng loader/kiểu mà JSON của commit yêu cầu; đừng thay theo tên gọi.</p>
+      </div>
+      <div class="takeaway-card">
+        <p class="takeaway-num">02</p>
+        <p><strong>Nhánh ảnh theo workflow.</strong> I2V của wrapper có thể dùng encoder ảnh, còn T2V có thể không dùng; đọc type cổng để chẩn đoán mismatch.</p>
+      </div>
+      <div class="takeaway-card">
+        <p class="takeaway-num">03</p>
+        <p><strong>LoRA cần A/B có kiểm soát.</strong> Pin model/commit, thử một adapter theo model card rồi ghi nhận artifact và motion.</p>
+      </div>
+      <div class="takeaway-card">
+        <p class="takeaway-num">04</p>
+        <p><strong>Sampler là hub của workflow đã pin version.</strong> Với wrapper main đã audit: output LATENT → WanVideoDecode → images/video export.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section shell" id="related-lessons" aria-labelledby="relatedHeading">
+    <p class="section-meta">Học tiếp theo quan hệ kiến thức</p>
+    <h2 id="relatedHeading">Bài liên quan</h2>
+    <div class="related-list">
+      <a href="video-generation-part-1-lesson-2.html"><strong>VAE — Part 1 Bài 2</strong><span>Nền tảng latent/encode/decode để đọc đúng vai trò VAE trong video workflow.</span></a>
+      <a href="video-generation-part-3-lesson-1.html"><strong>LoRA là gì — Part 3 Bài 1</strong><span>Giải thích adapter weights trước khi A/B strength trong custom wrapper.</span></a>
+      <a href="video-generation-part-4-lesson-1.html"><strong>I2V, T2V, FLF2V — Part 4 Bài 1</strong><span>Chọn đúng nhánh input và tiêu chí kiểm tra tính trung thành ảnh tham chiếu.</span></a>
+    </div>
+    <nav class="lesson-nav" aria-label="Điều hướng tuần tự">
+      <a class="button" href="video-generation-part-6-lesson-3.html">← Bài 3: Checkpoint &amp; Loaders</a>
+      <a class="button primary" href="video-generation-part-6-lesson-5.html">Bài 5: Chạy trên RunPod →</a>
+    </nav>
+  </section>
+
+</main>
+
+<footer>
+  <div class="shell">
+    <p>Video Gen Lab &mdash; Phần 6, Bài 4 &mdash; Bộ node WanVideo</p>
+    <p><a href="video-generation-part-6-lesson-3.html">← Bài trước</a> · <a href="video-generation-part-6-lesson-5.html">Bài tiếp →</a></p>
+  </div>
+</footer>
+
+<script>
+  // Progress bar
+  (function() {
+    var fill = document.getElementById('progressFill');
+    if (!fill) return;
+    function update() {
+      var scrollTop = window.scrollY || document.documentElement.scrollTop;
+      var docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      var pct = docHeight > 0 ? Math.min(100, (scrollTop / docHeight) * 100) : 0;
+      fill.style.width = pct + '%';
+    }
+    window.addEventListener('scroll', update, { passive: true });
+    update();
+  })();
+
+  // Pipeline mode toggle
+  function setPipelineMode(mode) {
+    var isI2V = mode === 'i2v';
+    document.getElementById('btnT2V').setAttribute('aria-pressed', String(!isI2V));
+    document.getElementById('btnI2V').setAttribute('aria-pressed', String(isI2V));
+
+    var clipBranch = document.getElementById('clipBranch');
+    var i2vLegend = document.getElementById('i2vLegend');
+    if (clipBranch) clipBranch.classList.toggle('hidden', !isI2V);
+    if (i2vLegend) i2vLegend.classList.toggle('visible', isI2V);
+    var status = document.getElementById('pipelineStatus');
+    if (status) status.textContent = isI2V
+      ? 'Đang xem mô phỏng I2V: nhánh encoder ảnh được thêm vào sampler.'
+      : 'Đang xem sơ đồ khái niệm T2V; JSON commit thực tế quyết định nguồn image_embeds bắt buộc.';
+  }
+
+  // Node detail expand/collapse in diagram
+  function toggleDetail(id) {
+    var btn = document.getElementById('dn-' + id);
+    var detail = document.getElementById('dd-' + id);
+    if (!btn || !detail) return;
+    var open = btn.getAttribute('aria-expanded') === 'true';
+    btn.setAttribute('aria-expanded', String(!open));
+    detail.classList.toggle('open', !open);
+  }
+
+  // Initialize: hide clip branch (T2V default)
+  document.addEventListener('DOMContentLoaded', function() {
+    setPipelineMode('t2v');
+  });
+</script>
+</body>
+</html>

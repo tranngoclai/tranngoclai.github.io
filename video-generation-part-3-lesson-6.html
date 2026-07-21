@@ -1,0 +1,1247 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="video-generation-favicon.svg" />
+  <meta name="description" content="Bài học tương tác về train LoRA với kohya_ss và SimpleTuner: learning rate, training steps, hyperparameter explorer, và quy trình train face LoRA từ đầu." />
+  <title>Phần 3 · Bài 6 — Train với kohya_ss &amp; SimpleTuner</title>
+  <script src="video-generation-theme.js"></script>
+  <link rel="stylesheet" href="video-generation-design-system.css" />
+  <style>
+    main { overflow: hidden; }
+    section { scroll-margin-top: 86px; }
+
+    /* ── Hero ─────────────────────────────────────────────── */
+    .hero { padding: 80px 0 64px; border-bottom: 1px solid var(--line); }
+    .hero-meta {
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      letter-spacing: .14em;
+      color: var(--dim);
+      text-transform: uppercase;
+      margin: 0 0 20px;
+    }
+    .hero-title {
+      max-width: 900px;
+      font-size: clamp(2.6rem, 7vw, 5.4rem);
+      font-weight: 900;
+      letter-spacing: -.05em;
+      line-height: .96;
+      margin: 0 0 24px;
+      color: var(--ink);
+    }
+    .hero-title span { color: var(--acid); }
+    .hero-lead {
+      font-size: clamp(1.05rem, 1.8vw, 1.25rem);
+      color: var(--muted);
+      max-width: 660px;
+      margin: 0 0 28px;
+      line-height: 1.6;
+    }
+    .hero-badges { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 30px; }
+    .hero-badge {
+      font-family: var(--font-mono);
+      font-size: .65rem;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      padding: 5px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      color: var(--dim);
+    }
+    .hero-badge.acid { border-color: var(--acid); color: var(--acid); }
+    .hero-badge.cyan { border-color: var(--cyan); color: var(--cyan); }
+    .hero-badge.orange { border-color: var(--orange); color: var(--orange); }
+    .hero-cta-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    .button svg { width: 18px; height: 18px; }
+
+    .label {
+      color: var(--acid);
+      font-family: var(--font-mono);
+      font-size: .76rem;
+      font-weight: 800;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    h2, h3, p { margin-top: 0; }
+
+    /* ── Section scaffolding ───────────────────────────────── */
+    .content-section { padding-block: 100px; border-top: 1px solid var(--line); }
+    .section-head { display: grid; grid-template-columns: 1fr 1.3fr; gap: 48px; margin-bottom: 54px; align-items: end; }
+    .section-index { color: var(--dim); font-family: var(--font-mono); font-size: .82rem; }
+    h2 { margin: 10px 0 0; font-size: clamp(2.2rem, 5vw, 4.2rem); line-height: 1; letter-spacing: -.055em; }
+    .section-intro { max-width: 670px; margin: 0; color: var(--muted); font-size: 1.08rem; }
+
+    /* ── Definition panel ─────────────────────────────────── */
+    .definition {
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 24px;
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--acid);
+      border-radius: var(--radius);
+      padding: 30px;
+      background: linear-gradient(110deg, rgba(200,255,61,.055), transparent 55%), var(--panel);
+      margin-bottom: 28px;
+    }
+    .definition strong { color: var(--acid); font-family: var(--font-mono); font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; }
+    .definition p { margin: 0; font-size: clamp(1.1rem, 2.2vw, 1.5rem); line-height: 1.4; }
+    .definition.cyan-edge { border-left-color: var(--cyan); background: linear-gradient(110deg, rgba(98,231,245,.05), transparent 55%), var(--panel); }
+    .definition.cyan-edge strong { color: var(--cyan); }
+    .definition-no-gap { margin-top: 0; }
+    .note-spaced { margin-top: 24px; }
+
+    /* ── Tool cards ────────────────────────────────────────── */
+    .tool-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 36px; }
+    .tool-card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 28px;
+      background: var(--panel);
+    }
+    .tool-card.primary-tool { border-color: var(--acid); }
+    .tool-card.secondary-tool { border-color: var(--cyan); }
+    .tool-card-tag {
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    .tool-card.primary-tool .tool-card-tag { color: var(--acid); }
+    .tool-card.secondary-tool .tool-card-tag { color: var(--cyan); }
+    .tool-card h3 { font-size: 1.6rem; margin: 0 0 10px; letter-spacing: -.04em; }
+    .tool-card p { color: var(--muted); font-size: .94rem; margin: 0 0 18px; }
+    .tool-card-attrs { display: grid; gap: 8px; }
+    .attr-row {
+      display: grid;
+      grid-template-columns: 100px 1fr;
+      gap: 12px;
+      font-size: .82rem;
+      border-top: 1px solid var(--line);
+      padding-top: 8px;
+    }
+    .attr-key { font-family: var(--font-mono); color: var(--dim); font-size: .76rem; }
+    .attr-val { color: var(--ink); }
+
+    /* ── Hyperparameter config block ───────────────────────── */
+    .config-block {
+      font-family: var(--font-mono);
+      font-size: .82rem;
+      background: var(--night);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 22px 26px;
+      overflow-x: auto;
+      line-height: 1.9;
+    }
+    .config-block .cfg-comment { color: var(--dim); }
+    .config-block .cfg-key { color: var(--cyan); }
+    .config-block .cfg-val { color: var(--acid); }
+    .config-block .cfg-string { color: var(--orange); }
+    :root[data-theme="light"] .config-block { background: var(--panel-2); }
+
+    /* ── LR spectrum bar ───────────────────────────────────── */
+    .lr-spectrum-wrap { margin: 32px 0; }
+    .lr-spectrum-bar {
+      height: 28px;
+      border-radius: 10px;
+      background: linear-gradient(to right, var(--cyan) 0%, var(--acid) 42% 58%, var(--orange) 78%, var(--red) 100%);
+      position: relative;
+      margin-bottom: 8px;
+    }
+    .lr-spectrum-labels {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      color: var(--dim);
+    }
+    .lr-zone-labels { display: flex; justify-content: space-between; font-size: .76rem; color: var(--muted); margin-top: 6px; }
+    .lr-zone-labels span:first-child { color: var(--cyan); }
+    .lr-zone-labels span:last-child { color: var(--red); }
+
+    /* ── Comparison table ──────────────────────────────────── */
+    .compare-table-wrap { overflow-x: auto; margin-top: 36px; }
+    .compare-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .9rem;
+    }
+    .compare-table th, .compare-table td {
+      text-align: left;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--line);
+    }
+    .compare-table th {
+      font-family: var(--font-mono);
+      font-size: .74rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--dim);
+      background: var(--panel-2);
+    }
+    .compare-table th:first-child { width: 160px; }
+    .compare-table td:first-child {
+      color: var(--muted);
+      font-size: .84rem;
+      font-family: var(--font-mono);
+    }
+    .compare-table td:nth-child(2) { border-right: 1px solid var(--line); }
+    .compare-table .kohya-col { color: var(--acid); font-weight: 700; }
+    .compare-table .simple-col { color: var(--cyan); font-weight: 700; }
+    .compare-table th.kohya-col { color: var(--acid); }
+    .compare-table th.simple-col { color: var(--cyan); }
+    .compare-table tr:hover td { background: color-mix(in srgb, var(--panel-2) 60%, transparent); }
+    .badge-pill {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: .66rem;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      padding: 3px 9px;
+      border-radius: 6px;
+    }
+    .badge-yes { background: rgba(200,255,61,.15); color: var(--acid); }
+    .badge-no { background: rgba(255,107,107,.1); color: var(--red); }
+    .badge-partial { background: rgba(255,138,76,.12); color: var(--orange); }
+    :root[data-theme="light"] .compare-table th { background: var(--panel-2); }
+
+    /* ── Process flow ──────────────────────────────────────── */
+    .flow-steps { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-top: 10px; }
+    .flow-step {
+      position: relative;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 26px 20px 22px;
+      background: var(--panel);
+      text-align: center;
+    }
+    .flow-step-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      font: 800 .78rem var(--font-mono);
+      color: var(--acid);
+      margin-bottom: 12px;
+    }
+    .flow-step h3 { font-size: 1rem; margin: 0 0 8px; }
+    .flow-step p { color: var(--muted); font-size: .82rem; margin: 0; }
+    .flow-step.active-step { border-color: var(--acid); }
+    .flow-step.active-step .flow-step-num { background: var(--acid); color: #111; border-color: var(--acid); }
+
+    /* ── Hyperparameter Explorer (interactive lab) ─────────── */
+    .explorer-shell {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
+      gap: 24px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--panel);
+    }
+    .explorer-controls {
+      padding: 34px 30px;
+    }
+    .explorer-controls h3 { font-size: 1.5rem; margin: 8px 0 18px; }
+    .explorer-controls > p { color: var(--muted); font-size: .9rem; margin-bottom: 24px; }
+
+    .range-group { margin-bottom: 28px; }
+    .range-label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 6px;
+    }
+    .range-label-row label { font-weight: 800; font-size: .92rem; }
+    .range-label-row output { font-family: var(--font-mono); font-weight: 800; font-size: 1.1rem; color: var(--acid); }
+    input[type="range"] { width: 100%; height: 44px; accent-color: var(--acid); }
+    .range-hint { font-size: .76rem; color: var(--dim); margin-top: 2px; }
+
+    .explorer-result {
+      padding: 28px 24px;
+      border-left: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+    .result-panel {
+      border-radius: 14px;
+      padding: 22px 20px;
+      margin-bottom: 16px;
+      border: 2px solid transparent;
+      transition: background .3s, border-color .3s;
+    }
+    .result-panel.under { background: rgba(98,231,245,.1); border-color: var(--cyan); }
+    .result-panel.good  { background: rgba(200,255,61,.1); border-color: var(--acid); }
+    .result-panel.risk  { background: rgba(255,138,76,.1); border-color: var(--orange); }
+    .result-panel.over  { background: rgba(255,107,107,.1); border-color: var(--red); }
+    .result-tag {
+      font: 800 .72rem var(--font-mono);
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .result-panel.under .result-tag { color: var(--cyan); }
+    .result-panel.good  .result-tag { color: var(--acid); }
+    .result-panel.risk  .result-tag { color: var(--orange); }
+    .result-panel.over  .result-tag { color: var(--red); }
+    .result-title { font-size: 1.25rem; font-weight: 800; margin: 0 0 8px; }
+    .result-desc { font-size: .86rem; color: var(--muted); margin: 0; }
+    .time-estimate {
+      font-family: var(--font-mono);
+      font-size: .82rem;
+      color: var(--dim);
+      padding: 14px 16px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--panel-2);
+    }
+    .time-estimate strong { color: var(--ink); }
+    :root[data-theme="light"] .explorer-result { background: var(--panel); }
+    :root[data-theme="light"] .time-estimate { background: var(--panel-2); }
+
+    .tool-selector { margin-bottom: 24px; }
+    .selector-label { display: block; margin-bottom: 8px; color: var(--dim); font: 700 .66rem var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
+    .selector-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .selector-button { min-height: 48px; border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; background: var(--panel-2); color: var(--muted); text-align: left; font-weight: 800; transition: border-color .2s ease, color .2s ease, background .2s ease; }
+    .selector-button:hover { color: var(--ink); border-color: var(--dim); }
+    .selector-button[aria-pressed="true"] { color: var(--ink); border-color: var(--acid); background: color-mix(in srgb, var(--acid-fill) 9%, var(--panel)); }
+    .selector-button[data-tool="simple"][aria-pressed="true"] { border-color: var(--cyan); background: color-mix(in srgb, var(--cyan-fill) 8%, var(--panel)); }
+
+    .fit-visual { margin: 20px 0 16px; border: 1px solid var(--line); border-radius: 12px; padding: 16px; background: var(--panel-2); }
+    .fit-head { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 10px; font: 700 .68rem var(--font-mono); color: var(--dim); text-transform: uppercase; }
+    .fit-track { position: relative; height: 18px; border-radius: 99px; background: linear-gradient(90deg, var(--cyan) 0 23%, var(--acid-fill) 24% 63%, var(--orange) 64% 82%, var(--red) 83%); }
+    .fit-marker { position: absolute; top: 50%; left: 43%; width: 5px; height: 32px; border-radius: 3px; background: var(--ink); box-shadow: 0 0 0 2px var(--night); transform: translate(-50%, -50%); transition: left .3s ease; }
+    .fit-labels { display: grid; grid-template-columns: 1fr 1.6fr 1fr; margin-top: 8px; color: var(--dim); font: .62rem var(--font-mono); text-transform: uppercase; }
+    .fit-labels span:nth-child(2) { text-align: center; }
+    .fit-labels span:last-child { text-align: right; }
+    .decision-card { margin-top: 16px; border: 1px solid var(--line); border-radius: 12px; padding: 15px 16px; background: var(--panel-2); color: var(--muted); font-size: .82rem; line-height: 1.6; }
+    .decision-card strong { color: var(--ink); }
+
+    .workflow-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+    .workflow-toolbar p { margin: 0; color: var(--muted); font-size: .86rem; }
+    .workflow-run { min-height: 46px; flex: 0 0 auto; }
+    .workflow-status { min-height: 48px; margin: 18px 0 0; border-left: 3px solid var(--acid); padding: 9px 14px; color: var(--muted); background: var(--panel); }
+    .workflow-status strong { color: var(--ink); }
+    .flow-step { transition: border-color .25s ease, background .25s ease, transform .25s ease; }
+    .flow-step.active-step { transform: translateY(-4px); background: color-mix(in srgb, var(--acid-fill) 7%, var(--panel)); }
+
+    /* ── LR scheduler note ────────────────────────────────── */
+    .scheduler-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 28px; }
+    .scheduler-card {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 22px;
+      background: var(--panel);
+    }
+    .scheduler-card h3 { font-size: 1rem; margin: 0 0 8px; }
+    .scheduler-card p { color: var(--muted); font-size: .86rem; margin: 0; }
+    .scheduler-card .sch-label {
+      font: 800 .7rem var(--font-mono);
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--cyan);
+      margin-bottom: 8px;
+    }
+
+    /* ── Note / boundary ──────────────────────────────────── */
+    .note { margin-top: 18px; display: flex; gap: 10px; color: var(--muted); font-size: .82rem; }
+    .note svg { width: 18px; min-width: 18px; color: var(--cyan); margin-top: 3px; }
+
+    .boundary {
+      margin-top: 28px;
+      display: grid; grid-template-columns: 1fr auto; gap: 30px; align-items: center;
+      border: 1px dashed #4d565b; border-radius: 18px; padding: 24px 26px;
+    }
+    .boundary p { margin: 0; color: var(--muted); }
+    .boundary strong { color: var(--ink); }
+    .boundary-tag { white-space: nowrap; color: var(--orange); font: 800 .72rem var(--font-mono); letter-spacing: .08em; }
+
+    /* ── Quiz ──────────────────────────────────────────────── */
+    .quiz-shell { display: grid; grid-template-columns: .72fr 1.28fr; gap: 24px; }
+    .score-card { border-radius: var(--radius); padding: 28px; background: var(--acid); color: #101410; }
+    .score-card .score { display: block; margin: 22px 0 6px; font-size: clamp(3.5rem, 8vw, 6.5rem); font-weight: 900; line-height: .85; letter-spacing: -.07em; }
+    .score-card p { color: #3b4623; }
+    .score-label { color: #344015; }
+    .quiz-card { border: 1px solid var(--line); border-radius: var(--radius); padding: 28px; background: var(--panel); }
+    fieldset { margin: 0; padding: 0; border: 0; }
+    legend { margin-bottom: 20px; font-size: 1.1rem; font-weight: 800; line-height: 1.4; }
+    .answers { display: grid; gap: 10px; }
+    .answer {
+      min-height: 52px; width: 100%;
+      border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px;
+      background: var(--panel-2); color: var(--ink); text-align: left;
+      transition: border-color .2s, background .2s;
+    }
+    .answer:hover:not(:disabled) { border-color: var(--dim); }
+    .answer.correct { border-color: var(--acid); background: rgba(200,255,61,.1); }
+    .answer.wrong { border-color: var(--red); background: rgba(255,107,107,.09); }
+    .answer:disabled { cursor: default; }
+    .feedback { min-height: 78px; margin-top: 16px; border-radius: 12px; padding: 14px; background: var(--panel-2); color: var(--muted); font-size: .88rem; }
+    .quiz-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 18px; }
+    .quiz-progress { color: var(--dim); font: .76rem var(--font-mono); }
+
+    /* ── Takeaways + next ──────────────────────────────────── */
+    .takeaways { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .takeaway { border-top: 2px solid var(--acid); padding: 22px 0; }
+    .takeaway strong { display: block; margin-bottom: 8px; font-size: 1.05rem; }
+    .takeaway p { color: var(--muted); font-size: .9rem; }
+    .prev-card { margin-top: 54px; display: flex; align-items: center; justify-content: space-between; gap: 24px; border-radius: 22px; padding: 30px; background: var(--panel-2); border: 1px solid var(--line); }
+    .prev-card p { margin: 5px 0 0; color: var(--muted); }
+    .prev-card h3 { margin: 6px 0 0; font-size: 1.3rem; }
+    .prev-label { color: var(--dim); font: 800 .76rem var(--font-mono); letter-spacing: .08em; }
+
+    /* ── Footer pager ──────────────────────────────────────── */
+    .page-footer {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 16px;
+      padding: 34px 0 52px; border-top: 1px solid var(--line);
+    }
+    .footer-text { color: var(--dim); font: .78rem var(--font-mono); letter-spacing: .06em; margin-right: auto; }
+
+    .case-study { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--panel); }
+    .case-head { padding: 28px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--cyan) 7%, var(--panel)); }
+    .case-head h3 { margin: 7px 0 8px; font-size: 1.55rem; }
+    .case-head p { margin: 0; color: var(--muted); }
+    .case-grid { display: grid; grid-template-columns: repeat(3, 1fr); }
+    .case-item { min-width: 0; padding: 20px 22px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .case-item:nth-child(3n) { border-right: 0; }
+    .case-item:nth-last-child(-n + 3) { border-bottom: 0; }
+    .case-item h4 { margin: 0 0 6px; color: var(--cyan); font: 800 .72rem var(--font-mono); letter-spacing: .09em; text-transform: uppercase; }
+    .case-item p { margin: 0; color: var(--muted); font-size: .88rem; }
+    .related-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .related-card { display: block; min-height: 164px; border: 1px solid var(--line); border-radius: 16px; padding: 21px; background: var(--panel); text-decoration: none; transition: transform .2s ease, border-color .2s ease, background .2s ease; }
+    .related-card:hover { transform: translateY(-3px); border-color: var(--cyan); background: var(--panel-2); }
+    .related-kicker { display: block; margin-bottom: 8px; color: var(--acid); font: 800 .68rem var(--font-mono); letter-spacing: .1em; text-transform: uppercase; }
+    .related-card h3 { margin: 0 0 7px; font-size: 1.06rem; }
+    .related-card p { margin: 0; color: var(--muted); font-size: .84rem; }
+    .sources-list { margin: 24px 0 0; padding-left: 20px; color: var(--muted); font-size: .88rem; }
+    .sources-list a { color: var(--cyan); }
+    .brand, .topnav a, .sources-list a { min-height: 44px; display: inline-flex; align-items: center; }
+    .related-head { margin-bottom: 28px; }
+    .related-head h2 { font-size: clamp(1.9rem, 4vw, 3rem); }
+
+    /* ── Responsive ────────────────────────────────────────── */
+    @media (max-width: 900px) {
+      .topnav { display: none; }
+      .section-head, .quiz-shell { grid-template-columns: 1fr; }
+      .definition { grid-template-columns: 1fr; }
+      .tool-grid { grid-template-columns: 1fr; }
+      .explorer-shell { grid-template-columns: 1fr; }
+      .explorer-result { border-left: 0; border-top: 1px solid var(--line); }
+      .flow-steps { grid-template-columns: 1fr 1fr; }
+      .scheduler-row { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .content-section { padding-block: 72px; }
+      .explorer-controls { padding: 24px 18px; }
+      .takeaways { grid-template-columns: 1fr; }
+      .case-grid, .related-grid { grid-template-columns: 1fr; }
+      .case-item, .case-item:nth-child(3n), .case-item:nth-last-child(-n + 3) { border-right: 0; border-bottom: 1px solid var(--line); }
+      .case-item:last-child { border-bottom: 0; }
+      .boundary { grid-template-columns: 1fr; align-items: start; }
+      .prev-card { flex-direction: column; align-items: flex-start; }
+      .hero-cta-row .button { width: 100%; }
+      .flow-steps { grid-template-columns: 1fr; }
+      .compare-table th, .compare-table td { padding: 10px 12px; font-size: .82rem; }
+      .selector-row { grid-template-columns: 1fr; }
+      .workflow-toolbar { align-items: flex-start; flex-direction: column; }
+      .workflow-run { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Bỏ qua điều hướng</a>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="index.html" aria-label="Video Gen Lab — về trang chủ">
+        <span class="brand-mark" aria-hidden="true"></span>
+        VIDEO GEN LAB
+      </a>
+      <nav class="topnav" aria-label="Bài học Phần 3">
+        <a href="video-generation-part-3-lesson-1.html">Bài 1</a>
+        <a href="video-generation-part-3-lesson-2.html">Bài 2</a>
+        <a href="video-generation-part-3-lesson-3.html">Bài 3</a>
+        <a href="video-generation-part-3-lesson-4.html">Bài 4</a>
+        <a href="video-generation-part-3-lesson-5.html">Bài 5</a>
+        <a href="video-generation-part-3-lesson-6.html" aria-current="page">Bài 6</a>
+        <a href="index.html">Trang chủ</a>
+      </nav>
+      <div class="progress-track" aria-hidden="true"><div class="progress-fill" id="progressFill"></div></div>
+    </div>
+  </header>
+
+  <main id="main-content">
+    <!-- HERO -->
+    <div class="shell">
+      <section class="hero" aria-labelledby="hero-heading">
+        <p class="hero-meta">PART 3 · BÀI 6 · LORA TRAINING TOOLS</p>
+        <h1 class="hero-title" id="hero-heading">Train với<br /><span>kohya_ss</span><br />&amp; SimpleTuner.</h1>
+        <p class="hero-lead">Đọc cấu hình LoRA như một thí nghiệm có thể tái lập: phân biệt option của trainer, giả thuyết cần A/B test và tín hiệu cần kiểm tra trước khi dùng adapter trong pipeline video.</p>
+        <div class="hero-badges" aria-hidden="true">
+          <span class="hero-badge acid">kohya_ss</span>
+          <span class="hero-badge cyan">SimpleTuner</span>
+          <span class="hero-badge orange">Learning Rate</span>
+          <span class="hero-badge">Training Steps</span>
+        </div>
+        <div class="hero-cta-row">
+          <a class="button primary" href="#explorer">
+            Mở Hyperparameter Explorer
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m5 12 14 0M13 6l6 6-6 6" /></svg>
+          </a>
+          <a class="button" href="#checkpoint">Kiểm tra hiểu biết</a>
+        </div>
+      </section>
+    </div>
+
+    <!-- 01 · HAI CÔNG CỤ -->
+    <section class="content-section" id="tools" data-nav="Hai công cụ">
+      <div class="shell">
+        <div class="section-head">
+          <div><span class="section-index">01 / HAI CÔNG CỤ</span><h2>Chọn đúng<br />công cụ.</h2></div>
+          <p class="section-intro">Đây là hai dự án độc lập, có phạm vi model và option thay đổi theo release. Chọn bằng model target, tài liệu của phiên bản đang cài và mức kiểm soát cần thiết — không phải theo một “trainer tốt nhất”.</p>
+        </div>
+
+        <div class="tool-grid">
+          <article class="tool-card primary-tool">
+            <div class="tool-card-tag">GUI &amp; CLI · phạm vi theo release</div>
+            <h3>kohya_ss</h3>
+            <p>Repository kohya_ss cung cấp GUI và CLI, đồng thời dẫn sang <code>sd-scripts</code> cho hướng dẫn training SDXL/LoRA. Hãy kiểm tra README và branch/release đang dùng trước khi suy ra model hoặc flag được hỗ trợ.</p>
+            <div class="tool-card-attrs">
+              <div class="attr-row">
+                <span class="attr-key">network_dim</span>
+                <span class="attr-val">Tên option của workflow kohya; rank cần thử theo model/dataset</span>
+              </div>
+              <div class="attr-row">
+                <span class="attr-key">network_alpha</span>
+                <span class="attr-val">Alpha của adapter; không có tỷ lệ mặc định đúng cho mọi run</span>
+              </div>
+              <div class="attr-row">
+                <span class="attr-key">learning_rate</span>
+                <span class="attr-val">Tốc độ cập nhật trọng số</span>
+              </div>
+              <div class="attr-row">
+                <span class="attr-key">max_train_steps</span>
+                <span class="attr-val">Tổng số bước gradient update</span>
+              </div>
+              <div class="attr-row">
+                <span class="attr-key">optimizer</span>
+                <span class="attr-val">Tập optimizer phụ thuộc script, dependency và phiên bản</span>
+              </div>
+              <div class="attr-row">
+                <span class="attr-key">lr_scheduler</span>
+                <span class="attr-val">Tên scheduler phải đối chiếu help/config của script đang chạy</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="tool-card secondary-tool">
+            <div class="tool-card-tag">CLI · config.env / tài liệu theo model</div>
+            <h3>SimpleTuner</h3>
+            <p>SimpleTuner là pipeline đa phương thức có hướng dẫn riêng cho image, video và audio. Quick start dùng <code>config/config.env</code>; aspect bucketing và cache là capability, nhưng chi phí VRAM/tốc độ vẫn phụ thuộc model, resolution, frame và hardware.</p>
+            <div class="tool-card-attrs">
+              <div class="attr-row">
+                <span class="attr-key">model family</span>
+                <span class="attr-val">Chọn theo quickstart/model guide tương ứng, không copy cross-model</span>
+              </div>
+              <div class="attr-row">
+                <span class="attr-key">learning_rate</span>
+                <span class="attr-val">Giá trị do run owner đặt; không suy ra tương đương số học với trainer khác</span>
+              </div>
+              <div class="attr-row">
+                <span class="attr-key">max_train_steps</span>
+                <span class="attr-val">Số update; effective batch và dataloader quyết định exposure thực</span>
+              </div>
+              <div class="attr-row">
+                <span class="attr-key">resolution</span>
+                <span class="attr-val">Aspect bucketing được hỗ trợ; kiểm tra guide model trước khi bật</span>
+              </div>
+              <div class="attr-row">
+                <span class="attr-key">config.env</span>
+                <span class="attr-val">Environment-style config trong quick start hiện hành</span>
+              </div>
+              <div class="attr-row">
+                <span class="attr-key">lr_scheduler</span>
+                <span class="attr-val">Đọc option trong documentation/release đang cài</span>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <div class="definition">
+          <strong>Điểm khác biệt</strong>
+          <p><b>Trainer ≠ model.</b> Một flag chỉ có nghĩa trong trainer/version xác định; một kết quả tốt ở image LoRA không tự chứng minh temporal consistency ở video. Lưu command/config, commit hoặc version, GPU, resolution và sampling protocol cho mỗi run.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 02 · LEARNING RATE -->
+    <section class="content-section" id="lr" data-nav="Learning Rate">
+      <div class="shell">
+        <div class="section-head">
+          <div><span class="section-index">02 / LEARNING RATE</span><h2>Tốc độ<br />học đúng.</h2></div>
+          <p class="section-intro">Learning rate (LR) kiểm soát độ lớn cập nhật. Tác động của nó tương tác với optimizer, batch, precision, model family, dataset và scheduler; vì vậy chỉ có dải thử nghiệm có điều kiện, không có một LR chuẩn cho LoRA hay video.</p>
+        </div>
+
+        <div class="definition">
+          <strong>Heuristic có điều kiện</strong>
+          <p><b>1e-4, 3e-4 và 5e-4</b> có thể là ba điểm A/B ban đầu cho <em>một</em> image-LoRA run AdamW đã khóa model, batch, rank và data. Đây là giả thuyết thực hành, không phải preset chính chủ và không được chuyển nguyên sang video/model/trainer khác.</p>
+        </div>
+
+        <div class="lr-spectrum-wrap">
+          <div class="lr-spectrum-bar" role="img" aria-label="Bản đồ minh họa các mức learning rate để chọn điểm A/B; không biểu diễn benchmark hay vùng tối ưu."></div>
+          <div class="lr-spectrum-labels">
+            <span>1e-5</span>
+            <span>1e-4</span>
+            <span>5e-4</span>
+            <span>1e-3</span>
+            <span>1e-2</span>
+          </div>
+          <div class="lr-zone-labels">
+            <span>← Underfitting (quá chậm)</span>
+            <span>Vùng cần A/B trong mô phỏng</span>
+            <span>Overfitting / Artifacts →</span>
+          </div>
+        </div>
+
+        <div class="scheduler-row">
+          <div class="scheduler-card">
+            <div class="sch-label">Cosine Scheduler</div>
+            <h3>Giảm dần theo cosine</h3>
+            <p>Cosine là một lịch giảm LR. Dùng khi trainer/version của bạn hỗ trợ nó và log rõ warmup; so sánh với constant bằng cùng checkpoint, data order và sample prompt — không mặc định nó thắng.</p>
+          </div>
+          <div class="scheduler-card">
+            <div class="sch-label">Constant + Warmup</div>
+            <h3>Ổn định sau warmup</h3>
+            <p>Giữ LR cố định sau giai đoạn warmup ngắn. Đơn giản hơn và dễ debug khi loss curve bất thường. Phù hợp khi bạn muốn kiểm soát rõ từng giai đoạn.</p>
+          </div>
+        </div>
+
+        <div class="note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+          <span>Optimizer, scheduler và cách biểu diễn LR là option của trainer. Đừng copy giá trị từ workflow dùng optimizer khác; kiểm tra tài liệu/version của optimizer và log effective configuration trước khi so sánh run.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 03 · TRAINING STEPS -->
+    <section class="content-section" id="steps" data-nav="Training Steps">
+      <div class="shell">
+        <div class="section-head">
+          <div><span class="section-index">03 / TRAINING STEPS</span><h2>Bao nhiêu<br />bước là đủ?</h2></div>
+          <p class="section-intro">Training steps là số update, chưa phải “lượng học” hoàn chỉnh: repeat, batch, accumulation, frame/resolution và sampling đều thay đổi exposure. Kiểm tra checkpoint bằng một protocol cố định thay vì suy luận chỉ từ loss.</p>
+        </div>
+
+        <div class="definition">
+          <strong>Đơn vị theo dõi</strong>
+          <p>Ghi <b>update, effective batch, repeats và số sample</b>. “Steps/ảnh” chỉ là đơn vị tương đối của lab này để trực giác về exposure; nó không thay thế config trainer và không dự đoán chất lượng.</p>
+        </div>
+
+        <div class="definition cyan-edge definition-no-gap">
+          <strong>Checkpoint protocol</strong>
+          <p>Với dataset 20 ảnh, đặt checkpoint đều đặn, render cùng seed/prompt/control rồi chấm identity, prompt adherence và artifact. Loss giảm hoặc plateau là telemetry, <b>không</b> là bằng chứng đủ về generalization.</p>
+        </div>
+
+        <div class="config-block" role="region" aria-label="Ví dụ config kohya_ss">
+          <span class="cfg-comment"># PSEUDOCONFIG — minh họa log thí nghiệm, KHÔNG phải command/preset chính chủ</span><br />
+          <span class="cfg-key">trainer_version</span> = <span class="cfg-string">"pin exact release / commit"</span><br />
+          <span class="cfg-key">base_model</span> = <span class="cfg-string">"pin exact model + revision"</span><br />
+          <span class="cfg-key">variable_under_test</span> = <span class="cfg-string">"learning_rate: 1e-4 | 3e-4 | 5e-4"</span><br />
+          <span class="cfg-key">held_constant</span> = <span class="cfg-string">"data, captions, seed protocol, batch, rank, scheduler"</span><br />
+          <span class="cfg-key">checkpoint_plan</span> = <span class="cfg-string">"evaluate at fixed update intervals"</span><br />
+          <span class="cfg-key">hardware_record</span> = <span class="cfg-string">"GPU, VRAM, precision, resolution / frames"</span>
+        </div>
+
+        <div class="note note-spaced">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+          <span>SimpleTuner quick start hiện dùng <code>config/config.env</code>, còn kohya_ss/sd-scripts có cú pháp riêng. Cùng tên tham số không đảm bảo cùng default, scaling hay data pipeline; đối chiếu documentation của exact release trước khi dịch config.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 04 · PRODUCTION CASE -->
+    <section class="content-section" id="production-case" data-nav="Case study">
+      <div class="shell">
+        <div class="section-head">
+          <div><span class="section-index">04 / PRODUCTION CASE</span><h2>Một brief,<br />ba run A/B.</h2></div>
+          <p class="section-intro">Case study giả định để thiết kế phép thử có thể chẩn đoán. Các con số là kế hoạch vận hành, không phải benchmark hay preset của kohya_ss/SimpleTuner.</p>
+        </div>
+        <article class="case-study" aria-labelledby="case-title">
+          <div class="case-head"><span class="label">Production brief · giả định</span><h3 id="case-title">Character insert cho teaser I2V 6 giây</h3><p>Mục tiêu: adapter giữ nhận diện nhân vật trong ba shot ngắn, không “đóng băng” biểu cảm hay kéo texture từ ảnh train sang nền mới.</p></div>
+          <div class="case-grid">
+            <div class="case-item"><h4>Bối cảnh / output</h4><p>Đội hậu kỳ cần concept video nội bộ: 3 prompt shot, cùng duration/resolution của pipeline I2V đã chọn; xuất contact sheet và clip review.</p></div>
+            <div class="case-item"><h4>Input / workflow</h4><p>20 ảnh đã caption từ Bài 3.5; base model, VAE, I2V workflow và exact trainer release được pin trước khi train.</p></div>
+            <div class="case-item"><h4>Giữ cố định</h4><p>Dataset, caption, rank/alpha, batch/accumulation, scheduler, checkpoint interval, validation seed/prompt và workflow inference.</p></div>
+            <div class="case-item"><h4>Biến thử</h4><p>Chỉ LR: Run A/B/C với 1e-4, 3e-4, 5e-4. Không đồng thời đổi steps hay rank, để thất bại còn truy được nguyên nhân.</p></div>
+            <div class="case-item"><h4>Giới hạn vận hành</h4><p>GPU 24 GB là giả định lập lịch, không cam kết VRAM. Dừng run khi OOM; ghi precision, frames, resolution và thời gian thực tế thay vì suy diễn từ run khác.</p></div>
+            <div class="case-item"><h4>Tiêu chí đánh giá</h4><p>Blind review: identity qua góc/ánh sáng mới, bám prompt, không leak background train, temporal stability giữa frame. Loss chỉ là log phụ.</p></div>
+            <div class="case-item"><h4>Dấu hiệu thất bại</h4><p>Giống ảnh train nhưng hỏng prompt; khuôn mặt trôi qua frame; texture nền bị lặp; hoặc identity yếu ở shot lạ. Gắn lỗi với checkpoint và run ID.</p></div>
+            <div class="case-item"><h4>Bước tiếp theo</h4><p>Chọn run tốt nhất theo rubric. Nếu identity yếu, thử exposure/rank ở wave mới; nếu temporal fail, chẩn đoán I2V/control workflow riêng — không kết luận LR là nguyên nhân duy nhất.</p></div>
+            <div class="case-item"><h4>Artifact cần lưu</h4><p>Config/command, commit trainer, model revision, hardware log, checkpoint map, prompts/seeds và bảng chấm. Đây là điều kiện để A/B tái lập.</p></div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- 05 · HYPERPARAMETER EXPLORER -->
+    <section class="content-section" id="explorer" data-nav="Explorer">
+      <div class="shell">
+        <div class="section-head">
+          <div><span class="section-index">05 / INTERACTIVE EXPLORER</span><h2>Thiết kế<br />một phép A/B.</h2></div>
+          <p class="section-intro"><b>Mô phỏng học tập, đơn vị tương đối:</b> điều khiển để thấy một nguyên tắc thiết kế thí nghiệm — một biến thay đổi, các biến khác bị khóa. Nó không chạy model, không dự báo chất lượng, thời gian hay VRAM.</p>
+        </div>
+
+        <div class="explorer-shell">
+          <div class="explorer-controls">
+            <div class="label">Hyperparameter Explorer</div>
+            <h3>Điều chỉnh &amp; quan sát</h3>
+            <p>Thay đổi công cụ, số ảnh, LR và updates. Mọi vùng màu là nhắc nhở review protocol, không phải vùng “tối ưu”.</p>
+
+            <div class="tool-selector">
+              <span class="selector-label">1 · Chọn workflow</span>
+              <div class="selector-row" aria-label="Chọn công cụ training">
+                <button class="selector-button" type="button" data-tool="kohya" aria-pressed="true">kohya_ss · kiểm soát sâu</button>
+                <button class="selector-button" type="button" data-tool="simple" aria-pressed="false">SimpleTuner · video-first</button>
+              </div>
+            </div>
+
+            <div class="range-group">
+              <div class="range-label-row">
+                <label for="images-slider">Số ảnh trong dataset</label>
+                <output id="images-display" for="images-slider" aria-live="polite">20 ảnh</output>
+              </div>
+              <input type="range" id="images-slider" min="5" max="60" value="20" step="5" aria-label="Số ảnh trong dataset từ 5 đến 60" />
+              <div class="range-hint">“Updates/ảnh” là đơn vị tương đối trong mô phỏng, không thay effective batch/repeats.</div>
+            </div>
+
+            <div class="range-group">
+              <div class="range-label-row">
+                <label for="lr-slider">Learning Rate</label>
+                <output id="lr-display" for="lr-slider" aria-live="polite">5e-4</output>
+              </div>
+              <input type="range" id="lr-slider" min="0" max="100" value="57" step="1"
+                     aria-label="Learning Rate — log scale từ 1e-5 đến 1e-2" />
+              <div class="range-hint" aria-hidden="true">1e-5 ←————————————————————→ 1e-2 (log scale)</div>
+            </div>
+
+            <div class="range-group">
+              <div class="range-label-row">
+                <label for="steps-slider">Training Steps</label>
+                <output id="steps-display" for="steps-slider" aria-live="polite">3000</output>
+              </div>
+              <input type="range" id="steps-slider" min="500" max="12000" value="3000" step="100"
+                     aria-label="Training Steps từ 500 đến 12000" />
+              <div class="range-hint" aria-hidden="true">500 ←————————————————————→ 12.000 steps</div>
+            </div>
+          </div>
+
+          <div class="explorer-result" aria-live="polite" aria-label="Phản hồi mô phỏng">
+            <div id="result-panel" class="result-panel good">
+              <div id="result-tag" class="result-tag">Mô phỏng · review</div>
+              <div id="result-title" class="result-title">Lập hypothesis trước khi chạy</div>
+              <p id="result-desc" class="result-desc">Chọn checkpoint và rubric cố định; các giá trị hiện tại chưa nói lên kết quả model.</p>
+            </div>
+            <div class="time-estimate" id="time-estimate">
+              <strong>Chỉ số exposure tương đối:</strong><br />
+              <span id="time-value">150 updates/ảnh</span>
+            </div>
+            <div class="fit-visual" aria-hidden="true">
+              <div class="fit-head"><span>Exposure · tương đối</span><span id="spi-label">150 updates/ảnh</span></div>
+              <div class="fit-track"><span class="fit-marker" id="fit-marker"></span></div>
+              <div class="fit-labels"><span>Ít exposure</span><span>Review checkpoint</span><span>Nhiều exposure</span></div>
+            </div>
+            <div class="decision-card" id="decision-card" aria-live="polite"><strong>kohya_ss:</strong> xác minh option trong exact release, pin config rồi so sánh validation artifacts. Mô phỏng không chọn trainer hay preset thay bạn.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 05 · COMPARISON TABLE -->
+    <section class="content-section" id="compare" data-nav="So sánh">
+      <div class="shell">
+        <div class="section-head">
+          <div><span class="section-index">05 / SO SÁNH</span><h2>Chọn đúng<br />cho dự án.</h2></div>
+          <p class="section-intro">Bảng so sánh chi tiết giúp quyết định nên dùng công cụ nào cho từng trường hợp cụ thể.</p>
+        </div>
+
+        <div class="compare-table-wrap">
+          <table class="compare-table">
+            <thead>
+              <tr>
+                <th scope="col">Tiêu chí</th>
+                <th scope="col" class="kohya-col">kohya_ss</th>
+                <th scope="col" class="simple-col">SimpleTuner</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Độ phức tạp</td>
+                <td>Cao — nhiều tham số cần hiểu</td>
+                <td>CLI và config theo tài liệu model/release</td>
+              </tr>
+              <tr>
+                <td>Giao diện GUI</td>
+                <td><span class="badge-pill badge-yes">Có (kohya_ss GUI)</span></td>
+                <td><span class="badge-pill badge-no">CLI / config.env</span></td>
+              </tr>
+              <tr>
+                <td>Model families</td>
+                <td><span class="badge-pill badge-partial">Xác minh theo README/script</span></td>
+                <td><span class="badge-pill badge-partial">Xác minh theo model guide</span></td>
+              </tr>
+              <tr>
+                <td>Video workflow</td>
+                <td><span class="badge-pill badge-partial">Không suy ra từ image guide</span></td>
+                <td><span class="badge-pill badge-partial">Có video guides; pin model/release</span></td>
+              </tr>
+              <tr>
+                <td>Multi-resolution</td>
+                <td>Phụ thuộc script/model config</td>
+                <td>Aspect bucketing là capability được tài liệu hóa</td>
+              </tr>
+              <tr>
+                <td>Tùy biến sâu</td>
+                <td><span class="badge-pill badge-partial">Nhiều option GUI/CLI</span></td>
+                <td><span class="badge-pill badge-partial">Theo guide/config pipeline</span></td>
+              </tr>
+              <tr>
+                <td>Tiêu chí chọn</td>
+                <td class="kohya-col">Cần script/GUI và option đúng với release đang dùng</td>
+                <td class="simple-col">Cần model guide đa phương thức và config pipeline của dự án</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="boundary">
+          <p><strong>Ghi nhớ:</strong> Cùng khái niệm không đồng nghĩa cùng implementation. Đối chiếu CLI/config schema, default và guide của model trước khi chuyển một recipe từ trainer này sang trainer kia.</p>
+          <span class="boundary-tag">PHẠM VI THEO VERSION</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 06 · QUY TRÌNH 5 BƯỚC -->
+    <section class="content-section" id="workflow" data-nav="Quy trình">
+      <div class="shell">
+        <div class="section-head">
+          <div><span class="section-index">06 / QUY TRÌNH</span><h2>5 bước từ<br />dataset đến LoRA.</h2></div>
+          <p class="section-intro">Một vòng lặp thí nghiệm có thể áp dụng cho cả hai trainer, nhưng cú pháp, model support và profile VRAM phải được xác nhận theo release/model guide.</p>
+        </div>
+
+        <div class="workflow-toolbar">
+          <p>Chạy walkthrough để thấy mỗi quyết định tạo đầu vào cho bước kế tiếp.</p>
+          <button class="button workflow-run" id="workflow-run" type="button" aria-pressed="false">Chạy workflow →</button>
+        </div>
+
+        <div class="flow-steps" id="workflow-steps" role="list">
+          <div class="flow-step active-step" role="listitem">
+            <div class="flow-step-num" aria-hidden="true">1</div>
+            <h3>Dataset</h3>
+            <p>Audit quyền sử dụng, độ đa dạng và caption; số lượng ảnh là quyết định dataset, không phải quota phổ quát.</p>
+          </div>
+          <div class="flow-step" role="listitem">
+            <div class="flow-step-num" aria-hidden="true">2</div>
+            <h3>Config</h3>
+            <p>Pin model/trainer version; nêu một biến A/B và những biến bị khóa.</p>
+          </div>
+          <div class="flow-step" role="listitem">
+            <div class="flow-step-num" aria-hidden="true">3</div>
+            <h3>Train</h3>
+            <p>Log OOM, throughput, config và checkpoint; loss là telemetry, không thay validation.</p>
+          </div>
+          <div class="flow-step" role="listitem">
+            <div class="flow-step-num" aria-hidden="true">4</div>
+            <h3>Validate</h3>
+            <p>Test LoRA với prompt cơ bản. Kiểm tra likeness, đa dạng expression, và artifact.</p>
+          </div>
+          <div class="flow-step" role="listitem">
+            <div class="flow-step-num" aria-hidden="true">5</div>
+            <h3>Deploy</h3>
+            <p>Export file .safetensors. Load vào pipeline inference với LoRA scale phù hợp.</p>
+          </div>
+        </div>
+        <p class="workflow-status" id="workflow-status" aria-live="polite"><strong>Bước 1 · Dataset.</strong> Chất lượng và độ đa dạng dữ liệu đặt trần cho mọi hyperparameter phía sau.</p>
+
+        <div class="note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+          <span>Khi validation fail, nêu một giả thuyết có bằng chứng (caption, data coverage, exposure, rank hoặc workflow inference), rồi đổi <b>một</b> biến ở wave kế tiếp. Không suy ra nguyên nhân duy nhất từ loss hay một sample.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 07 · CHECKPOINT -->
+    <section class="content-section" id="checkpoint" data-nav="Kiểm tra">
+      <div class="shell">
+        <div class="section-head">
+          <div><span class="section-index">07 / CHECKPOINT</span><h2>Kiểm tra<br />hiểu biết.</h2></div>
+          <p class="section-intro">Ba câu hỏi về phạm vi trainer, thiết kế A/B và validation.</p>
+        </div>
+
+        <div class="quiz-shell">
+          <aside class="score-card">
+            <div class="label score-label">Kết quả</div>
+            <output class="score" id="score-output" aria-live="polite">0/3</output>
+            <p id="score-message">Trả lời câu đầu tiên để bắt đầu.</p>
+          </aside>
+          <div class="quiz-card">
+            <div id="quiz-content"></div>
+            <div class="feedback" id="quiz-feedback" aria-live="polite">Chọn một đáp án. Sau đó bạn sẽ thấy giải thích ngay tại đây.</div>
+            <div class="quiz-actions">
+              <span class="quiz-progress" id="quiz-progress">CÂU 1 / 3</span>
+              <button class="button primary" id="next-question" type="button" disabled>Câu tiếp theo</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 08 · TÓM TẮT -->
+    <section class="content-section" id="summary" data-nav="Tóm tắt">
+      <div class="shell">
+        <div class="section-head">
+          <div><span class="section-index">08 / TÓM TẮT</span><h2>Ba điều<br />cần nhớ.</h2></div>
+          <p class="section-intro">Kết luận của bài là một workflow kiểm chứng, không phải một bộ số mặc định.</p>
+        </div>
+
+        <div class="takeaways">
+          <article class="takeaway">
+            <strong>Chọn công cụ phù hợp</strong>
+            <p>Chọn theo model guide, exact release và mức kiểm soát cần thiết. Khả năng/option phải được xác nhận tại nguồn chính chủ.</p>
+          </article>
+          <article class="takeaway">
+            <strong>LR là hypothesis</strong>
+            <p>Một dải A/B chỉ có nghĩa khi model, optimizer, data, batch, rank và validation protocol đã được ghi và khóa rõ.</p>
+          </article>
+          <article class="takeaway">
+            <strong>Validate checkpoint</strong>
+            <p>Updates/ảnh là đơn vị tương đối. Chọn checkpoint bằng rubric identity, prompt, artifact và temporal stability; loss không đủ để kết luận.</p>
+          </article>
+        </div>
+
+        <section aria-labelledby="related-heading" class="note-spaced">
+          <div class="section-head related-head"><div><span class="section-index">BẢN ĐỒ KIẾN THỨC</span><h2 id="related-heading">Bài liên quan.</h2></div><p class="section-intro">Đi theo quan hệ cơ chế và chẩn đoán, không chỉ theo từ khóa.</p></div>
+          <div class="related-grid">
+            <a class="related-card" href="video-generation-part-3-lesson-2.html"><span class="related-kicker">Biến bị khóa</span><h3>3.2 · Rank &amp; Alpha</h3><p>Phân biệt capacity của adapter với LR/updates, để A/B không thay nhiều nguyên nhân cùng lúc.</p></a>
+            <a class="related-card" href="video-generation-part-3-lesson-3.html"><span class="related-kicker">Cùng workflow</span><h3>3.3 · High noise vs low noise</h3><p>Noise/timestep là giả thuyết training khác; không gộp kết luận của nó vào setting trainer.</p></a>
+            <a class="related-card" href="video-generation-part-3-lesson-5.html"><span class="related-kicker">Nguồn lỗi</span><h3>3.5 · Dataset &amp; Captioning</h3><p>Quay lại kiểm tra data coverage/caption trước khi “chữa” một failure bằng hyperparameter.</p></a>
+            <a class="related-card" href="video-generation-part-4-lesson-1.html"><span class="related-kicker">Đánh giá tiếp theo</span><h3>4.1 · I2V, T2V, FLF2V</h3><p>Áp dụng validation vào mode video cụ thể thay vì suy rộng kết quả identity ở ảnh sang temporal stability.</p></a>
+          </div>
+        </section>
+
+        <section aria-labelledby="sources-heading" class="note-spaced">
+          <span class="label" id="sources-heading">Nguồn chính chủ · kiểm tra ngày 23-07-2026</span>
+          <ul class="sources-list">
+            <li><a href="https://github.com/bmaltais/kohya_ss" rel="noopener noreferrer">kohya_ss README</a>: cài đặt/GUI và phạm vi dự án; README dẫn sang tài liệu <code>sd-scripts</code> cho SDXL.</li>
+            <li><a href="https://github.com/bghira/SimpleTuner" rel="noopener noreferrer">SimpleTuner README</a>: pipeline image/video/audio, aspect bucketing, cache và liên kết quickstart/model guides.</li>
+            <li><a href="https://github.com/bghira/SimpleTuner/blob/main/documentation/QUICKSTART.md" rel="noopener noreferrer">SimpleTuner Quick Start</a>: xác minh config hiện hành trước khi dùng option trong một run thật.</li>
+          </ul>
+        </section>
+
+        <div class="prev-card">
+          <div>
+            <span class="prev-label">← Bài trước · Phần 3 · Bài 5</span>
+            <h3>Chuẩn bị dataset cho face LoRA</h3>
+            <p>Quay lại xem cách thu thập, lọc và label ảnh khuôn mặt cho training.</p>
+          </div>
+          <a class="button" href="video-generation-part-3-lesson-5.html">← Bài 5</a>
+          <a class="button primary" href="video-generation-part-4-lesson-1.html">Phần 4 · Bài 1 →</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="shell">
+    <div class="page-footer">
+      <span class="footer-text">VIDEO GEN LAB · PART 3 · BÀI 6 / KOHYA_SS &amp; SIMPLETUNER</span>
+      <a class="button" href="video-generation-part-3-lesson-5.html">← Bài 5</a>
+      <a class="button primary" href="video-generation-part-4-lesson-1.html">Phần 4 · Bài 1 →</a>
+    </div>
+  </footer>
+
+  <script>
+    'use strict';
+
+    // ── Scroll progress ──────────────────────────────────────
+    const progressFill = document.getElementById('progressFill');
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+    const updateProgress = () => {
+      const available = document.documentElement.scrollHeight - window.innerHeight;
+      if (!progressFill) return;
+      progressFill.style.width = `${available > 0 ? clamp(window.scrollY / available * 100, 0, 100) : 0}%`;
+    };
+    window.addEventListener('scroll', updateProgress, {passive: true});
+    updateProgress();
+
+    // ── Hyperparameter Explorer ───────────────────────────────
+    (() => {
+      const lrSlider = document.getElementById('lr-slider');
+      const stepsSlider = document.getElementById('steps-slider');
+      const imagesSlider = document.getElementById('images-slider');
+      const lrDisplay = document.getElementById('lr-display');
+      const stepsDisplay = document.getElementById('steps-display');
+      const imagesDisplay = document.getElementById('images-display');
+      const resultPanel = document.getElementById('result-panel');
+      const resultTag = document.getElementById('result-tag');
+      const resultTitle = document.getElementById('result-title');
+      const resultDesc = document.getElementById('result-desc');
+      const timeValue = document.getElementById('time-value');
+      const fitMarker = document.getElementById('fit-marker');
+      const spiLabel = document.getElementById('spi-label');
+      const decisionCard = document.getElementById('decision-card');
+      const toolButtons = document.querySelectorAll('.selector-button');
+      let activeTool = 'kohya';
+
+      if (!lrSlider || !stepsSlider || !imagesSlider) return;
+
+      // Log-scale mapping: slider 0–100 → LR 1e-5 to 1e-2
+      const sliderToLR = (v) => {
+        const logMin = Math.log10(1e-5);
+        const logMax = Math.log10(1e-2);
+        const log = logMin + (v / 100) * (logMax - logMin);
+        return Math.pow(10, log);
+      };
+
+      const formatLR = (lr) => {
+        if (lr >= 1e-2) return '1e-2';
+        if (lr >= 5e-3) return '5e-3';
+        if (lr >= 1e-3) return '1e-3';
+        if (lr >= 8e-4) return '8e-4';
+        if (lr >= 5e-4) return '5e-4';
+        if (lr >= 3e-4) return '3e-4';
+        if (lr >= 1e-4) return '1e-4';
+        if (lr >= 5e-5) return '5e-5';
+        return '1e-5';
+      };
+
+      const evaluate = (lr, steps, images) => {
+        const stepsPerImage = steps / images;
+        if (lr < 1e-4 || stepsPerImage < 80) return 'under';
+        if (lr > 1e-3 || stepsPerImage > 250) return 'over';
+        if (lr > 5e-4 || stepsPerImage > 180) return 'risk';
+        return 'good';
+      };
+
+      const zoneData = {
+        under: {
+          tag: 'Mô phỏng · exposure thấp',
+          title: 'Đừng tự suy ra underfit',
+          desc: 'Exposure thấp chỉ tạo giả thuyết. Render checkpoint bằng protocol cố định rồi mới quyết định có đổi một biến ở run kế tiếp.',
+          cls: 'under'
+        },
+        good: {
+          tag: 'Mô phỏng · vùng review',
+          title: 'Có điểm xuất phát để A/B',
+          desc: 'Đây không phải vùng tối ưu. Hãy khóa data, seed protocol, rank và scheduler để chỉ LR là biến đang thử.',
+          cls: 'good'
+        },
+        risk: {
+          tag: 'Mô phỏng · tăng exposure',
+          title: 'Tăng checkpoint coverage',
+          desc: 'Khi exposure tăng, tăng tần suất review của validation grid. Đây không phải chẩn đoán overfit từ slider.',
+          cls: 'risk'
+        },
+        over: {
+          tag: 'Mô phỏng · exposure cao',
+          title: 'Có cờ để kiểm tra artifact',
+          desc: 'So sánh prompt mới và frame mới với checkpoint trước. Nếu fail, ghi bằng chứng rồi chọn một giả thuyết tiếp theo; đừng gán nguyên nhân chỉ từ LR.',
+          cls: 'over'
+        }
+      };
+
+
+      const update = () => {
+        const lrVal = sliderToLR(Number(lrSlider.value));
+        const stepsVal = Number(stepsSlider.value);
+        const imagesVal = Number(imagesSlider.value);
+        const stepsPerImage = stepsVal / imagesVal;
+
+        lrDisplay.value = formatLR(lrVal);
+        stepsDisplay.value = stepsVal.toLocaleString('vi-VN');
+        imagesDisplay.value = imagesVal + ' ảnh';
+
+        const zone = evaluate(lrVal, stepsVal, imagesVal);
+        const data = zoneData[zone];
+
+        resultPanel.className = `result-panel ${data.cls}`;
+        resultTag.textContent = data.tag;
+        resultTitle.textContent = data.title;
+        resultDesc.textContent = data.desc + ` Hiện tại: ${imagesVal} ảnh, ${Math.round(stepsPerImage)} updates/ảnh (đơn vị tương đối).`;
+        timeValue.textContent = `${Math.round(stepsPerImage)} updates/ảnh`;
+        spiLabel.textContent = Math.round(stepsPerImage) + ' updates/ảnh';
+        fitMarker.style.left = clamp(stepsPerImage / 350 * 100, 2, 98) + '%';
+        lrSlider.setAttribute('aria-valuetext', `${formatLR(lrVal)}, vùng ${data.tag}`);
+        stepsSlider.setAttribute('aria-valuetext', `${stepsVal} bước, khoảng ${Math.round(stepsPerImage)} bước trên mỗi ảnh`);
+        imagesSlider.setAttribute('aria-valuetext', `${imagesVal} ảnh, dùng để tính exposure tương đối`);
+
+        const toolCopy = activeTool === 'kohya'
+          ? 'đọc README/help của exact release để xác nhận script và option đang dùng.'
+          : 'chọn guide model tương ứng rồi ghi config.env và capability cần xác minh.';
+        const toolName = activeTool === 'kohya' ? 'kohya_ss' : 'SimpleTuner';
+        decisionCard.innerHTML = `<strong>${toolName}:</strong> ${toolCopy} Với ${imagesVal} ảnh, ${Math.round(stepsPerImage)} updates/ảnh chỉ là chỉ số mô phỏng; dùng validation rubric để quyết định run sau.`;
+      };
+
+      lrSlider.addEventListener('input', update);
+      stepsSlider.addEventListener('input', update);
+      imagesSlider.addEventListener('input', update);
+      toolButtons.forEach(button => {
+        button.addEventListener('click', () => {
+          activeTool = button.dataset.tool;
+          toolButtons.forEach(item => item.setAttribute('aria-pressed', String(item === button)));
+          update();
+        });
+      });
+      update();
+    })();
+
+    // ── Guided workflow ───────────────────────────────────────
+    (() => {
+      const runButton = document.getElementById('workflow-run');
+      const steps = [...document.querySelectorAll('#workflow-steps .flow-step')];
+      const status = document.getElementById('workflow-status');
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+      const messages = [
+        '<strong>Bước 1 · Dataset.</strong> Audit quyền, caption và coverage; ghi điều kiện data trước khi đổ lỗi cho hyperparameter.',
+        '<strong>Bước 2 · Config.</strong> Pin model/trainer version và chọn một biến A/B; khóa những biến còn lại.',
+        '<strong>Bước 3 · Train.</strong> Log config, throughput, OOM và checkpoint; loss là telemetry chứ không phải verdict.',
+        '<strong>Bước 4 · Validate.</strong> Dùng prompt/seed/control cố định để chấm identity, prompt, artifact và temporal behavior.',
+        '<strong>Bước 5 · Deploy.</strong> Chọn checkpoint theo rubric, lưu adapter cùng config/version và validation artifacts để tái lập.'
+      ];
+      let activeIndex = 0;
+      let timer = 0;
+      if (!runButton || !steps.length || !status) return;
+
+      const renderStep = (index) => {
+        activeIndex = index;
+        steps.forEach((step, stepIndex) => step.classList.toggle('active-step', stepIndex === index));
+        status.innerHTML = messages[index];
+      };
+
+      const stop = () => {
+        if (timer) window.clearInterval(timer);
+        timer = 0;
+        runButton.setAttribute('aria-pressed', 'false');
+        runButton.textContent = activeIndex === steps.length - 1 ? 'Chạy lại workflow' : 'Tiếp tục workflow';
+      };
+
+      runButton.addEventListener('click', () => {
+        if (reducedMotion.matches) {
+          renderStep((activeIndex + 1) % steps.length);
+          runButton.textContent = 'Bước tiếp theo';
+          return;
+        }
+        if (timer) { stop(); return; }
+        if (activeIndex === steps.length - 1) renderStep(0);
+        runButton.setAttribute('aria-pressed', 'true');
+        runButton.textContent = 'Tạm dừng';
+        timer = window.setInterval(() => {
+          if (activeIndex >= steps.length - 1) { stop(); return; }
+          renderStep(activeIndex + 1);
+        }, 900);
+      });
+    })();
+
+    // ── Checkpoint Quiz ───────────────────────────────────────
+    (() => {
+      const questions = [
+        {
+          question: 'Điều nào đúng khi chuyển config LoRA giữa kohya_ss và SimpleTuner?',
+          answers: [
+            'Cùng tên LR luôn có cùng default và scaling, nên copy nguyên giá trị.',
+            'Kiểm tra model guide, exact release và option của trainer trước khi dịch config.',
+            'Video LoRA luôn dùng được mọi flag của image LoRA.'
+          ],
+          correct: 1,
+          explanation: 'Đúng. Trainer/version, model family và data pipeline quyết định ý nghĩa thực của option. Cùng tên tham số không phải bằng chứng hai workflow tương đương.'
+        },
+        {
+          question: 'Trong production brief, cách A/B nào giúp chẩn đoán LR rõ nhất?',
+          answers: [
+            'Đổi đồng thời LR, rank, steps và captions để tìm run đẹp nhất nhanh hơn.',
+            'Khóa model, data, rank, batch, scheduler, prompt/seed; chỉ đổi LR rồi review checkpoint.',
+            'Chỉ đọc loss cuối run vì loss thấp luôn đồng nghĩa generalization tốt.'
+          ],
+          correct: 1,
+          explanation: 'Đúng. Chỉ một biến thay đổi mới làm kết quả có khả năng giải thích. Chấm artifact bằng cùng protocol; loss chỉ là telemetry bổ sung.'
+        },
+        {
+          question: 'Validation clip cho thấy identity tốt ở ảnh nhưng trôi giữa frame. Bước tiếp theo hợp lý nhất?',
+          answers: [
+            'Kết luận LR là nguyên nhân duy nhất và tăng nó ngay.',
+            'Ghi checkpoint/run ID, kiểm tra protocol I2V/control và đặt một giả thuyết riêng cho temporal failure.',
+            'Dùng sample ảnh tốt để bỏ qua đánh giá video.'
+          ],
+          correct: 1,
+          explanation: 'Đúng. Kết quả image không tự suy rộng sang temporal stability. Giữ evidence, tách hypothesises và thử một biến ở wave kế tiếp.'
+        }
+      ];
+
+      let qIndex = 0, qScore = 0, qAnswered = false;
+      const quizContent = document.getElementById('quiz-content');
+      const feedback = document.getElementById('quiz-feedback');
+      const quizProgress = document.getElementById('quiz-progress');
+      const nextQuestion = document.getElementById('next-question');
+      const scoreOutput = document.getElementById('score-output');
+      const scoreMessage = document.getElementById('score-message');
+
+      const renderQuestion = () => {
+        qAnswered = false;
+        const item = questions[qIndex];
+        quizContent.innerHTML = `<fieldset><legend>${item.question}</legend><div class="answers">${item.answers.map((a, i) => `<button class="answer" type="button" data-index="${i}">${a}</button>`).join('')}</div></fieldset>`;
+        quizContent.querySelectorAll('.answer').forEach(b => b.addEventListener('click', chooseAnswer));
+        feedback.textContent = 'Chọn một đáp án. Sau đó bạn sẽ thấy giải thích ngay tại đây.';
+        quizProgress.textContent = `CÂU ${qIndex + 1} / ${questions.length}`;
+        nextQuestion.textContent = qIndex === questions.length - 1 ? 'Xem kết quả' : 'Câu tiếp theo';
+        nextQuestion.disabled = true;
+      };
+
+      function chooseAnswer(event) {
+        if (qAnswered) return;
+        qAnswered = true;
+        const selected = Number(event.currentTarget.dataset.index);
+        const item = questions[qIndex];
+        [...quizContent.querySelectorAll('.answer')].forEach((btn, i) => {
+          btn.disabled = true;
+          if (i === item.correct) btn.classList.add('correct');
+          else if (i === selected) btn.classList.add('wrong');
+        });
+        const ok = selected === item.correct;
+        if (ok) qScore++;
+        feedback.textContent = ok ? item.explanation : `Chưa đúng. ${item.explanation}`;
+        scoreOutput.value = `${qScore}/${questions.length}`;
+        scoreMessage.textContent = ok ? 'Tốt — trực giác của bạn đúng hướng.' : 'Đọc giải thích rồi thử câu tiếp theo.';
+        nextQuestion.disabled = false;
+      }
+
+      const resetQuiz = () => {
+        qIndex = 0; qScore = 0; qAnswered = false;
+        scoreOutput.value = `0/${questions.length}`;
+        scoreMessage.textContent = 'Trả lời câu đầu tiên để bắt đầu.';
+        renderQuestion();
+      };
+
+      nextQuestion.addEventListener('click', () => {
+        if (qIndex < questions.length - 1) { qIndex++; renderQuestion(); return; }
+        const pass = qScore >= Math.ceil(questions.length / 2);
+        quizContent.innerHTML = `<h3 style="font-size:1.5rem;margin-bottom:10px">${qScore === questions.length ? 'Bạn đã nắm chắc nền tảng.' : 'Hoàn thành checkpoint.'}</h3><p style="color:var(--muted)">Bạn trả lời đúng <b>${qScore}/${questions.length}</b> câu. ${pass ? 'Sẵn sàng áp dụng vào thực tế.' : 'Nên xem lại phần Learning Rate và Training Steps.'}</p>`;
+        feedback.textContent = qScore === questions.length ? 'Xuất sắc: bạn hiểu chọn tool, LR range và quy tắc tính steps.' : 'Checkpoint để phát hiện phần cần ôn lại.';
+        quizProgress.textContent = 'HOÀN THÀNH';
+        nextQuestion.textContent = 'Làm lại';
+        nextQuestion.disabled = false;
+        nextQuestion.onclick = () => { nextQuestion.onclick = null; resetQuiz(); };
+        scoreMessage.textContent = pass ? 'Hoàn thành Phần 3.' : 'Hãy ôn nhanh rồi làm lại.';
+      });
+
+      renderQuestion();
+    })();
+  </script>
+</body>
+</html>

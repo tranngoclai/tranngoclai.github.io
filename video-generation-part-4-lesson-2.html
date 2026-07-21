@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Hiểu cách CLIP Vision biến ảnh tham chiếu thành embedding điều kiện hóa và vì sao đây là hướng dẫn ngữ nghĩa, không phải sao chép pixel.">
+  <title>CLIP Vision Encode — Điều kiện hóa bằng ảnh</title>
+  <link rel="icon" href="video-generation-favicon.svg" type="image/svg+xml">
+  <script src="video-generation-theme.js"></script>
+  <link rel="stylesheet" href="video-generation-design-system.css">
+  <style>
+    .lesson-hero { padding: 86px 0 64px; border-bottom: 1px solid var(--line); }
+    .eyebrow, .section-index, .meta, .node-label, .lab-label {
+      font-family: var(--font-mono); text-transform: uppercase; letter-spacing: .12em;
+    }
+    .eyebrow { margin: 0 0 18px; color: var(--cyan); font-size: .76rem; font-weight: 800; }
+    h1 { max-width: 900px; margin: 0; font-size: clamp(2.8rem, 8vw, 6.7rem); line-height: .9; letter-spacing: -.065em; }
+    .hero-lead { max-width: 720px; margin: 28px 0 0; color: var(--muted); font-size: clamp(1.08rem, 2vw, 1.32rem); }
+    .hero-meta { display: flex; flex-wrap: wrap; gap: 10px; margin: 32px 0 0; }
+    .meta { border: 1px solid var(--line); border-radius: 999px; padding: 7px 11px; color: var(--muted); font-size: .68rem; }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+    .lesson-section { padding: 78px 0; border-bottom: 1px solid var(--line); }
+    .section-index { margin: 0 0 12px; color: var(--acid); font-size: .72rem; font-weight: 800; }
+    .lesson-section h2 { max-width: 800px; margin: 0; font-size: clamp(2rem, 5vw, 4.1rem); line-height: .98; letter-spacing: -.045em; }
+    .section-intro { max-width: 720px; margin: 20px 0 36px; color: var(--muted); font-size: 1.08rem; }
+    .definition { max-width: 900px; border-left: 4px solid var(--acid); background: var(--panel); padding: clamp(22px, 4vw, 38px); font-size: clamp(1.15rem, 2.5vw, 1.62rem); }
+    .definition strong { color: var(--acid); }
+    .process { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--panel); }
+    .process-node { position: relative; min-height: 220px; padding: 26px; border-right: 1px solid var(--line); }
+    .process-node:last-child { border-right: 0; }
+    .process-node:not(:last-child)::after { content: "→"; position: absolute; z-index: 2; right: -15px; top: 28px; width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; background: var(--night); color: var(--cyan); font-weight: 900; }
+    .node-label { color: var(--dim); font-size: .68rem; }
+    .process-node h3 { margin: 28px 0 9px; font-size: 1.18rem; }
+    .process-node p { margin: 0; color: var(--muted); font-size: .92rem; }
+    .tokens { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 22px; }
+    .token { border: 1px solid var(--line); border-radius: 999px; padding: 4px 8px; color: var(--cyan); font: 700 .68rem var(--font-mono); }
+    .compare { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+    .compare article { padding: clamp(24px, 4vw, 42px); background: var(--panel); }
+    .compare article + article { border-left: 1px solid var(--line); }
+    .compare h3 { margin: 0 0 20px; font-size: 1.45rem; }
+    .compare ul { margin: 0; padding-left: 20px; color: var(--muted); }
+    .compare li + li { margin-top: 10px; }
+    .yes h3 { color: var(--acid); }
+    .no h3 { color: var(--orange); }
+    .lab { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--panel); box-shadow: 0 24px 70px color-mix(in srgb, var(--night) 72%, transparent); }
+    .lab-head { display: flex; justify-content: space-between; gap: 24px; align-items: end; padding: 24px 28px; border-bottom: 1px solid var(--line); }
+    .lab-head h3 { margin: 5px 0 0; font-size: 1.4rem; }
+    .lab-label { color: var(--cyan); font-size: .68rem; font-weight: 800; }
+    .lab-body { display: grid; grid-template-columns: minmax(260px, .8fr) minmax(0, 1.4fr); }
+    .lab-controls { padding: 28px; border-right: 1px solid var(--line); }
+    .control-group { margin: 0 0 26px; padding: 0; border: 0; }
+    .control-group legend, .range-label { display: block; margin-bottom: 11px; font-weight: 800; }
+    .seed-buttons { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .seed-button { min-height: 44px; border: 1px solid var(--line); border-radius: 10px; background: var(--night); color: var(--ink); font-weight: 800; }
+    .seed-button[aria-pressed="true"] { border-color: var(--cyan); background: var(--panel-2); color: var(--cyan); }
+    .range-row { display: flex; align-items: center; gap: 14px; }
+    input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--acid); }
+    .range-value { min-width: 4ch; color: var(--acid); font: 800 1rem var(--font-mono); }
+    .lab-note { margin: 0; color: var(--muted); font-size: .88rem; }
+    .lab-stage { padding: 28px; }
+    .visual-flow { display: grid; grid-template-columns: 1fr 92px 1fr; align-items: center; gap: 18px; }
+    .image-frame { position: relative; aspect-ratio: 4 / 3; overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: var(--night); }
+    .scene-sky { position: absolute; inset: 0; background: color-mix(in srgb, var(--cyan-fill) 22%, var(--panel-2)); }
+    .scene-sun { position: absolute; width: 19%; aspect-ratio: 1; left: 13%; top: 14%; border-radius: 50%; background: var(--orange); }
+    .scene-ridge { position: absolute; left: -8%; right: -8%; bottom: -16%; height: 63%; background: var(--acid-fill); clip-path: polygon(0 74%, 21% 26%, 39% 62%, 58% 12%, 100% 72%, 100% 100%, 0 100%); }
+    .scene-road { position: absolute; left: 38%; bottom: -2%; width: 25%; height: 48%; background: color-mix(in srgb, var(--night) 82%, transparent); clip-path: polygon(44% 0, 58% 0, 100% 100%, 0 100%); }
+    .output-frame .scene-sun, .output-frame .scene-ridge, .output-frame .scene-road { transition: transform .2s ease, opacity .2s ease; }
+    .output-frame.seed-a .scene-sun { transform: translate(52%, 18%) scale(.88); }
+    .output-frame.seed-a .scene-ridge { transform: translateX(4%) scaleY(.94); }
+    .output-frame.seed-a .scene-road { transform: translateX(-24%) skewX(5deg); }
+    .output-frame.seed-b .scene-sun { transform: translate(270%, 48%) scale(.72); }
+    .output-frame.seed-b .scene-ridge { transform: translateX(-8%) scaleY(.86); }
+    .output-frame.seed-b .scene-road { transform: translateX(62%) skewX(-8deg); }
+    .output-frame.seed-c .scene-sun { transform: translate(130%, -10%) scale(1.15); }
+    .output-frame.seed-c .scene-ridge { transform: translateX(9%) scaleY(1.12); }
+    .output-frame.seed-c .scene-road { transform: translateX(-52%) skewX(10deg); }
+    .visual-caption { margin: 10px 0 0; color: var(--muted); font-size: .8rem; }
+    .embedding { text-align: center; }
+    .bars { height: 104px; display: flex; align-items: center; justify-content: center; gap: 5px; }
+    .bar { width: 7px; border-radius: 999px; background: var(--cyan-fill); opacity: .82; }
+    .bar:nth-child(1) { height: 42%; } .bar:nth-child(2) { height: 78%; }
+    .bar:nth-child(3) { height: 58%; } .bar:nth-child(4) { height: 92%; }
+    .bar:nth-child(5) { height: 64%; } .bar:nth-child(6) { height: 34%; }
+    .embedding span { display: block; color: var(--muted); font: 700 .66rem var(--font-mono); text-transform: uppercase; }
+    .lab-output { margin: 22px 0 0; min-height: 54px; border-top: 1px solid var(--line); padding-top: 18px; color: var(--muted); }
+    .lab-output strong { color: var(--ink); }
+    .checkpoint { max-width: 880px; padding: clamp(24px, 4vw, 38px); border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
+    .checkpoint h3 { margin: 0 0 16px; }
+    .choice-list { display: grid; gap: 10px; }
+    .choice { min-height: 48px; padding: 12px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--night); color: var(--ink); text-align: left; }
+    .choice[data-state="correct"] { border-color: var(--acid); }
+    .choice[data-state="wrong"] { border-color: var(--orange); }
+    .feedback { min-height: 28px; margin: 16px 0 0; color: var(--muted); }
+    .takeaway { display: grid; grid-template-columns: .65fr 1.35fr; gap: 42px; align-items: start; }
+    .takeaway ul { margin: 0; padding-left: 22px; font-size: 1.08rem; }
+    .takeaway li + li { margin-top: 14px; }
+    .case-study { display: grid; grid-template-columns: minmax(0, .84fr) minmax(0, 1.16fr); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--panel); }
+    .case-brief, .case-plan { padding: clamp(24px, 4vw, 40px); }
+    .case-brief { background: var(--panel-2); border-right: 1px solid var(--line); }
+    .case-study h3 { margin: 0 0 14px; font-size: 1.34rem; }
+    .case-study p { margin: 0; color: var(--muted); }
+    .case-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 20px 0 0; }
+    .case-grid div { min-width: 0; border-top: 1px solid var(--line); padding-top: 12px; }
+    .case-grid dt { color: var(--cyan); font: 800 .68rem var(--font-mono); letter-spacing: .1em; text-transform: uppercase; }
+    .case-grid dd { margin: 5px 0 0; color: var(--muted); font-size: .92rem; }
+    .case-plan ol { margin: 18px 0 0; padding-left: 22px; color: var(--muted); }
+    .case-plan li + li { margin-top: 10px; }
+    .scope-note { margin-top: 20px !important; border-left: 3px solid var(--cyan); padding-left: 14px; font-size: .9rem; }
+    .related-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+    .related-list a { min-height: 168px; padding: 24px; background: var(--panel); text-decoration: none; transition: background .2s ease, color .2s ease; }
+    .related-list a + a { border-left: 1px solid var(--line); }
+    .related-list a:hover { background: var(--panel-2); }
+    .related-list strong { display: block; color: var(--acid); font: 800 .72rem var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
+    .related-list span { display: block; margin-top: 12px; color: var(--muted); font-size: .92rem; }
+    .source-list { margin: 20px 0 0; padding-left: 20px; color: var(--muted); font-size: .88rem; }
+    .source-list li + li { margin-top: 8px; }
+    .source-list a { display: inline-flex; align-items: center; min-height: 44px; color: var(--cyan); }
+    .brand { min-height: 44px; align-items: center; }
+    .lesson-nav { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin-top: 28px; }
+    .lesson-nav .button { flex: 1 1 230px; }
+    details { margin-top: 28px; border-top: 1px solid var(--line); }
+    summary { min-height: 48px; display: flex; align-items: center; font-weight: 800; cursor: pointer; }
+    details p { max-width: 760px; color: var(--muted); }
+    .page-footer { padding: 34px 0 48px; color: var(--muted); }
+    .footer-inner { display: flex; justify-content: space-between; gap: 18px; align-items: center; }
+    .footer-inner a { min-height: 44px; display: inline-flex; align-items: center; }
+    @media (max-width: 900px) {
+      .topnav { display: none; }
+      .process { grid-template-columns: 1fr 1fr; }
+      .process-node:nth-child(2) { border-right: 0; }
+      .process-node:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+      .process-node:nth-child(2)::after { display: none; }
+      .lab-body, .takeaway { grid-template-columns: 1fr; }
+      .lab-controls { border-right: 0; border-bottom: 1px solid var(--line); }
+      .case-study { grid-template-columns: 1fr; }
+      .case-brief { border-right: 0; border-bottom: 1px solid var(--line); }
+    }
+    @media (max-width: 640px) {
+      .lesson-hero { padding: 58px 0 48px; }
+      .lesson-section { padding: 56px 0; }
+      .hero-actions .button { width: 100%; }
+      .process, .compare { grid-template-columns: 1fr; }
+      .process-node { min-height: 0; border-right: 0; border-bottom: 1px solid var(--line); }
+      .process-node:last-child { border-bottom: 0; }
+      .process-node::after { display: none; }
+      .compare article + article { border-left: 0; border-top: 1px solid var(--line); }
+      .case-grid, .related-list { grid-template-columns: 1fr; }
+      .related-list a + a { border-left: 0; border-top: 1px solid var(--line); }
+      .lab-head { align-items: start; flex-direction: column; }
+      .visual-flow { grid-template-columns: 1fr; }
+      .embedding { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
+      .embedding::before, .embedding::after { content: ""; height: 1px; background: var(--line); }
+      .bars { height: 62px; padding-inline: 12px; }
+      .embedding span { grid-column: 1 / -1; }
+      .footer-inner { align-items: start; flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Bỏ qua điều hướng</a>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="index.html" aria-label="Trang chủ Video Generation Study">
+        <span class="brand-mark" aria-hidden="true"></span>
+        Video Generation Study
+      </a>
+      <nav class="topnav" aria-label="Điều hướng bài học">
+        <a href="#pipeline">Pipeline</a>
+        <a href="#lab">Phòng thử nghiệm</a>
+        <a href="#checkpoint">Kiểm tra</a>
+      </nav>
+    </div>
+    <div class="progress-track" aria-hidden="true"><div class="progress-fill" id="reading-progress"></div></div>
+  </header>
+
+  <main id="main-content">
+    <section class="lesson-hero">
+      <div class="shell">
+        <p class="eyebrow">Part 4 · Bài 02 · Image conditioning</p>
+        <h1>Ảnh đi vào model như một ý niệm.</h1>
+        <p class="hero-lead">CLIP Vision Encode không đưa nguyên từng pixel của ảnh tham chiếu vào video. Nó nén những đặc trưng có ý nghĩa thành embedding để model dùng như một lời gợi ý thị giác.</p>
+        <div class="hero-meta" aria-label="Thông tin bài học">
+          <span class="meta">Trình độ: Cơ bản → Trung cấp</span>
+          <span class="meta">Thời lượng: 12 phút</span>
+          <span class="meta">Kết quả: Phân biệt guidance / copy</span>
+        </div>
+        <div class="hero-actions">
+          <a class="button primary" href="#pipeline">Theo dấu ảnh tham chiếu ↓</a>
+          <a class="button" href="#lab">Thử đổi seed</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="lesson-section" aria-labelledby="meaning-title">
+      <div class="shell">
+        <p class="section-index">01 / Ý chính</p>
+        <h2 id="meaning-title">Encode là dịch ảnh sang ngôn ngữ mà model hiểu.</h2>
+        <p class="section-intro">Ảnh gốc có hàng triệu giá trị pixel. CLIP Vision gom chúng thành một vector đặc trưng nhỏ hơn, mô tả các mối liên hệ thị giác hữu ích.</p>
+        <div class="definition">
+          <strong>CLIP Vision embedding</strong> là biểu diễn số do vision encoder tạo ra. Nó có thể mang các đặc trưng thị giác hữu ích cho nhiệm vụ đã học; mức giữ chủ thể, màu, phong cách hay bố cục phụ thuộc checkpoint và cách workflow dùng embedding — không phải một bản ảnh thu nhỏ để dán vào output.
+        </div>
+      </div>
+    </section>
+
+    <section class="lesson-section" id="pipeline" aria-labelledby="pipeline-title">
+      <div class="shell">
+        <p class="section-index">02 / Pipeline</p>
+        <h2 id="pipeline-title">Bốn chặng từ ảnh đến conditioning.</h2>
+        <p class="section-intro">Hãy đọc từ trái sang phải. Mỗi chặng bỏ bớt chi tiết pixel và giữ lại tín hiệu cần thiết để định hướng quá trình sinh.</p>
+        <div class="process" aria-label="Quy trình CLIP Vision Encode gồm bốn bước">
+          <article class="process-node">
+            <span class="node-label">Input · 01</span>
+            <h3>Reference image</h3>
+            <p>Ảnh chứa cả thông tin quan trọng lẫn chi tiết ngẫu nhiên: chủ thể, ánh sáng, texture, nhiễu và từng pixel.</p>
+          </article>
+          <article class="process-node">
+            <span class="node-label">Encode · 02</span>
+            <h3>Vision encoder</h3>
+            <p>Với CLIP dùng ViT, encoder chia ảnh thành các patch để tìm quan hệ và tạo biểu diễn đặc trưng; các backbone vision khác trích xuất đặc trưng theo kiến trúc riêng.</p>
+          </article>
+          <article class="process-node">
+            <span class="node-label">Vector · 03</span>
+            <h3>Image embedding</h3>
+            <p>Một dãy số cô đọng mang tín hiệu ngữ nghĩa thay vì lưu tọa độ màu của từng pixel.</p>
+            <div class="tokens" aria-label="Ví dụ các đặc trưng được mã hóa">
+              <span class="token">subject</span><span class="token">palette</span><span class="token">layout</span>
+            </div>
+          </article>
+          <article class="process-node">
+            <span class="node-label">Guide · 04</span>
+            <h3>Conditioning</h3>
+            <p>Một adapter hoặc pipeline tương thích có thể dùng embedding làm conditioning khi khử nhiễu. Cổng tiêm và strength là lựa chọn của workflow, không phải API mặc định của CLIP.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="lesson-section" aria-labelledby="boundary-title">
+      <div class="shell">
+        <p class="section-index">03 / Ranh giới</p>
+        <h2 id="boundary-title">Giống về ý, không buộc giống từng điểm ảnh.</h2>
+        <p class="section-intro">Đây là điểm dễ nhầm nhất khi dùng reference image. Conditioning làm thay đổi hướng sinh; nó không khóa output thành một bản sao.</p>
+        <div class="compare">
+          <article class="yes">
+            <h3>Embedding có thể giữ</h3>
+            <ul>
+              <li>Cảm giác về chủ thể hoặc loại cảnh.</li>
+              <li>Bảng màu và phong cách thị giác tổng quát.</li>
+              <li>Một số tương quan bố cục ở mức ngữ nghĩa, tùy checkpoint và adapter.</li>
+            </ul>
+          </article>
+          <article class="no">
+            <h3>Embedding không đảm bảo</h3>
+            <ul>
+              <li>Đúng tọa độ của từng vật thể hay từng pixel.</li>
+              <li>Giữ nguyên danh tính khuôn mặt một cách tuyệt đối.</li>
+              <li>Tái tạo nguyên ảnh khi seed, prompt hoặc noise đổi.</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="lesson-section" aria-labelledby="case-title">
+      <div class="shell">
+        <p class="section-index">04 / Production brief</p>
+        <h2 id="case-title">A/B test thumbnail key art trước khi đưa ảnh vào I2V.</h2>
+        <p class="section-intro">Đây là brief giả định để tách ảnh hưởng của reference embedding khỏi seed và prompt. Các con số là ngân sách vận hành, không phải benchmark hay preset chung.</p>
+        <div class="case-study">
+          <article class="case-brief">
+            <h3>Trailer ra mắt giày chạy bộ</h3>
+            <p>Mục tiêu là tạo shot mở đầu 5 giây cho landing page: runner ở bình minh, màu thương hiệu xanh-ngọc/cam, còn logo phải được compositing ở hậu kỳ thay vì kỳ vọng từ embedding.</p>
+            <dl class="case-grid">
+              <div><dt>Bối cảnh</dt><dd>3 biến thể social cutdown cần cùng art direction.</dd></div>
+              <div><dt>Input / workflow</dt><dd>1 key art đã duyệt → CLIP Vision → adapter I2V tương thích; prompt cố định.</dd></div>
+              <div><dt>Giữ cố định</dt><dd>Checkpoint, resolution, số frame, prompt, negative prompt, sampler và seed cho từng cặp A/B.</dd></div>
+              <div><dt>Đang thử</dt><dd>Bật/tắt conditioning ảnh (hoặc strength của adapter nếu workflow đó có) với cùng seed.</dd></div>
+              <div><dt>Giới hạn</dt><dd>24 GB VRAM, tối đa 12 phút/biến thể; dừng nếu phải giảm resolution ngoài brief.</dd></div>
+              <div><dt>Đánh giá</dt><dd>Art direction, silhouette runner, ổn định chuyển động và chỗ trống đặt logo.</dd></div>
+            </dl>
+          </article>
+          <article class="case-plan">
+            <h3>Quy trình chẩn đoán</h3>
+            <ol>
+              <li>Chạy A/B theo từng seed: một lần không dùng ảnh, một lần dùng ảnh; không thay đồng thời prompt và strength.</li>
+              <li>Ghi lại kết quả theo rubric 1–5, kèm seed, checkpoint, resolution, frame count, thời gian và phiên bản node/adapter.</li>
+              <li>Dấu hiệu thất bại: silhouette vẫn trôi, palette không bám, motion méo hoặc output giống key art nhưng không chuyển động thuyết phục.</li>
+              <li>Bước tiếp theo: nếu art direction không bám, kiểm tra đúng vision encoder/adapter cho checkpoint rồi thử strength trong phạm vi tài liệu của workflow; nếu cấu trúc cần khóa, chuyển sang ControlNet thay vì tăng strength vô hạn.</li>
+            </ol>
+            <p class="scope-note">Heuristic: chỉ thay một biến mỗi lượt A/B. “Strength” ở đây là tham số giả định của adapter; tên, dải và tác dụng thực tế thay đổi theo node, phiên bản và model.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="lesson-section" id="lab" aria-labelledby="lab-title">
+      <div class="shell">
+        <p class="section-index">05 / Thử nghiệm</p>
+        <h2 id="lab-title">Một embedding, nhiều cách hiện thực hóa.</h2>
+        <p class="section-intro">Đổi seed để tạo một diễn giải khác; đổi mức bám để quan sát ảnh tham chiếu định hướng mạnh hay nhẹ. Mô phỏng này mang tính khái niệm, không chạy model thật.</p>
+        <div class="lab">
+          <div class="lab-head">
+            <div>
+              <span class="lab-label">Mô phỏng khái niệm · đơn vị tương đối</span>
+              <h3>Semantic guidance ≠ pixel copy</h3>
+            </div>
+            <button class="button" id="reset-lab" type="button">Đặt lại</button>
+          </div>
+          <div class="lab-body">
+            <div class="lab-controls">
+              <fieldset class="control-group">
+                <legend>1. Chọn seed</legend>
+                <div class="seed-buttons">
+                  <button class="seed-button" type="button" data-seed="a" aria-pressed="true">Seed A</button>
+                  <button class="seed-button" type="button" data-seed="b" aria-pressed="false">Seed B</button>
+                  <button class="seed-button" type="button" data-seed="c" aria-pressed="false">Seed C</button>
+                </div>
+              </fieldset>
+              <div class="control-group">
+                <label class="range-label" for="guidance">2. Mức bám ảnh tham chiếu <span aria-hidden="true">(tương đối)</span></label>
+                <div class="range-row">
+                  <input id="guidance" type="range" min="0" max="100" step="25" value="75">
+                  <output class="range-value" id="guidance-value" for="guidance">75%</output>
+                </div>
+              </div>
+              <p class="lab-note">Seed đổi cách sắp xếp chi tiết. Guidance đổi mức ảnh hưởng của embedding. Không thao tác nào lấy pixel gốc để chép sang khung output.</p>
+            </div>
+            <div class="lab-stage">
+              <div class="visual-flow">
+                <div>
+                  <div class="image-frame" role="img" aria-label="Ảnh tham chiếu trừu tượng: mặt trời bên trái, núi xanh sáng và con đường ở giữa">
+                    <span class="scene-sky"></span><span class="scene-sun"></span><span class="scene-ridge"></span><span class="scene-road"></span>
+                  </div>
+                  <p class="visual-caption">Reference · pixel cố định</p>
+                </div>
+                <div class="embedding" aria-label="Embedding là dãy vector đặc trưng">
+                  <div class="bars" aria-hidden="true"><i class="bar"></i><i class="bar"></i><i class="bar"></i><i class="bar"></i><i class="bar"></i><i class="bar"></i></div>
+                  <span>Embedding →</span>
+                </div>
+                <div>
+                  <div class="image-frame output-frame seed-a" id="output-frame" role="img" aria-label="Output Seed A: vẫn gợi cảnh núi, mặt trời và con đường nhưng chi tiết không trùng ảnh tham chiếu">
+                    <span class="scene-sky"></span><span class="scene-sun"></span><span class="scene-ridge"></span><span class="scene-road"></span>
+                  </div>
+                  <p class="visual-caption">Output · diễn giải theo seed</p>
+                </div>
+              </div>
+              <p class="lab-output" id="lab-output" aria-live="polite"><strong>Seed A · bám 75%:</strong> Chủ đề, palette và bố cục được ưu tiên; hình học cụ thể vẫn do quá trình sinh quyết định.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lesson-section" id="checkpoint" aria-labelledby="checkpoint-title">
+      <div class="shell">
+        <p class="section-index">06 / Kiểm tra nhanh</p>
+        <h2 id="checkpoint-title">Bạn đã phân biệt được hai cơ chế?</h2>
+        <p class="section-intro">Chọn phát biểu mô tả đúng CLIP Vision conditioning.</p>
+        <div class="checkpoint">
+          <h3>Khi đổi seed nhưng giữ nguyên reference image, vì sao output có thể khác?</h3>
+          <div class="choice-list">
+            <button class="choice" type="button" data-correct="false">Vì encoder làm mất ảnh tham chiếu sau lần chạy đầu.</button>
+            <button class="choice" type="button" data-correct="true">Vì embedding chỉ định hướng đặc trưng; seed vẫn quyết định cách noise được hiện thực hóa.</button>
+            <button class="choice" type="button" data-correct="false">Vì CLIP Vision chỉ đọc metadata tên file.</button>
+          </div>
+          <p class="feedback" id="checkpoint-feedback" aria-live="polite">Chưa chọn đáp án.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="lesson-section" aria-labelledby="takeaway-title">
+      <div class="shell takeaway">
+        <div>
+          <p class="section-index">07 / Mang theo</p>
+          <h2 id="takeaway-title">Ba câu để nhớ.</h2>
+        </div>
+        <div>
+          <ul>
+            <li>Reference image được mã hóa thành embedding đặc trưng trước khi trở thành conditioning.</li>
+            <li>Conditioning nghiêng xác suất sinh về phía ý nghĩa thị giác mong muốn, không sao chép pixel.</li>
+            <li>Nếu cần khóa danh tính hoặc cấu trúc mạnh hơn, CLIP Vision đơn lẻ chưa chắc đủ; đó là vai trò của các cơ chế chuyên biệt ở bài sau.</li>
+          </ul>
+          <details>
+            <summary>Vì sao output đôi khi vẫn rất giống ảnh gốc?</summary>
+            <p>Mức conditioning mạnh, prompt gần ảnh gốc và pipeline có thêm tín hiệu khác có thể làm kết quả giống đáng kể. Tuy vậy, “trông giống” vẫn không đồng nghĩa với việc encoder chuyển nguyên pixel sang output.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <section class="lesson-section" aria-labelledby="related-title">
+      <div class="shell">
+        <p class="section-index">08 / Bài liên quan</p>
+        <h2 id="related-title">Nối đúng cơ chế trước khi đổi núm.</h2>
+        <p class="section-intro">Các bài này cùng tạo thành một chuỗi: chọn loại input, mã hóa ảnh, rồi quyết định cách và mức injection.</p>
+        <nav class="related-list" aria-label="Bài học liên quan">
+          <a href="video-generation-part-4-lesson-1.html"><strong>Part 4 · Bài 1</strong><span><b>I2V, T2V, FLF2V.</b> Chọn I2V khi key art là điểm neo hình ảnh trước khi bàn đến encoder.</span></a>
+          <a href="video-generation-part-1-lesson-3.html"><strong>Part 1 · Bài 3</strong><span><b>CLIP.</b> Nền tảng về cặp encoder ảnh–văn bản và ý nghĩa của biểu diễn chung.</span></a>
+          <a href="video-generation-part-4-lesson-3.html"><strong>Part 4 · Bài 3</strong><span><b>IP-Adapter.</b> Đi tiếp từ image embedding sang vị trí injection trong attention và cách chẩn đoán strength.</span></a>
+        </nav>
+        <ul class="source-list" aria-label="Nguồn chính chủ">
+          <li><a href="https://github.com/openai/CLIP">OpenAI CLIP repository</a> — API <code>encode_image()</code> trả về image features.</li>
+          <li><a href="https://arxiv.org/abs/2103.00020">CLIP paper (Radford et al., 2021)</a> — pre-training trên cặp image–text để học visual representations.</li>
+        </ul>
+        <nav class="lesson-nav" aria-label="Điều hướng tuần tự">
+          <a class="button" href="video-generation-part-4-lesson-1.html">← Bài trước: I2V, T2V, FLF2V</a>
+          <a class="button primary" href="video-generation-part-4-lesson-3.html">Bài tiếp: IP-Adapter →</a>
+        </nav>
+      </div>
+    </section>
+  </main>
+
+  <footer class="page-footer">
+    <div class="shell footer-inner">
+      <span>Video Generation Study · Part 4 / Lesson 2</span>
+      <a href="index.html">Về mục lục →</a>
+    </div>
+  </footer>
+
+  <script>
+    (() => {
+      const progress = document.querySelector('#reading-progress');
+      const updateProgress = () => {
+        const available = document.documentElement.scrollHeight - window.innerHeight;
+        const percent = available > 0 ? Math.min(100, Math.max(0, window.scrollY / available * 100)) : 0;
+        progress.style.width = `${percent}%`;
+      };
+      window.addEventListener('scroll', updateProgress, {passive: true});
+      window.addEventListener('resize', updateProgress);
+      updateProgress();
+
+      const seedButtons = [...document.querySelectorAll('.seed-button')];
+      const guidance = document.querySelector('#guidance');
+      const guidanceValue = document.querySelector('#guidance-value');
+      const frame = document.querySelector('#output-frame');
+      const labOutput = document.querySelector('#lab-output');
+      const reset = document.querySelector('#reset-lab');
+      let activeSeed = 'a';
+
+      const descriptions = {
+        a: 'vẫn gợi cảnh núi, mặt trời và con đường nhưng chi tiết không trùng ảnh tham chiếu',
+        b: 'đổi vị trí mặt trời, hướng đường và đường núi nhưng vẫn giữ các đặc trưng chính',
+        c: 'tạo thêm một bố cục núi và đường khác từ cùng embedding'
+      };
+
+      const renderLab = () => {
+        const amount = Number(guidance.value);
+        guidanceValue.value = `${amount}%`;
+        guidanceValue.textContent = `${amount}%`;
+        frame.className = `image-frame output-frame seed-${activeSeed}`;
+        const opacity = .25 + amount / 100 * .75;
+        frame.querySelector('.scene-ridge').style.opacity = String(opacity);
+        frame.querySelector('.scene-sun').style.opacity = String(opacity);
+        const message = amount === 0
+          ? 'Embedding gần như không ảnh hưởng; output tự do theo seed và các điều kiện khác.'
+          : amount <= 50
+            ? 'Đặc trưng ảnh chỉ là gợi ý nhẹ; seed có nhiều không gian để diễn giải.'
+            : 'Chủ đề, palette và bố cục được ưu tiên; hình học cụ thể vẫn do quá trình sinh quyết định.';
+        labOutput.innerHTML = `<strong>Mô phỏng · Seed ${activeSeed.toUpperCase()} · bám tương đối ${amount}%:</strong> ${message}`;
+        frame.setAttribute('aria-label', `Output Seed ${activeSeed.toUpperCase()}: ${descriptions[activeSeed]}. Mức bám ${amount} phần trăm.`);
+      };
+
+      seedButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+          activeSeed = button.dataset.seed;
+          seedButtons.forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
+          renderLab();
+        });
+      });
+      guidance.addEventListener('input', renderLab);
+      reset.addEventListener('click', () => {
+        activeSeed = 'a';
+        guidance.value = '75';
+        seedButtons.forEach((item) => item.setAttribute('aria-pressed', String(item.dataset.seed === 'a')));
+        renderLab();
+        seedButtons[0].focus();
+      });
+
+      const feedback = document.querySelector('#checkpoint-feedback');
+      document.querySelectorAll('.choice').forEach((choice) => {
+        choice.addEventListener('click', () => {
+          document.querySelectorAll('.choice').forEach((item) => item.removeAttribute('data-state'));
+          const correct = choice.dataset.correct === 'true';
+          choice.dataset.state = correct ? 'correct' : 'wrong';
+          feedback.textContent = correct
+            ? 'Đúng. Embedding giữ hướng ngữ nghĩa; seed vẫn mở ra nhiều cách sắp xếp pixel.'
+            : 'Chưa đúng. CLIP Vision đọc nội dung ảnh và tạo embedding, còn seed làm thay đổi quá trình sinh từ noise.';
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

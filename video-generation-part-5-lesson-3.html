@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Phân biệt chuyển động mạnh với chuyển động nhất quán và chẩn đoán flicker, drift, jitter trong video sinh bởi AI.">
+  <title>Chất lượng chuyển động — Video Generation Study</title>
+  <link rel="icon" href="video-generation-favicon.svg" type="image/svg+xml">
+  <script src="video-generation-theme.js"></script>
+  <link rel="stylesheet" href="video-generation-design-system.css">
+  <style>
+    .topbar { position: sticky; }
+    .topbar-inner { position: relative; }
+    .lesson-main { overflow: clip; }
+    .hero { padding: clamp(72px, 10vw, 132px) 0 76px; }
+    .eyebrow,
+    .section-kicker,
+    .metric-label,
+    .frame-number,
+    .signal-label {
+      font-family: var(--font-mono);
+      font-size: .74rem;
+      font-weight: 800;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+    .eyebrow { color: var(--acid); }
+    .hero h1 {
+      max-width: 880px;
+      margin: 18px 0 24px;
+      font-size: clamp(3rem, 8vw, 6.9rem);
+      line-height: .9;
+      letter-spacing: -.065em;
+    }
+    .hero-lead {
+      max-width: 730px;
+      margin: 0;
+      color: var(--muted);
+      font-size: clamp(1.08rem, 2vw, 1.34rem);
+      line-height: 1.6;
+    }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; }
+    .hero-note {
+      max-width: 850px;
+      margin-top: 50px;
+      border-left: 4px solid var(--acid);
+      padding: 20px 24px;
+      background: var(--panel);
+      color: var(--muted);
+    }
+    .hero-note strong { color: var(--ink); }
+    .lesson-section { padding: 84px 0; border-top: 1px solid var(--line); }
+    .section-kicker { color: var(--cyan); }
+    .section-heading { max-width: 780px; margin: 12px 0 16px; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; letter-spacing: -.045em; }
+    .section-intro { max-width: 740px; margin: 0 0 38px; color: var(--muted); font-size: 1.08rem; }
+    .comparison {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: stretch;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--panel);
+    }
+    .compare-side { padding: clamp(24px, 4vw, 42px); }
+    .compare-side h3 { margin: 8px 0 12px; font-size: 1.65rem; line-height: 1.1; }
+    .compare-side p { margin: 0; color: var(--muted); }
+    .compare-side ul { margin: 22px 0 0; padding-left: 20px; }
+    .compare-side li + li { margin-top: 8px; }
+    .compare-divider { width: 1px; background: var(--line); }
+    .compare-tag { color: var(--acid); }
+    .compare-tag.consistency { color: var(--cyan); }
+    .equation {
+      margin-top: 28px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 18px 20px;
+      background: var(--panel-2);
+      font-family: var(--font-mono);
+      color: var(--muted);
+    }
+    .equation strong { color: var(--ink); }
+    .lab {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: 0 28px 80px rgba(0,0,0,.18);
+      overflow: hidden;
+    }
+    .lab-header { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 18px 22px; border-bottom: 1px solid var(--line); }
+    .lab-header p { margin: 0; color: var(--muted); }
+    .lab-body { display: grid; grid-template-columns: minmax(240px, .72fr) minmax(0, 1.7fr); }
+    .controls { padding: 24px; border-right: 1px solid var(--line); }
+    .control { display: block; padding: 14px 0 20px; }
+    .control + .control { border-top: 1px solid var(--line); }
+    .control-row { display: flex; justify-content: space-between; gap: 16px; align-items: baseline; }
+    .control output { font-family: var(--font-mono); font-weight: 800; color: var(--acid); }
+    .control small { display: block; margin: 5px 0 10px; color: var(--muted); }
+    input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--acid-fill); }
+    .reset-button { width: 100%; margin-top: 8px; }
+    .stage-wrap { min-width: 0; padding: clamp(22px, 4vw, 38px); }
+    .frame-strip { display: grid; grid-template-columns: repeat(6, minmax(74px, 1fr)); gap: 8px; }
+    .frame {
+      position: relative;
+      min-height: 108px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+      background-color: var(--panel-2);
+      background-image:
+        linear-gradient(90deg, transparent 48%, color-mix(in srgb, var(--cyan) 22%, transparent) 49%, transparent 51%),
+        linear-gradient(color-mix(in srgb, var(--line) 50%, transparent) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 18px;
+    }
+    .frame::after {
+      content: "";
+      position: absolute;
+      left: var(--drift-x, 0px);
+      bottom: 25px;
+      width: 100%;
+      height: 1px;
+      background: var(--dim);
+    }
+    .frame-number { position: absolute; top: 6px; left: 8px; z-index: 2; color: var(--muted); font-size: .6rem; }
+    .subject {
+      position: absolute;
+      z-index: 1;
+      width: 22px;
+      height: 34px;
+      left: calc(var(--x, 20) * 1%);
+      top: calc(51% + var(--jitter-y, 0px));
+      translate: -50% -50%;
+      border: 2px solid var(--acid-fill);
+      border-radius: 10px 10px 5px 5px;
+      background: color-mix(in srgb, var(--acid-fill) 28%, var(--panel));
+      opacity: var(--frame-opacity, 1);
+    }
+    .subject::before { content: ""; position: absolute; width: 11px; height: 11px; border: 2px solid var(--acid-fill); border-radius: 50%; left: 3px; top: -13px; background: var(--panel); }
+    .metric-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 22px; }
+    .metric { border: 1px solid var(--line); border-radius: 12px; padding: 16px; background: var(--panel-2); }
+    .metric strong { display: block; margin-top: 6px; font-family: var(--font-mono); font-size: 1.5rem; line-height: 1.15; }
+    .metric p { margin: 8px 0 0; color: var(--muted); font-size: .88rem; }
+    .diagnosis { margin-top: 12px; padding: 17px; border-left: 4px solid var(--orange); background: var(--panel-2); }
+    .diagnosis strong { display: block; margin-bottom: 4px; }
+    .diagnosis p { margin: 0; color: var(--muted); }
+    .signal-list { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+    .signal { padding: 28px; background: var(--panel); }
+    .signal + .signal { border-left: 1px solid var(--line); }
+    .signal-label { color: var(--orange); }
+    .signal h3 { margin: 9px 0; font-size: 1.35rem; }
+    .signal p { margin: 0; color: var(--muted); }
+    .signal dl { margin: 20px 0 0; }
+    .signal dt { font-weight: 800; }
+    .signal dd { margin: 4px 0 14px; color: var(--muted); }
+    .order { margin-top: 26px; padding: 24px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel-2); }
+    .order ol { margin: 12px 0 0; padding-left: 22px; }
+    .order li + li { margin-top: 8px; }
+    .checkpoint { max-width: 850px; }
+    .question { border: 1px solid var(--line); border-radius: var(--radius); padding: clamp(24px, 4vw, 38px); background: var(--panel); }
+    .question legend { max-width: 700px; padding: 0; font-size: 1.3rem; font-weight: 800; line-height: 1.4; }
+    .scenario { margin: 18px 0 22px; padding: 16px 18px; border-left: 4px solid var(--cyan); background: var(--panel-2); color: var(--muted); }
+    .option { display: flex; align-items: flex-start; gap: 12px; min-height: 48px; padding: 11px 0; cursor: pointer; }
+    .option input { width: 20px; height: 20px; flex: 0 0 auto; margin-top: 3px; accent-color: var(--acid-fill); }
+    .check-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
+    .feedback { min-height: 50px; margin-top: 18px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 12px; color: var(--muted); }
+    .feedback[data-state="correct"] { border-color: var(--acid); color: var(--ink); }
+    .feedback[data-state="incorrect"] { border-color: var(--orange); color: var(--ink); }
+    .takeaway { display: grid; grid-template-columns: .7fr 1.3fr; gap: 36px; align-items: start; }
+    .takeaway blockquote { margin: 0; font-size: clamp(1.6rem, 4vw, 3.2rem); line-height: 1.12; letter-spacing: -.035em; }
+    .takeaway-copy { color: var(--muted); }
+    .production-brief,
+    .related-grid,
+    .lesson-nav { display: grid; gap: 14px; }
+    .production-brief { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .brief-card,
+    .related-card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 20px;
+      background: var(--panel);
+    }
+    .brief-card h3,
+    .related-card h3 { margin: 7px 0; font-size: 1.12rem; }
+    .brief-card p,
+    .related-card p { margin: 0; color: var(--muted); }
+    .brief-card strong { color: var(--acid); font-family: var(--font-mono); font-size: .76rem; letter-spacing: .08em; text-transform: uppercase; }
+    .source-note { max-width: 820px; padding: 18px 20px; border-left: 4px solid var(--cyan); background: var(--panel-2); color: var(--muted); }
+    .source-note p { margin: 0; }
+    .source-note p + p { margin-top: 10px; }
+    .related-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .related-card { min-height: 150px; text-decoration: none; transition: transform .2s ease, border-color .2s ease, background .2s ease; }
+    .related-card:hover { transform: translateY(-3px); border-color: var(--cyan); background: var(--panel-2); }
+    .related-card span { color: var(--cyan); font: 800 .72rem var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
+    .lesson-nav { grid-template-columns: 1fr 1fr; margin-top: 28px; }
+    .lesson-nav .button:last-child { justify-self: end; }
+    .footer { border-top: 1px solid var(--line); padding: 30px 0 44px; color: var(--muted); font-size: .9rem; }
+    .footer-inner { display: flex; justify-content: space-between; gap: 18px; }
+    @media (max-width: 900px) {
+      .topnav { display: none; }
+      .lab-body { grid-template-columns: 1fr; }
+      .controls { border-right: 0; border-bottom: 1px solid var(--line); }
+      .frame-strip { grid-template-columns: repeat(4, minmax(72px, 1fr)); }
+      .signal-list { grid-template-columns: 1fr; }
+      .signal + .signal { border-left: 0; border-top: 1px solid var(--line); }
+      .related-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .hero { padding: 58px 0 58px; }
+      .lesson-section { padding: 62px 0; }
+      .hero-actions .button { width: 100%; }
+      .comparison { grid-template-columns: 1fr; }
+      .compare-divider { width: auto; height: 1px; }
+      .lab-header { align-items: flex-start; flex-direction: column; }
+      .frame-strip { grid-template-columns: repeat(3, minmax(64px, 1fr)); }
+      .frame { min-height: 96px; }
+      .metric-row { grid-template-columns: 1fr; }
+      .takeaway { grid-template-columns: 1fr; }
+      .production-brief, .lesson-nav { grid-template-columns: 1fr; }
+      .lesson-nav .button:last-child { justify-self: stretch; }
+      .related-card:hover { transform: none; }
+      .check-actions .button { width: 100%; }
+      .footer-inner { flex-direction: column; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .related-card { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#noi-dung">Bỏ qua điều hướng</a>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="index.html" aria-label="Video Generation Study — về trang chủ">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span>Video Generation Study</span>
+      </a>
+      <nav class="topnav" aria-label="Trong bài học">
+        <a href="#hai-truc">Hai trục</a>
+        <a href="#phong-thi-nghiem">Phòng thí nghiệm</a>
+        <a href="#chan-doan">Chẩn đoán</a>
+        <a href="#checkpoint">Checkpoint</a>
+      </nav>
+      <div class="progress-track" aria-hidden="true"><div class="progress-fill"></div></div>
+    </div>
+  </header>
+
+  <main id="noi-dung" class="lesson-main">
+    <section class="hero shell" aria-labelledby="page-title">
+      <div class="eyebrow">Part 5 · Bài 03 · Video Output</div>
+      <h1 id="page-title">Chất lượng<br>chuyển động</h1>
+      <p class="hero-lead">Một video có thể chuyển động rất nhiều nhưng vẫn rung, nhấp nháy hoặc trôi hình. Học cách đọc <strong>tính nhất quán theo thời gian</strong> cùng một chỉ báo chuyển động <strong>được định nghĩa cho chính workflow</strong> để tìm đúng lỗi — không tối ưu một con số mù quáng.</p>
+      <div class="hero-actions">
+        <a class="button primary" href="#phong-thi-nghiem">Thử mô phỏng 12 frame</a>
+        <a class="button" href="#checkpoint">Làm checkpoint</a>
+      </div>
+      <div class="hero-note">
+        <strong>Đích đến:</strong> phân biệt “có nhiều chuyển động” với “chuyển động nhất quán”, rồi nhận diện ba dấu vết thường gặp: flicker, drift và jitter.
+      </div>
+    </section>
+
+    <section id="hai-truc" class="lesson-section">
+      <div class="shell">
+        <div class="section-kicker">01 · Đổi câu hỏi</div>
+        <h2 class="section-heading">Nhiều chuyển động không đồng nghĩa chuyển động tốt</h2>
+        <p class="section-intro">Hãy xem hai trục đo như hai câu hỏi độc lập. Một trục hỏi “bao nhiêu thay đổi?”, trục kia hỏi “thay đổi có hợp lý theo thời gian không?”.</p>
+        <div class="comparison">
+          <article class="compare-side">
+            <div class="eyebrow compare-tag">Chỉ báo chuyển động</div>
+            <h3>Cường độ thay đổi</h3>
+            <p>Một workflow có thể tự định nghĩa chỉ báo mức thay đổi giữa các frame. Giá trị cao có thể đến từ hành động rõ ràng, nhưng cũng có thể tăng vì camera rung hoặc vật thể nhảy vị trí.</p>
+            <ul>
+              <li>Hữu ích để phát hiện video quá tĩnh.</li>
+              <li>Không tự nói thay đổi đó đẹp hay đúng.</li>
+            </ul>
+          </article>
+          <div class="compare-divider" aria-hidden="true"></div>
+          <article class="compare-side">
+            <div class="eyebrow compare-tag consistency">Nhất quán thời gian</div>
+            <h3>Tính liền mạch theo thời gian</h3>
+            <p>Là tiêu chí kiểm tra hình dạng, nhận dạng, ánh sáng và quỹ đạo có nối tiếp hợp lý giữa các frame hay không; không có một scalar chuẩn duy nhất cho mọi model.</p>
+            <ul>
+              <li>Cao khi chuyển động nhanh nhưng quỹ đạo vẫn mượt.</li>
+              <li>Thấp khi chi tiết nhấp nháy, trôi dần hoặc giật cục.</li>
+            </ul>
+          </article>
+        </div>
+        <p class="equation"><strong>Mục tiêu thực tế:</strong> đủ chuyển động cho ý đồ cảnh quay <span aria-hidden="true">+</span> nhất quán đủ để người xem tin vào chuyển động đó. Giữ cố định model, version, seed, prompt, độ dài, FPS và cách encode khi A/B test một biến.</p>
+      </div>
+    </section>
+
+    <section id="phong-thi-nghiem" class="lesson-section">
+      <div class="shell">
+        <div class="section-kicker">02 · Mô phỏng định tính</div>
+        <h2 class="section-heading">Tách tín hiệu khỏi lỗi</h2>
+        <p class="section-intro">Điều chỉnh từng biến và quan sát chuỗi 12 frame. Các điểm bên dưới là mô hình dạy học theo đơn vị tương đối 0–100, không phải metric chuẩn của benchmark hay kết quả đo một model thật.</p>
+        <div class="lab">
+          <div class="lab-header">
+            <p><strong>Temporal strip</strong> · đọc từ trái sang phải</p>
+            <span class="signal-label">Mô phỏng · đơn vị tương đối</span>
+          </div>
+          <div class="lab-body">
+            <form class="controls" id="motion-controls">
+              <label class="control" for="motion">
+                <span class="control-row"><strong>Chuyển động chủ đích</strong><output id="motion-value" for="motion">55</output></span>
+                <small>Quãng đường chủ thể đi qua khung hình</small>
+                <input id="motion" name="motion" type="range" min="0" max="100" value="55">
+              </label>
+              <label class="control" for="flicker">
+                <span class="control-row"><strong>Flicker</strong><output id="flicker-value" for="flicker">0</output></span>
+                <small>Độ sáng/chi tiết đổi luân phiên từng frame</small>
+                <input id="flicker" name="flicker" type="range" min="0" max="100" value="0">
+              </label>
+              <label class="control" for="drift">
+                <span class="control-row"><strong>Drift</strong><output id="drift-value" for="drift">0</output></span>
+                <small>Bối cảnh hoặc nhận dạng trôi dần khỏi mốc</small>
+                <input id="drift" name="drift" type="range" min="0" max="100" value="0">
+              </label>
+              <label class="control" for="jitter">
+                <span class="control-row"><strong>Jitter</strong><output id="jitter-value" for="jitter">0</output></span>
+                <small>Vị trí nhảy thất thường quanh quỹ đạo</small>
+                <input id="jitter" name="jitter" type="range" min="0" max="100" value="0">
+              </label>
+              <button class="button reset-button" type="reset">Đặt lại cảnh sạch</button>
+            </form>
+            <div class="stage-wrap">
+              <div class="frame-strip" id="frame-strip" role="group" aria-label="Mười hai frame mô phỏng chuyển động của một chủ thể từ trái sang phải"></div>
+              <div class="metric-row" aria-live="polite">
+                <div class="metric">
+                  <span class="metric-label">Chỉ báo thay đổi · mô phỏng</span>
+                  <strong id="motion-score">55 / 100</strong>
+                  <p>Thay đổi nhiều hay ít — chưa kết luận tốt/xấu.</p>
+                </div>
+                <div class="metric">
+                  <span class="metric-label">Nhất quán thời gian · mô phỏng</span>
+                  <strong id="consistency-score">100 / 100</strong>
+                  <p>Mức liền mạch tương đối của chuỗi frame.</p>
+                </div>
+              </div>
+              <div class="diagnosis" aria-live="polite">
+                <strong id="diagnosis-title">Chuyển động rõ, chuỗi frame ổn định</strong>
+                <p id="diagnosis-copy">Motion Score đủ cao vì chủ thể đi theo quỹ đạo; không có artifact thời gian đáng kể.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="chan-doan" class="lesson-section">
+      <div class="shell">
+        <div class="section-kicker">03 · Đọc dấu vết</div>
+        <h2 class="section-heading">Ba lỗi, ba kiểu biến thiên</h2>
+        <p class="section-intro">Đừng bắt đầu bằng việc đổi mọi tham số. Trước hết xác định lỗi lặp theo frame, tích lũy theo thời gian hay dao động quanh một quỹ đạo.</p>
+        <div class="signal-list">
+          <article class="signal">
+            <div class="signal-label">Frame ↔ frame</div>
+            <h3>Flicker · nhấp nháy</h3>
+            <p>Ánh sáng, texture hoặc chi tiết bật/tắt nhanh dù cảnh không đòi hỏi thay đổi đó.</p>
+            <dl><dt>Dấu vết</dt><dd>Thường luân phiên, dễ thấy khi bước từng frame.</dd><dt>Kiểm tra</dt><dd>Giữ nguyên bố cục và so cùng một vùng qua các frame kề nhau.</dd></dl>
+          </article>
+          <article class="signal">
+            <div class="signal-label">Tích lũy</div>
+            <h3>Drift · trôi dần</h3>
+            <p>Khuôn mặt, hình dạng, màu sắc hoặc nền lệch khỏi trạng thái ban đầu theo thời gian.</p>
+            <dl><dt>Dấu vết</dt><dd>Frame kề nhau có vẻ ổn, nhưng frame đầu và cuối khác rõ.</dd><dt>Kiểm tra</dt><dd>Đặt frame đầu, giữa và cuối cạnh nhau để thấy độ lệch tích lũy.</dd></dl>
+          </article>
+          <article class="signal">
+            <div class="signal-label">Quanh quỹ đạo</div>
+            <h3>Jitter · rung giật</h3>
+            <p>Vị trí hoặc biên vật thể nhảy thất thường thay vì đi theo quỹ đạo mượt.</p>
+            <dl><dt>Dấu vết</dt><dd>Hướng thay đổi đảo nhanh, tạo cảm giác camera/vật thể run.</dd><dt>Kiểm tra</dt><dd>Theo một landmark cố định và quan sát độ lệch khỏi đường đi dự kiến.</dd></dl>
+          </article>
+        </div>
+        <div class="order">
+          <strong>Thứ tự chẩn đoán gợi ý</strong>
+          <ol>
+            <li>Xác nhận chuyển động nào là chủ đích của prompt/cảnh quay.</li>
+            <li>Đánh dấu vùng hoặc landmark cần giữ ổn định.</li>
+            <li>Bước từng frame để tìm flicker và jitter; so frame xa nhau để tìm drift.</li>
+            <li>Sau cùng mới dùng Motion Score và Temporal Consistency để hỗ trợ giả thuyết.</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <section id="production-brief" class="lesson-section" aria-labelledby="brief-title">
+      <div class="shell">
+        <div class="section-kicker">04 · Production brief</div>
+        <h2 id="brief-title" class="section-heading">A/B test một shot product thay vì “tune” theo cảm giác</h2>
+        <p class="section-intro">Tình huống giả định: social ad 6 giây cho chai serum trên bàn xoay. Đây là kế hoạch chẩn đoán, không phải preset hoặc benchmark của một model.</p>
+        <div class="production-brief">
+          <article class="brief-card"><strong>Đầu ra &amp; bối cảnh</strong><h3>Shot hero cho quảng cáo dọc</h3><p>Chai xoay 30° trên mặt kính; dùng làm opening shot 9:16, cần giữ logo và phản xạ đọc được sau khi nén đăng mạng xã hội.</p></article>
+          <article class="brief-card"><strong>Input &amp; workflow</strong><h3>Image-to-video có ảnh keyframe</h3><p>Ảnh packshot đã duyệt, prompt ngắn mô tả xoay chậm, một model/version cụ thể và cùng pipeline decode/encode cho mọi lượt.</p></article>
+          <article class="brief-card"><strong>Giữ cố định</strong><h3>Để kết quả so sánh được</h3><p>Seed, keyframe, prompt, số frame, FPS, resolution, sampler/schedule nếu workflow dùng chúng, codec xuất và GPU/runtime log.</p></article>
+          <article class="brief-card"><strong>Biến thử nghiệm</strong><h3>Một biến mỗi batch</h3><p>Lượt A/B đầu chỉ đổi mức motion conditioning hoặc tham số camera-motion của workflow. Không đồng thời đổi prompt, seed và denoise.</p></article>
+          <article class="brief-card"><strong>Giới hạn</strong><h3>Ngân sách render</h3><p>Giới hạn giả định: tối đa 12 lượt trong 45 phút trên GPU đang có. Nếu một cấu hình OOM hoặc vượt ngân sách, ghi đó là failure của cấu hình trong môi trường này.</p></article>
+          <article class="brief-card"><strong>Đánh giá &amp; bước kế</strong><h3>Chọn shot, rồi khoanh lỗi</h3><p>Pass khi logo, silhouette và phản xạ ổn ở frame 1/giữa/cuối; fail khi logo flicker, chai drift hoặc cạnh rung. Failure nào lặp lại thì cô lập biến gây ra, render lại batch nhỏ, sau đó mới thử workflow/model khác.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="checkpoint" class="lesson-section">
+      <div class="shell checkpoint">
+        <div class="section-kicker">05 · Checkpoint</div>
+        <h2 class="section-heading">Bạn sẽ ưu tiên chẩn đoán gì?</h2>
+        <p class="section-intro">Chọn nguyên nhân khớp nhất với dấu vết, không chọn theo chỉ số cao nhất.</p>
+        <form id="checkpoint-form">
+          <fieldset class="question">
+            <legend>Một clip có chỉ báo thay đổi nội bộ 82/100. Nhân vật chạy nhanh đúng ý đồ, nhưng họa tiết áo đổi sáng–tối ở từng frame; quỹ đạo cơ thể vẫn mượt.</legend>
+            <p class="scenario">Quan sát: chuyển động lớn là có chủ đích · thay đổi họa tiết luân phiên · không thấy trôi tích lũy.</p>
+            <label class="option"><input type="radio" name="answer" value="motion"> <span>Giảm mọi chuyển động vì chỉ báo thay đổi đang cao</span></label>
+            <label class="option"><input type="radio" name="answer" value="flicker"> <span>Khoanh vùng flicker ở texture áo và kiểm tra frame kề nhau</span></label>
+            <label class="option"><input type="radio" name="answer" value="drift"> <span>Kết luận drift vì frame cuối chắc chắn khác frame đầu</span></label>
+            <div class="check-actions">
+              <button class="button primary" type="submit">Kiểm tra lựa chọn</button>
+              <button class="button" type="reset">Làm lại</button>
+            </div>
+            <div id="checkpoint-feedback" class="feedback" aria-live="polite">Chọn một phương án rồi kiểm tra.</div>
+          </fieldset>
+        </form>
+      </div>
+    </section>
+
+    <section class="lesson-section">
+      <div class="shell takeaway">
+        <div class="section-kicker">Kết luận</div>
+        <div>
+          <blockquote>Metric là tín hiệu. Chuỗi frame mới là bằng chứng.</blockquote>
+          <p class="takeaway-copy">Một chỉ báo chuyển động được định nghĩa rõ giúp hỏi “có đủ chuyển động không?”. Review temporal giúp hỏi “chuyển động có giữ được logic qua thời gian không?”. Khi kết quả xấu, gọi đúng tên flicker, drift hoặc jitter trước khi chạm vào tham số.</p>
+          <a class="button" href="#page-title">Về đầu bài học</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="lesson-section" aria-labelledby="scope-title">
+      <div class="shell">
+        <div class="section-kicker">Phạm vi kỹ thuật</div>
+        <h2 id="scope-title" class="section-heading">Đừng trộn metric nghiên cứu, hành vi model và preset workflow</h2>
+        <div class="source-note">
+          <p><strong>Paper:</strong> FVD là đánh giá ở mức phân phối video, không phải thước đo duy nhất để kết luận một clip đơn lẻ “ổn định”. Các phương pháp video diffusion mô hình hóa thời gian theo thiết kế/model; chúng không biến một slider workflow thành quy luật phổ quát.</p>
+          <p><strong>Thực hành:</strong> tên node, tham số motion và cách trainer áp dụng chúng phụ thuộc model, version và extension. Hãy lưu workflow + môi trường chạy, rồi review frame theo brief trước khi gán nguyên nhân. Xem <a href="https://arxiv.org/abs/1812.01717">FVD</a> và <a href="https://arxiv.org/abs/2204.03458">Video Diffusion Models</a> để tách rõ thước đo nghiên cứu khỏi cấu hình triển khai.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="lesson-section" aria-labelledby="related-title">
+      <div class="shell">
+        <div class="section-kicker">Điều hướng theo kiến thức</div>
+        <h2 id="related-title" class="section-heading">Bài liên quan</h2>
+        <div class="related-grid">
+          <a class="related-card" href="video-generation-part-5-lesson-1.html"><span>Kiến thức nền</span><h3>FPS, Frames &amp; Resolution</h3><p>Đọc thời lượng, nhịp frame và resolution trước khi kết luận một chuyển động thiếu mượt hay chỉ thiếu sample theo thời gian.</p></a>
+          <a class="related-card" href="video-generation-part-5-lesson-2.html"><span>Workflow đầu ra</span><h3>Ghép frame &amp; Codec</h3><p>Tách artifact sinh ở frame khỏi lỗi xuất hiện sau khi ghép chuỗi hoặc nén codec.</p></a>
+          <a class="related-card" href="video-generation-part-2-lesson-5.html"><span>Cơ chế liên quan</span><h3>Context Window · Attention theo thời gian</h3><p>Nối quan sát drift với giới hạn ngữ cảnh và quan hệ attention xuyên các frame.</p></a>
+          <a class="related-card" href="video-generation-part-6-lesson-1.html"><span>Ứng dụng tiếp theo</span><h3>Node &amp; Workflow JSON</h3><p>Ghi version, input cố định và một biến thử nghiệm vào workflow để A/B test có thể lặp lại.</p></a>
+        </div>
+        <nav class="lesson-nav" aria-label="Điều hướng tuần tự Part 5">
+          <a class="button" href="video-generation-part-5-lesson-2.html">← Bài 5.2 · Ghép frame &amp; Codec</a>
+          <a class="button primary" href="video-generation-part-6-lesson-1.html">Part 6 · Bài 1 · Node &amp; Workflow JSON →</a>
+        </nav>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="shell footer-inner"><span>Video Generation Study · Part 5, Bài 03</span><a href="index.html">Danh sách bài học</a></div>
+  </footer>
+
+  <script>
+    (() => {
+      const frameStrip = document.querySelector('#frame-strip');
+      const controls = document.querySelector('#motion-controls');
+      const ids = ['motion', 'flicker', 'drift', 'jitter'];
+      const outputs = Object.fromEntries(ids.map((id) => [id, document.querySelector(`#${id}-value`)]));
+      const motionScore = document.querySelector('#motion-score');
+      const consistencyScore = document.querySelector('#consistency-score');
+      const diagnosisTitle = document.querySelector('#diagnosis-title');
+      const diagnosisCopy = document.querySelector('#diagnosis-copy');
+      const jitterPattern = [0, -1, 1, -0.6, 0.8, -0.9, 0.5, -0.4, 1, -0.7, 0.4, 0];
+
+      const frames = Array.from({length: 12}, (_, index) => {
+        const frame = document.createElement('div');
+        frame.className = 'frame';
+        frame.innerHTML = `<span class="frame-number">F${String(index + 1).padStart(2, '0')}</span><span class="subject" aria-hidden="true"></span>`;
+        frameStrip.append(frame);
+        return frame;
+      });
+
+      const update = () => {
+        const values = Object.fromEntries(ids.map((id) => [id, Number(controls.elements[id].value)]));
+        ids.forEach((id) => { outputs[id].value = values[id]; });
+
+        frames.forEach((frame, index) => {
+          const progress = index / (frames.length - 1);
+          const plannedX = 18 + progress * values.motion * .64;
+          const jitterX = jitterPattern[index] * values.jitter * .13;
+          const flickerOpacity = 1 - ((index % 2 === 0 ? 1 : .35) * values.flicker / 145);
+          frame.style.setProperty('--x', Math.max(8, Math.min(91, plannedX + jitterX)).toFixed(2));
+          frame.style.setProperty('--jitter-y', `${jitterPattern[(index + 3) % 12] * values.jitter * .12}px`);
+          frame.style.setProperty('--frame-opacity', Math.max(.28, flickerOpacity).toFixed(2));
+          frame.style.setProperty('--drift-x', `${progress * values.drift * .28}px`);
+        });
+
+        const misleadingChange = Math.round(values.motion * .72 + values.jitter * .17 + values.flicker * .08 + values.drift * .03);
+        const consistency = Math.max(0, Math.round(100 - values.flicker * .38 - values.drift * .31 - values.jitter * .42));
+        motionScore.textContent = `${Math.min(100, misleadingChange)} / 100`;
+        consistencyScore.textContent = `${consistency} / 100`;
+
+        const artifacts = [
+          {name: 'jitter', value: values.jitter, copy: 'Vị trí dao động quanh quỹ đạo; Motion Score có thể tăng dù chuyển động trông kém mượt.'},
+          {name: 'flicker', value: values.flicker, copy: 'Độ sáng/chi tiết đổi luân phiên giữa các frame kề nhau.'},
+          {name: 'drift', value: values.drift, copy: 'Mốc nền lệch dần; khác biệt tích lũy rõ hơn khi so frame đầu và cuối.'}
+        ].sort((a, b) => b.value - a.value);
+
+        if (artifacts[0].value >= 18) {
+          diagnosisTitle.textContent = `Ưu tiên kiểm tra ${artifacts[0].name}`;
+          diagnosisCopy.textContent = artifacts[0].copy;
+        } else if (values.motion < 18) {
+          diagnosisTitle.textContent = 'Chuỗi ổn định nhưng gần như tĩnh';
+          diagnosisCopy.textContent = 'Temporal Consistency cao không bù được việc cảnh thiếu chuyển động so với ý đồ.';
+        } else {
+          diagnosisTitle.textContent = 'Chuyển động rõ, chuỗi frame ổn định';
+          diagnosisCopy.textContent = 'Motion Score đến chủ yếu từ quỹ đạo có chủ đích; không có artifact thời gian đáng kể.';
+        }
+      };
+
+      controls.addEventListener('input', update);
+      controls.addEventListener('reset', () => window.requestAnimationFrame(update));
+      update();
+
+      const checkpointForm = document.querySelector('#checkpoint-form');
+      const feedback = document.querySelector('#checkpoint-feedback');
+      checkpointForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const selected = new FormData(checkpointForm).get('answer');
+        if (!selected) {
+          feedback.dataset.state = 'incorrect';
+          feedback.textContent = 'Hãy chọn một phương án trước khi kiểm tra.';
+        } else if (selected === 'flicker') {
+          feedback.dataset.state = 'correct';
+          feedback.textContent = 'Đúng. Chuyển động lớn phù hợp ý đồ; dấu vết luân phiên ở texture là flicker. Chỉ báo thay đổi cao không phải lý do để giảm chuyển động.';
+        } else {
+          feedback.dataset.state = 'incorrect';
+          feedback.textContent = 'Chưa đúng. Dấu vết quan trọng là thay đổi sáng–tối luân phiên giữa các frame kề nhau: đó là flicker, không phải drift hay chuyển động chủ đích.';
+        }
+      });
+      checkpointForm.addEventListener('reset', () => {
+        window.requestAnimationFrame(() => {
+          delete feedback.dataset.state;
+          feedback.textContent = 'Chọn một phương án rồi kiểm tra.';
+        });
+      });
+
+      const progress = document.querySelector('.progress-fill');
+      const updateProgress = () => {
+        const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+        progress.style.width = `${maxScroll > 0 ? Math.min(100, window.scrollY / maxScroll * 100) : 0}%`;
+      };
+      document.addEventListener('scroll', updateProgress, {passive: true});
+      window.addEventListener('resize', updateProgress);
+      updateProgress();
+    })();
+  </script>
+</body>
+</html>
