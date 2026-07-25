@@ -1,548 +1,1778 @@
-<!doctype html>
-<html lang="vi">
+<!DOCTYPE html>
+<html lang="vi" data-theme="dark" data-curriculum-id="workflow-json">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Phân biệt T2V, I2V và FLF2V, rồi chọn đúng chế độ sinh video theo đầu vào và khung kết thúc mong muốn.">
-  <title>I2V, T2V, FLF2V — Các chế độ sinh video</title>
-  <link rel="icon" href="video-generation-favicon.svg" type="image/svg+xml">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Generation Setup · Bài 4.1 — Node & Workflow JSON</title>
+  <meta name="description" content="Hiểu ComfyUI hoạt động theo mô hình node-graph, biết Workflow JSON là gì và cách dùng API Format để chạy inference tự động." />
+
   <script src="video-generation-theme.js"></script>
-  <link rel="stylesheet" href="video-generation-design-system.css">
+  <link rel="icon" href="video-generation-favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="video-generation-design-system.css" />
+  <script src="video-generation-curriculum.js"></script>
+  <script src="video-generation-navigation.js"></script>
+
   <style>
-    .lesson-hero { padding: clamp(72px, 11vw, 138px) 0 76px; }
-    .eyebrow,
-    .section-kicker,
-    .mode-code,
-    .decision-label {
-      margin: 0;
-      color: var(--cyan);
-      font-family: var(--font-mono);
-      font-size: .76rem;
-      font-weight: 800;
-      letter-spacing: .12em;
-      text-transform: uppercase;
+    /* ── Hero ── */
+    .hero {
+      padding: clamp(64px, 10vw, 120px) 0 clamp(48px, 8vw, 96px);
     }
     .hero-grid {
       display: grid;
-      grid-template-columns: minmax(0, 1.25fr) minmax(320px, .75fr);
-      gap: clamp(44px, 7vw, 88px);
-      align-items: end;
+      grid-template-columns: 1fr 1fr;
+      gap: 48px;
+      align-items: center;
     }
-    h1 {
-      max-width: 850px;
-      margin: 16px 0 22px;
-      font-size: clamp(3rem, 8vw, 6.7rem);
-      line-height: .9;
-      letter-spacing: -.065em;
+    .hero-eyebrow {
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--cyan);
+      margin: 0 0 20px;
+    }
+    .hero-h1 {
+      font-size: clamp(2.8rem, 6.5vw, 5.6rem);
+      font-weight: 900;
+      letter-spacing: -.07em;
+      line-height: 1;
+      margin: 0 0 24px;
+      color: var(--ink);
     }
     .hero-lead {
-      max-width: 690px;
-      margin: 0;
+      font-size: clamp(1rem, 1.8vw, 1.15rem);
       color: var(--muted);
-      font-size: clamp(1.05rem, 2vw, 1.3rem);
+      max-width: 480px;
+      margin: 0 0 36px;
+      line-height: 1.7;
     }
-    .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
-    .hero-map {
-      position: relative;
-      overflow: hidden;
+    .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+
+    /* Hero visual panel */
+    .hero-panel {
+      background: var(--panel);
       border: 1px solid var(--line);
       border-radius: var(--radius);
-      background: var(--panel);
-      box-shadow: 0 24px 70px rgba(0, 0, 0, .16);
-    }
-    .hero-map::before {
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(135deg, color-mix(in srgb, var(--cyan) 10%, transparent), transparent 45%);
-      content: "";
-      pointer-events: none;
-    }
-    .map-row {
-      position: relative;
-      display: grid;
-      grid-template-columns: 58px 1fr;
-      gap: 16px;
-      align-items: center;
-      min-height: 102px;
-      padding: 18px 22px;
-      border-bottom: 1px solid var(--line);
-    }
-    .map-row:last-child { border-bottom: 0; }
-    .map-glyph {
-      display: grid;
-      width: 54px;
-      height: 54px;
-      place-items: center;
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      background: var(--panel-2);
-      color: var(--acid);
-      font-family: var(--font-mono);
-      font-weight: 900;
-    }
-    .map-row strong { display: block; font-size: 1.05rem; }
-    .map-row span:last-child { color: var(--muted); font-size: .88rem; }
-    .lesson-section { padding: clamp(72px, 9vw, 112px) 0; border-top: 1px solid var(--line); }
-    .section-head { max-width: 760px; margin-bottom: 42px; }
-    .section-head h2 {
-      margin: 10px 0 14px;
-      font-size: clamp(2.2rem, 5vw, 4.1rem);
-      line-height: 1;
-      letter-spacing: -.045em;
-    }
-    .section-head p { margin: 0; color: var(--muted); font-size: 1.06rem; }
-    .definition {
-      max-width: 920px;
-      border-left: 4px solid var(--acid-fill);
-      padding: 8px 0 8px clamp(22px, 4vw, 42px);
-      font-size: clamp(1.3rem, 2.5vw, 1.85rem);
-      line-height: 1.45;
-    }
-    .definition strong { color: var(--acid); }
-    .modes { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
-    .mode { min-width: 0; padding: clamp(24px, 4vw, 42px); background: var(--panel); }
-    .mode + .mode { border-left: 1px solid var(--line); }
-    .mode h3 { margin: 12px 0 8px; font-size: 1.55rem; letter-spacing: -.025em; }
-    .mode > p { margin: 0 0 24px; color: var(--muted); }
-    .signal {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-      margin: 0;
-      padding: 0;
-      list-style: none;
+      padding: 28px 24px;
       font-family: var(--font-mono);
       font-size: .75rem;
-      font-weight: 800;
+      color: var(--muted);
+      overflow: hidden;
     }
-    .signal li { border: 1px solid var(--line); border-radius: 999px; padding: 7px 10px; background: var(--panel-2); }
-    .signal .arrow { border: 0; background: transparent; color: var(--dim); padding-inline: 0; }
-    .mode-note { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--line); }
-    .mode-note b { display: block; margin-bottom: 5px; }
-    .mode-note span { color: var(--muted); font-size: .9rem; }
-    .decision-layout { display: grid; grid-template-columns: minmax(0, .92fr) minmax(320px, 1.08fr); gap: 24px; align-items: stretch; }
-    .decision-form,
-    .decision-output { border: 1px solid var(--line); border-radius: var(--radius); padding: clamp(24px, 4vw, 42px); background: var(--panel); }
-    fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
-    fieldset + fieldset { margin-top: 30px; padding-top: 28px; border-top: 1px solid var(--line); }
-    legend { margin-bottom: 14px; padding: 0; font-size: 1.05rem; font-weight: 800; }
-    .radio-stack { display: grid; gap: 10px; }
-    .radio-option { position: relative; }
-    .radio-option input { position: absolute; opacity: 0; pointer-events: none; }
-    .radio-option label {
+    .hero-panel-label {
+      font-size: .65rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-bottom: 16px;
+    }
+    .mini-flow {
       display: flex;
-      min-height: 52px;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .mini-node {
+      display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
+      padding: 8px 12px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+    }
+    .mini-node-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .mini-node-dot--orange { background: var(--orange); }
+    .mini-node-dot--cyan   { background: var(--cyan); }
+    .mini-node-dot--acid   { background: var(--acid); }
+    .mini-node-dot--muted  { background: var(--muted); }
+    .mini-node-name { color: var(--ink); font-size: .73rem; font-weight: 700; }
+    .mini-node-type { color: var(--dim); font-size: .66rem; margin-left: auto; }
+    .mini-arrow {
+      padding-left: 26px;
+      color: var(--line);
+      font-size: .7rem;
+      line-height: 1;
+    }
+
+    /* ── Section chrome ── */
+    .section-index {
+      font-family: var(--font-mono);
+      font-size: .65rem;
+      font-weight: 700;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-bottom: 12px;
+    }
+    .section-h2 {
+      font-size: clamp(1.6rem, 3.2vw, 2.4rem);
+      font-weight: 900;
+      letter-spacing: -.05em;
+      line-height: 1.1;
+      margin: 0 0 16px;
+      color: var(--ink);
+    }
+    .section-lead {
+      font-size: 1rem;
+      color: var(--muted);
+      max-width: 560px;
+      margin: 0 0 40px;
+      line-height: 1.7;
+    }
+
+    /* ── Content sections ── */
+    .content-section {
+      padding: clamp(56px, 8vw, 96px) 0;
+      border-top: 1px solid var(--line);
+    }
+
+    /* Definition panel */
+    .def-panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--cyan);
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      margin-bottom: 32px;
+    }
+    .def-panel-title {
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--cyan);
+      margin: 0 0 10px;
+    }
+    .def-panel-text {
+      font-size: 1rem;
+      color: var(--ink);
+      margin: 0;
+      line-height: 1.7;
+    }
+
+    /* Node type grid */
+    .node-types {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-top: 32px;
+    }
+    .node-type-card {
+      background: var(--panel);
       border: 1px solid var(--line);
       border-radius: 14px;
-      padding: 11px 14px;
-      background: var(--panel-2);
-      cursor: pointer;
+      padding: 20px;
     }
-    .radio-option label::before {
-      flex: 0 0 auto;
-      width: 18px;
-      height: 18px;
-      border: 2px solid var(--dim);
-      border-radius: 50%;
-      content: "";
-    }
-    .radio-option input:checked + label { border-color: var(--cyan); background: color-mix(in srgb, var(--cyan) 9%, var(--panel-2)); }
-    .radio-option input:checked + label::before { border: 5px solid var(--cyan); }
-    .radio-option input:focus-visible + label { outline: 3px solid var(--cyan); outline-offset: 4px; }
-    .decision-output { display: flex; flex-direction: column; justify-content: center; background: var(--panel-2); }
-    .result-mode {
-      margin: 12px 0 16px;
-      color: var(--acid);
+    .node-type-badge {
+      display: inline-block;
       font-family: var(--font-mono);
-      font-size: clamp(3rem, 8vw, 6rem);
-      font-weight: 900;
-      line-height: .9;
-      letter-spacing: -.07em;
+      font-size: .62rem;
+      font-weight: 700;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 999px;
+      margin-bottom: 12px;
     }
-    .result-title { margin: 0 0 10px; font-size: 1.3rem; }
-    .result-reason { max-width: 520px; margin: 0; color: var(--muted); }
-    .asset-note { margin-top: 24px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--ink); }
-    .asset-note strong { color: var(--orange); }
-    .decision-rule {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
-      margin-top: 28px;
+    .badge--orange {
+      background: color-mix(in srgb, var(--orange) 18%, var(--panel-2));
+      color: var(--orange);
+      border: 1px solid color-mix(in srgb, var(--orange) 35%, transparent);
     }
-    .rule-step { border-top: 2px solid var(--line); padding-top: 12px; color: var(--muted); font-size: .92rem; }
-    .rule-step b { display: block; color: var(--ink); }
-    .checkpoint { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-    details { border: 1px solid var(--line); border-radius: 18px; background: var(--panel); }
-    summary { min-height: 60px; display: flex; align-items: center; padding: 14px 20px; font-weight: 800; cursor: pointer; }
-    details p { margin: 0; border-top: 1px solid var(--line); padding: 20px; color: var(--muted); }
-    .takeaway {
-      display: grid;
-      grid-template-columns: auto 1fr;
-      gap: 22px;
-      align-items: start;
-      max-width: 920px;
+    .badge--cyan {
+      background: color-mix(in srgb, var(--cyan) 18%, var(--panel-2));
+      color: var(--cyan);
+      border: 1px solid color-mix(in srgb, var(--cyan) 35%, transparent);
+    }
+    .badge--acid {
+      background: color-mix(in srgb, var(--acid) 18%, var(--panel-2));
+      color: var(--acid);
+      border: 1px solid color-mix(in srgb, var(--acid) 35%, transparent);
+    }
+    .badge--muted {
+      background: color-mix(in srgb, var(--muted) 14%, var(--panel-2));
+      color: var(--muted);
+      border: 1px solid color-mix(in srgb, var(--muted) 30%, transparent);
+    }
+    .node-type-card h3 {
+      font-size: .95rem;
+      font-weight: 800;
+      margin: 0 0 8px;
+      color: var(--ink);
+    }
+    .node-type-card p {
+      font-size: .82rem;
+      color: var(--muted);
+      margin: 0;
+      line-height: 1.6;
+    }
+
+    /* Edge/datatype table */
+    .dtype-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 24px;
+      font-size: .88rem;
+    }
+    .dtype-table th {
+      text-align: left;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--dim);
+      font-weight: 600;
+    }
+    .dtype-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent);
+      color: var(--muted);
+      vertical-align: top;
+    }
+    .dtype-table tr:last-child td { border-bottom: none; }
+    .dtype-tag {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 6px;
+      background: var(--panel-2);
       border: 1px solid var(--line);
-      border-radius: var(--radius);
-      padding: clamp(24px, 5vw, 48px);
-      background: var(--panel);
     }
-    .takeaway-mark { color: var(--acid); font-family: var(--font-mono); font-size: 2rem; font-weight: 900; line-height: 1; }
-    .takeaway h2 { margin: 0 0 10px; font-size: clamp(1.7rem, 3vw, 2.5rem); }
-    .takeaway p { margin: 0; color: var(--muted); }
-    .lab-disclaimer { margin: 0 0 18px; color: var(--dim); font-size: .9rem; }
-    .production-brief {
+    .dtype-tag--orange { color: var(--orange); }
+    .dtype-tag--cyan   { color: var(--cyan); }
+    .dtype-tag--acid   { color: var(--acid); }
+    .dtype-tag--muted  { color: var(--muted); }
+
+    /* Disclosure */
+    .disclosure { margin-top: 28px; }
+    .disclosure-summary {
+      cursor: pointer;
+      font-size: .9rem;
+      color: var(--muted);
+      padding: 8px 0;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .disclosure-arrow {
+      font-family: var(--font-mono);
+      font-size: .8rem;
+      color: var(--dim);
+    }
+    .disclosure-body {
+      margin-top: 16px;
+      padding: 20px 24px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      color: var(--muted);
+      font-size: .9rem;
+      line-height: 1.7;
+    }
+
+    /* Prose helpers */
+    .prose-note {
+      color: var(--muted);
+      font-size: .9rem;
+      line-height: 1.7;
+      max-width: 640px;
+      margin-top: 16px;
+    }
+    .prose-note--spaced { margin-top: 28px; }
+    .inline-mono {
+      font-family: var(--font-mono);
+      color: var(--cyan);
+    }
+    .prose-strong { color: var(--ink); }
+    kbd.key-badge {
+      font-family: var(--font-mono);
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      padding: 2px 7px;
+      font-size: .8rem;
+    }
+
+    /* Code block */
+    .code-block {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      overflow: hidden;
+      margin: 24px 0;
+    }
+    .code-block--spaced { margin-top: 32px; }
+    .code-block-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel-2);
+    }
+    .code-block-label {
+      font-family: var(--font-mono);
+      font-size: .66rem;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--dim);
+      flex: 1;
+    }
+    .code-block-badge {
+      font-family: var(--font-mono);
+      font-size: .62rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      color: var(--muted);
+    }
+    .code-block pre {
+      margin: 0;
+      padding: 24px 20px;
+      overflow-x: auto;
+      font-family: var(--font-mono);
+      font-size: .8rem;
+      line-height: 1.7;
+      color: var(--muted);
+    }
+    .tok-key { color: var(--cyan); }
+    .tok-str { color: var(--acid); }
+    .tok-num { color: var(--orange); }
+    .tok-brace { color: var(--dim); }
+    .tok-comment { color: var(--dim); font-style: italic; }
+
+    /* Comparison: Workflow vs API Format */
+    .compare-grid {
       display: grid;
-      grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr);
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-top: 32px;
+    }
+    .compare-col {
+      background: var(--panel);
       border: 1px solid var(--line);
       border-radius: var(--radius);
       overflow: hidden;
-      background: var(--panel);
     }
-    .brief-intro { padding: clamp(24px, 4vw, 42px); background: color-mix(in srgb, var(--acid-fill) 7%, var(--panel)); }
-    .brief-intro h3 { margin: 12px 0; font-size: clamp(1.55rem, 3vw, 2.25rem); line-height: 1.05; }
-    .brief-intro p { margin: 0; color: var(--muted); }
-    .brief-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; }
-    .brief-facts div { min-width: 0; padding: 20px 22px; border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-    .brief-facts div:nth-last-child(-n + 2) { border-bottom: 0; }
-    .brief-facts dt { color: var(--cyan); font: 800 .72rem var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
-    .brief-facts dd { margin: 7px 0 0; color: var(--muted); font-size: .93rem; }
-    .brief-facts strong { color: var(--ink); }
-    .scope-note { max-width: 930px; margin: 24px 0 0; padding: 18px 20px; border-left: 3px solid var(--orange); background: var(--panel-2); color: var(--muted); }
-    .scope-note strong { color: var(--ink); }
-    .related-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
-    .related-card { display: block; min-height: 176px; border: 1px solid var(--line); border-radius: 18px; padding: 22px; background: var(--panel); text-decoration: none; transition: transform .2s ease, border-color .2s ease, background .2s ease; }
+    .compare-col-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel-2);
+    }
+    .compare-col-title {
+      font-size: .88rem;
+      font-weight: 800;
+      margin: 0 0 4px;
+      color: var(--ink);
+    }
+    .compare-col-sub {
+      font-family: var(--font-mono);
+      font-size: .66rem;
+      color: var(--dim);
+    }
+    .compare-col-body { padding: 20px; }
+    .compare-col-body ul {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+      font-size: .88rem;
+      line-height: 1.75;
+    }
+    .compare-col-body li + li { margin-top: 6px; }
+
+    /* Production brief + controlled experiment */
+    .production-brief {
+      margin-top: 32px;
+      padding: clamp(22px, 4vw, 36px);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(135deg, color-mix(in srgb, var(--cyan) 8%, var(--panel)), var(--panel));
+    }
+    .brief-kicker { margin: 0 0 8px; color: var(--cyan); font: 700 .66rem var(--font-mono); letter-spacing: .14em; text-transform: uppercase; }
+    .brief-title { margin: 0 0 10px; color: var(--ink); font-size: clamp(1.25rem, 2.5vw, 1.75rem); line-height: 1.2; }
+    .brief-intro { margin: 0; color: var(--muted); max-width: 72ch; }
+    .brief-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 24px 0; }
+    .brief-item { min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in srgb, var(--panel) 88%, transparent); }
+    .brief-item dt { color: var(--dim); font: 700 .63rem var(--font-mono); letter-spacing: .11em; text-transform: uppercase; }
+    .brief-item dd { margin: 6px 0 0; color: var(--ink); font-size: .88rem; line-height: 1.55; }
+    .experiment-lab { border-top: 1px solid var(--line); padding-top: 20px; }
+    .experiment-lab h3 { margin: 0 0 6px; color: var(--ink); font-size: 1rem; }
+    .experiment-lab p { margin: 0; color: var(--muted); font-size: .88rem; }
+    .experiment-controls { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0; }
+    .experiment-button { min-height: 44px; border: 1px solid var(--line); border-radius: 999px; padding: 9px 14px; background: var(--panel-2); color: var(--ink); font-weight: 750; }
+    .experiment-button[aria-pressed="true"] { border-color: var(--acid); background: color-mix(in srgb, var(--acid) 13%, var(--panel)); }
+    .experiment-output { margin: 0; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--muted); font: .78rem/1.65 var(--font-mono); }
+
+    /* Knowledge routing */
+    .related-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 30px; }
+    .related-card { min-height: 164px; display: flex; flex-direction: column; padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: inherit; text-decoration: none; transition: transform .2s ease, border-color .2s ease, background .2s ease; }
     .related-card:hover { transform: translateY(-3px); border-color: var(--cyan); background: var(--panel-2); }
-    .related-card span { color: var(--cyan); font: 800 .7rem var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
-    .related-card h3 { margin: 10px 0 8px; font-size: 1.12rem; line-height: 1.15; }
-    .related-card p { margin: 0; color: var(--muted); font-size: .9rem; line-height: 1.5; }
-    .source-list { display: grid; gap: 10px; max-width: 930px; padding: 0; margin: 0; list-style: none; }
-    .source-list a { display: block; min-height: 44px; border-bottom: 1px solid var(--line); padding: 10px 0; color: var(--muted); }
-    .source-list a:hover { color: var(--cyan); }
-    .brand { min-height: 44px; align-items: center; }
-    .lesson-nav { display: flex; justify-content: space-between; gap: 14px; padding: 34px 0 0; }
-    footer { border-top: 1px solid var(--line); padding: 34px 0 46px; color: var(--muted); }
-    .footer-inner { display: flex; justify-content: space-between; gap: 24px; align-items: center; }
-    .footer-inner p { margin: 0; }
+    .related-tag { color: var(--cyan); font: 700 .63rem var(--font-mono); letter-spacing: .11em; text-transform: uppercase; }
+    .related-card strong { margin: 13px 0 7px; color: var(--ink); font-size: .98rem; line-height: 1.35; }
+    .related-card small { color: var(--muted); font-size: .82rem; line-height: 1.55; }
+    .source-list { margin: 22px 0 0; padding-left: 20px; color: var(--muted); font-size: .84rem; }
+    .source-list a { color: var(--cyan); }
+
+    /* ── Interactive node graph ── */
+    .graph-section {
+      padding: clamp(56px, 8vw, 96px) 0;
+      border-top: 1px solid var(--line);
+    }
+    .graph-stage {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+      align-items: start;
+      margin-top: 32px;
+    }
+    .graph-canvas {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 28px 24px;
+    }
+    .graph-canvas-label {
+      font-family: var(--font-mono);
+      font-size: .65rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-bottom: 20px;
+    }
+    .graph-nodes {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .graph-node {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: var(--panel-2);
+      border: 2px solid var(--line);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: border-color .18s, background .18s;
+      text-align: left;
+      width: 100%;
+      color: inherit;
+    }
+    .graph-node:hover {
+      border-color: var(--dim);
+      background: color-mix(in srgb, var(--panel-2) 80%, var(--line));
+    }
+    .graph-node[aria-pressed="true"] {
+      border-color: var(--cyan);
+      background: color-mix(in srgb, var(--panel) 60%, transparent);
+    }
+    .graph-node-icon {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .85rem;
+      flex-shrink: 0;
+    }
+    .node-icon--orange {
+      background: color-mix(in srgb, var(--orange) 20%, var(--panel-2));
+      color: var(--orange);
+    }
+    .node-icon--cyan {
+      background: color-mix(in srgb, var(--cyan) 20%, var(--panel-2));
+      color: var(--cyan);
+    }
+    .node-icon--acid {
+      background: color-mix(in srgb, var(--acid) 20%, var(--panel-2));
+      color: var(--acid);
+    }
+    .node-icon--muted {
+      background: color-mix(in srgb, var(--muted) 16%, var(--panel-2));
+      color: var(--muted);
+    }
+    .graph-node-text { flex: 1; min-width: 0; }
+    .graph-node-name {
+      font-size: .88rem;
+      font-weight: 800;
+      color: var(--ink);
+      display: block;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .graph-node-sub {
+      font-family: var(--font-mono);
+      font-size: .62rem;
+      color: var(--dim);
+    }
+    .graph-node-id {
+      font-family: var(--font-mono);
+      font-size: .62rem;
+      color: var(--dim);
+      flex-shrink: 0;
+    }
+    .graph-edge {
+      display: flex;
+      align-items: center;
+      padding: 0 0 0 28px;
+      height: 22px;
+      position: relative;
+    }
+    .graph-edge::before {
+      content: '';
+      position: absolute;
+      left: 38px;
+      top: 0; bottom: 0;
+      width: 2px;
+      background: var(--line);
+    }
+    .graph-edge-label {
+      font-family: var(--font-mono);
+      font-size: .62rem;
+      color: var(--dim);
+      padding-left: 24px;
+    }
+
+    /* JSON detail panel */
+    .json-panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      min-height: 280px;
+    }
+    .json-panel-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel-2);
+    }
+    .json-panel-title {
+      font-size: .88rem;
+      font-weight: 800;
+      color: var(--ink);
+      flex: 1;
+    }
+    .json-panel-hint {
+      font-family: var(--font-mono);
+      font-size: .62rem;
+      color: var(--dim);
+    }
+    .json-panel-body {
+      padding: 20px;
+      font-family: var(--font-mono);
+      font-size: .78rem;
+      line-height: 1.75;
+      color: var(--muted);
+      min-height: 240px;
+    }
+    .json-panel-body pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .json-panel-note {
+      margin: 16px 0 0;
+      font-family: var(--font-mono);
+      font-size: .66rem;
+      color: var(--dim);
+      line-height: 1.6;
+    }
+    .json-panel-empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 220px;
+      color: var(--dim);
+      font-size: .82rem;
+      text-align: center;
+      gap: 12px;
+    }
+    .json-panel-empty-icon {
+      font-size: 2rem;
+      opacity: .4;
+    }
+
+    /* Checkpoint */
+    .checkpoint-section {
+      padding: clamp(56px, 8vw, 96px) 0;
+      border-top: 1px solid var(--line);
+    }
+    .quiz-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 32px;
+      margin-bottom: 20px;
+    }
+    .quiz-q {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--ink);
+      margin: 0 0 20px;
+    }
+    .quiz-options {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .quiz-option {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 14px 18px;
+      background: var(--panel-2);
+      border: 2px solid var(--line);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: border-color .18s, background .18s;
+      text-align: left;
+      width: 100%;
+      color: inherit;
+    }
+    .quiz-option:hover { border-color: var(--dim); }
+    .quiz-option[data-state="correct"] {
+      border-color: var(--acid);
+      background: color-mix(in srgb, var(--acid) 8%, var(--panel-2));
+    }
+    .quiz-option[data-state="wrong"] {
+      border-color: var(--red);
+      background: color-mix(in srgb, var(--red) 8%, var(--panel-2));
+    }
+    .quiz-option-letter {
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      font-weight: 700;
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      color: var(--dim);
+    }
+    .quiz-option[data-state="correct"] .quiz-option-letter {
+      background: var(--acid); color: #111; border-color: var(--acid);
+    }
+    .quiz-option[data-state="wrong"] .quiz-option-letter {
+      background: var(--red); color: #fff; border-color: var(--red);
+    }
+    .quiz-option-text { font-size: .9rem; color: var(--muted); line-height: 1.5; }
+    .quiz-feedback {
+      font-size: .88rem;
+      padding: 14px 18px;
+      border-radius: 10px;
+      border: 1px solid transparent;
+      display: none;
+    }
+    .quiz-feedback.show { display: block; }
+    .quiz-feedback.correct {
+      border-color: var(--acid);
+      background: color-mix(in srgb, var(--acid) 10%, var(--panel));
+      color: var(--ink);
+    }
+    .quiz-feedback.wrong {
+      border-color: var(--red);
+      background: color-mix(in srgb, var(--red) 10%, var(--panel));
+      color: var(--ink);
+    }
+    .quiz-reset { display: none; margin-top: 14px; }
+    .quiz-reset.show { display: inline-flex; }
+
+    /* Key takeaways */
+    .takeaway-section {
+      padding: clamp(56px, 8vw, 96px) 0;
+      border-top: 1px solid var(--line);
+    }
+    .takeaway-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-top: 32px;
+    }
+    .takeaway-item { display: flex; gap: 20px; align-items: flex-start; }
+    .takeaway-num {
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      font-weight: 700;
+      color: var(--acid);
+      width: 28px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .takeaway-text { color: var(--muted); font-size: .95rem; line-height: 1.7; }
+    .takeaway-text strong { color: var(--ink); font-weight: 700; }
+
+    /* Footer */
+    .page-footer {
+      border-top: 1px solid var(--line);
+      padding: 48px 0;
+    }
+    .page-footer-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+    .footer-meta {
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      color: var(--dim);
+    }
+    .button--sm {
+      font-size: .8rem;
+      min-height: 40px;
+      padding: 8px 16px;
+    }
+
+    /* ── Responsive ── */
     @media (max-width: 860px) {
-      .hero-grid,
-      .decision-layout { grid-template-columns: 1fr; }
-      .hero-map { max-width: 620px; }
-      .modes { grid-template-columns: 1fr; }
-      .mode + .mode { border-left: 0; border-top: 1px solid var(--line); }
-      .production-brief { grid-template-columns: 1fr; }
-      .brief-facts div { border-left: 0; }
-      .brief-facts div:nth-last-child(2) { border-bottom: 1px solid var(--line); }
+      .hero-grid { grid-template-columns: 1fr; }
+      .hero-panel { display: none; }
+      .compare-grid { grid-template-columns: 1fr; }
+      .graph-stage { grid-template-columns: 1fr; }
       .related-grid { grid-template-columns: 1fr; }
-      .topnav { display: none; }
     }
     @media (max-width: 640px) {
-      .lesson-hero { padding-top: 56px; }
-      h1 { font-size: clamp(2.8rem, 15vw, 4.4rem); }
-      .hero-actions .button { width: 100%; }
-      .decision-rule,
-      .checkpoint { grid-template-columns: 1fr; }
-      .brief-facts { grid-template-columns: 1fr; }
-      .brief-facts div { border-bottom: 1px solid var(--line); }
-      .brief-facts div:last-child { border-bottom: 0; }
-      .takeaway { grid-template-columns: 1fr; }
-      .footer-inner { display: grid; }
-      .lesson-nav { display: grid; }
-      .lesson-nav .button { width: 100%; }
+      .node-types { grid-template-columns: 1fr 1fr; }
+      .hero-actions { flex-direction: column; }
+      .hero-actions .button { width: 100%; justify-content: center; }
+      .brief-grid { grid-template-columns: 1fr; }
+      .experiment-button { width: 100%; justify-content: flex-start; }
+    }
+    @media (max-width: 400px) {
+      .node-types { grid-template-columns: 1fr; }
     }
     @media (prefers-reduced-motion: reduce) {
+      .related-card { transition: none; }
       .related-card:hover { transform: none; }
     }
+
+    /* ── Standardized Phase 5 Blocks ── */
+    .flow-minimap {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 14px 0;
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      color: var(--dim);
+      border-bottom: 1px solid var(--line);
+    }
+    .flow-minimap-label {
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-right: 4px;
+    }
+    .flow-minimap-sep { color: var(--line); }
+    .flow-minimap-item {
+      color: var(--muted);
+      text-decoration: none;
+      padding: 2px 6px;
+      border-radius: 4px;
+      transition: color .15s;
+    }
+    .flow-minimap-item:hover { color: var(--cyan); }
+    .flow-minimap-item.current {
+      color: var(--acid);
+      background: rgba(200,255,61,.1);
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .prereq-callout {
+      display: flex;
+      gap: 16px;
+      padding: 18px 24px;
+      border: 1px solid rgba(98,231,245,.3);
+      border-left: 4px solid var(--cyan);
+      border-radius: var(--radius);
+      background: rgba(98,231,245,.05);
+      margin-bottom: 32px;
+      align-items: flex-start;
+    }
+    .prereq-icon { color: var(--cyan); flex-shrink: 0; margin-top: 2px; }
+    .prereq-title { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--cyan); margin: 0 0 6px; }
+    .prereq-body { color: var(--muted); font-size: .9rem; line-height: 1.55; margin: 0 0 10px; }
+    .prereq-link { color: var(--cyan); font-size: .85rem; text-decoration: none; }
+    .prereq-link:hover { text-decoration: underline; }
+    .output-artifact {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      background: rgba(200,255,61,.08);
+      border: 1px solid rgba(200,255,61,.25);
+      border-radius: 10px;
+      margin-bottom: 20px;
+      font-size: .85rem;
+      flex-wrap: wrap;
+    }
+    .output-artifact svg { color: var(--acid); flex-shrink: 0; }
+    .output-artifact-label { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--acid); }
+    .output-artifact-text { color: var(--muted); }
+    .handoff-card {
+      display: grid;
+      grid-template-columns: 60px 1fr;
+      gap: 24px;
+      align-items: start;
+      padding: 40px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      position: relative;
+      overflow: hidden;
+    }
+    .handoff-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(200,255,61,.05) 0%, transparent 60%);
+      pointer-events: none;
+    }
+    .handoff-card-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: rgba(200,255,61,.1);
+      color: var(--acid);
+      flex-shrink: 0;
+    }
+    .handoff-card-label { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin: 0 0 8px; }
+    .handoff-card-title { font-size: clamp(1.6rem, 3vw, 2.4rem); font-weight: 900; letter-spacing: -.04em; margin: 0 0 16px; color: var(--ink); }
+    .handoff-card-body { color: var(--muted); font-size: .95rem; line-height: 1.6; margin: 0 0 24px; }
+    .code-block-wrap { position: relative; }
+    .code-copy-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 10px;
+      min-height: 32px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      color: var(--dim);
+      font-size: .72rem;
+      font-family: var(--font-mono);
+      cursor: pointer;
+      transition: color .15s, border-color .15s;
+      z-index: 2;
+    }
+    .code-copy-btn:hover { color: var(--ink); border-color: var(--dim); }
+    .code-copy-btn.copied { color: var(--acid); border-color: var(--acid); }
+    html, body, main, .shell, section { overflow-x: hidden !important; max-width: 100% !important; }
   </style>
 </head>
 <body>
-  <a class="skip-link" href="#noi-dung">Bỏ qua điều hướng</a>
-  <header class="topbar">
+  <a class="skip-link" href="#main">Bỏ qua điều hướng</a>
+
+  <!-- Topbar -->
+  <header class="topbar" role="banner">
     <div class="topbar-inner">
-      <a class="brand" href="index.html" aria-label="Video Generation Study — Trang chủ">
+      <a href="index.html" class="brand" data-curriculum-home aria-label="Video Gen Lab – trang chủ">
         <span class="brand-mark" aria-hidden="true"></span>
-        Video Generation Study
+        Video Gen Lab
       </a>
-      <nav class="topnav" aria-label="Trong bài học">
-        <a href="#phan-biet">Phân biệt</a>
-        <a href="#bo-chon">Bộ chọn</a>
-        <a href="#kiem-tra">Kiểm tra</a>
+      <nav class="topnav" aria-label="Điều hướng bài học">
+        <a href="video-generation-part-3-lesson-4.html" data-curriculum-prev>← Bài 3.4</a>
+        <a href="index.html" data-curriculum-home>Trang chủ</a>
+        <a href="video-generation-part-4-lesson-2.html" data-curriculum-next>Bài 4.2 →</a>
       </nav>
-      <div class="progress-track" aria-hidden="true"><div class="progress-fill"></div></div>
+      <!-- theme toggle injected by video-generation-theme.js -->
+    </div>
+    <div class="progress-track" aria-hidden="true">
+      <div class="progress-fill" id="progress-fill"></div>
     </div>
   </header>
 
-  <main id="noi-dung">
-    <section class="lesson-hero shell" aria-labelledby="lesson-title">
+  <main id="main">
+    <!-- ── Hero ── -->
+    <section class="hero shell" aria-label="Giới thiệu bài học">
       <div class="hero-grid">
-        <div>
-          <p class="eyebrow">Part 04 · Lesson 01 · Conditioning</p>
-          <h1 id="lesson-title">I2V, T2V, FLF2V</h1>
-          <p class="hero-lead">Ba chế độ cùng tạo ra video, nhưng bắt đầu từ những tín hiệu khác nhau. Sau bài này, bạn có thể chọn đúng mode dựa trên asset đang có và khung kết thúc muốn đạt tới.</p>
+        <div class="hero-copy">
+          <p class="hero-eyebrow" data-curriculum-hero-label>GENERATION SETUP · BÀI 4.1 · COMFYUI</p>
+          <h1 class="hero-h1">Node &amp;&nbsp;Workflow JSON</h1>
+          <p class="hero-lead">
+            Hiểu ComfyUI hoạt động theo mô hình node-graph, Workflow JSON là gì,
+            và cách dùng <em>API Format</em> để chạy inference hoàn toàn tự động.
+            <br><br>
+            <strong>Lưu ý:</strong> UI Workflow JSON (dùng trong ComfyUI GUI) và API Format JSON (dùng cho lập trình/automation) hoạt động khác nhau. Trong bài này tập trung vào UI Workflow JSON — API format sẽ được đề cập khi đến phần automation.
+          </p>
+
+          <!-- OUTPUT ARTIFACT BADGE -->
+          <div class="output-artifact" role="note">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            <span class="output-artifact-label">Đầu ra bài học:</span>
+            <span class="output-artifact-text">Hiểu cấu trúc node-graph trong ComfyUI, biết đọc và chỉnh sửa Workflow JSON, và phân biệt UI workflow vs API payload format</span>
+          </div>
           <div class="hero-actions">
-            <a class="button primary" href="#bo-chon">Chọn mode cho dự án</a>
-            <a class="button" href="#phan-biet">Xem bản đồ 3 mode</a>
+            <a href="#node-graph" class="button primary">Bắt đầu học</a>
+            <a href="#interactive-graph" class="button">Thử sơ đồ tương tác</a>
           </div>
         </div>
-        <div class="hero-map" aria-label="Tóm tắt ba chế độ theo đầu vào">
-          <div class="map-row"><span class="map-glyph">T</span><span><strong>T2V</strong><span>Prompt chữ → video mới</span></span></div>
-          <div class="map-row"><span class="map-glyph">I</span><span><strong>I2V</strong><span>Ảnh đầu → video chuyển động</span></span></div>
-          <div class="map-row"><span class="map-glyph">F·L</span><span><strong>FLF2V</strong><span>Khung đầu + cuối → video nối giữa</span></span></div>
-        </div>
-      </div>
-    </section>
 
-    <section class="lesson-section" aria-labelledby="mot-cau-heading">
-      <div class="shell">
-        <p class="section-kicker">01 · Mô hình tinh thần</p>
-        <h2 id="mot-cau-heading" class="definition">Đừng chọn mode theo “mode nào đẹp hơn”. Hãy chọn theo <strong>điểm neo hình ảnh</strong> bạn có trước khi sinh.</h2>
-      </div>
-    </section>
-
-    <section class="lesson-section" id="phan-biet" aria-labelledby="phan-biet-heading">
-      <div class="shell">
-        <div class="section-head">
-          <p class="section-kicker">02 · Bản đồ chế độ</p>
-          <h2 id="phan-biet-heading">Cùng một đích, khác mức kiểm soát</h2>
-          <p>Điểm neo càng cụ thể, brief càng dễ kiểm tra ở đầu/cuối shot. Nhưng đó không phải lời hứa về chuyển động mượt: model vẫn phải suy diễn phần giữa, và tên mode hay đầu vào thay đổi theo checkpoint, phiên bản và workflow.</p>
-        </div>
-        <div class="modes">
-          <article class="mode">
-            <p class="mode-code">Text-to-Video</p>
-            <h3>T2V</h3>
-            <p>Khởi tạo toàn bộ hình ảnh và chuyển động từ prompt. Hợp với giai đoạn khám phá khi bạn chưa có keyframe.</p>
-            <ul class="signal" aria-label="Luồng T2V"><li>Prompt</li><li class="arrow" aria-hidden="true">→</li><li>Video</li></ul>
-            <div class="mode-note"><b>Chọn khi</b><span>Chỉ có ý tưởng bằng chữ và chấp nhận để model quyết định bố cục ban đầu.</span></div>
-          </article>
-          <article class="mode">
-            <p class="mode-code">Image-to-Video</p>
-            <h3>I2V</h3>
-            <p>Dùng một ảnh làm khung đầu, rồi sinh chuyển động tiếp diễn. Hợp khi nhân vật, bố cục hoặc art direction đã được khóa ở đầu clip.</p>
-            <ul class="signal" aria-label="Luồng I2V"><li>Ảnh đầu</li><li>Prompt</li><li class="arrow" aria-hidden="true">→</li><li>Video</li></ul>
-            <div class="mode-note"><b>Chọn khi</b><span>Cần giữ điểm xuất phát, nhưng kết thúc có thể để model tự diễn tiến.</span></div>
-          </article>
-          <article class="mode">
-            <p class="mode-code">First–Last Frame-to-Video</p>
-            <h3>FLF2V</h3>
-            <p>Dùng khung đầu và khung cuối làm hai điểm neo, rồi sinh các frame chuyển tiếp. Trong Wan2.1, đây là task/checkpoint FLF2V; tool khác có thể gọi là keyframe interpolation.</p>
-            <ul class="signal" aria-label="Luồng FLF2V"><li>Đầu</li><li class="arrow" aria-hidden="true">→</li><li>Chuyển tiếp</li><li class="arrow" aria-hidden="true">→</li><li>Cuối</li></ul>
-            <div class="mode-note"><b>Chọn khi</b><span>Điểm đến là yêu cầu bắt buộc, không chỉ là một gợi ý trong prompt.</span></div>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <section class="lesson-section" id="bo-chon" aria-labelledby="bo-chon-heading">
-      <div class="shell">
-        <div class="section-head">
-          <p class="section-kicker">03 · Decision lab</p>
-          <h2 id="bo-chon-heading">Chọn mode từ ràng buộc thật</h2>
-          <p>Đánh dấu asset hiện có và yêu cầu về điểm kết thúc. Bộ chọn sẽ đề xuất mode, đồng thời chỉ ra asset còn thiếu nếu mục tiêu vượt quá đầu vào.</p>
-        </div>
-        <p class="lab-disclaimer"><strong>Mô phỏng quyết định.</strong> Đây là cây chọn theo asset/brief, không phải benchmark hay bảng tương thích của mọi model.</p>
-        <div class="decision-layout">
-          <form class="decision-form" id="mode-form">
-            <fieldset>
-              <legend>1. Bạn đang có đầu vào hình ảnh nào?</legend>
-              <div class="radio-stack">
-                <div class="radio-option"><input type="radio" id="input-none" name="visual-input" value="none" checked><label for="input-none">Chưa có ảnh — chỉ có prompt</label></div>
-                <div class="radio-option"><input type="radio" id="input-first" name="visual-input" value="first"><label for="input-first">Có một ảnh làm khung đầu</label></div>
-                <div class="radio-option"><input type="radio" id="input-both" name="visual-input" value="both"><label for="input-both">Có cả khung đầu và khung cuối</label></div>
-              </div>
-            </fieldset>
-            <fieldset>
-              <legend>2. Điểm kết thúc cần chính xác đến đâu?</legend>
-              <div class="radio-stack">
-                <div class="radio-option"><input type="radio" id="end-open" name="endpoint" value="open" checked><label for="end-open">Có thể để model tự quyết định</label></div>
-                <div class="radio-option"><input type="radio" id="end-fixed" name="endpoint" value="fixed"><label for="end-fixed">Phải đến một khung hình đã định</label></div>
-              </div>
-            </fieldset>
-          </form>
-          <output class="decision-output" id="mode-result" for="input-none input-first input-both end-open end-fixed" aria-live="polite">
-            <p class="decision-label">Mode phù hợp</p>
-            <p class="result-mode" id="result-mode">T2V</p>
-            <h3 class="result-title" id="result-title">Bắt đầu từ prompt</h3>
-            <p class="result-reason" id="result-reason">Bạn chưa có điểm neo hình ảnh và không khóa khung cuối. T2V cho model tự dựng bố cục lẫn chuyển động.</p>
-            <p class="asset-note" id="asset-note"><strong>Đủ đầu vào.</strong> Viết prompt mô tả chủ thể, chuyển động và bối cảnh.</p>
-          </output>
-        </div>
-        <div class="decision-rule" aria-label="Quy tắc chọn nhanh">
-          <div class="rule-step"><b>0 ảnh neo</b>T2V để khám phá.</div>
-          <div class="rule-step"><b>1 khung đầu</b>I2V để giữ điểm xuất phát.</div>
-          <div class="rule-step"><b>2 khung đầu–cuối</b>FLF2V để neo hai đầu hành trình.</div>
-        </div>
-      </div>
-    </section>
-
-    <section class="lesson-section" id="production-brief" aria-labelledby="brief-heading">
-      <div class="shell">
-        <div class="section-head">
-          <p class="section-kicker">04 · Production brief</p>
-          <h2 id="brief-heading">Chốt shot chuyển cảnh, không chốt “mode đẹp nhất”</h2>
-          <p>Một brief khiến việc chọn mode, A/B và xử lý failure có thể lặp lại được bởi cả team.</p>
-        </div>
-        <article class="production-brief" aria-label="Production brief cho shot chuyển cảnh quảng cáo">
-          <div class="brief-intro">
-            <p class="mode-code">CASE / E-COMMERCE</p>
-            <h3>Chai serum trên bàn đá chuyển sang packshot có CTA.</h3>
-            <p>Bối cảnh: clip dọc 5 giây cho trang sản phẩm. Art director đã duyệt frame mở đầu và frame kết có logo, nên đích cuối là ràng buộc giao hàng — không chỉ là câu chữ trong prompt.</p>
+        <!-- Hero visual: mini node flow -->
+        <div class="hero-panel" aria-hidden="true">
+          <div class="hero-panel-label">Workflow đơn giản</div>
+          <div class="mini-flow">
+            <div class="mini-node">
+              <span class="mini-node-dot mini-node-dot--orange"></span>
+              <span class="mini-node-name">Load Checkpoint</span>
+              <span class="mini-node-type">MODEL</span>
+            </div>
+            <div class="mini-arrow">↓ MODEL / CLIP / VAE</div>
+            <div class="mini-node">
+              <span class="mini-node-dot mini-node-dot--cyan"></span>
+              <span class="mini-node-name">CLIP Text Encode</span>
+              <span class="mini-node-type">CONDITIONING</span>
+            </div>
+            <div class="mini-arrow">↓ CONDITIONING</div>
+            <div class="mini-node">
+              <span class="mini-node-dot mini-node-dot--acid"></span>
+              <span class="mini-node-name">KSampler</span>
+              <span class="mini-node-type">LATENT</span>
+            </div>
+            <div class="mini-arrow">↓ LATENT</div>
+            <div class="mini-node">
+              <span class="mini-node-dot mini-node-dot--cyan"></span>
+              <span class="mini-node-name">VAE Decode</span>
+              <span class="mini-node-type">IMAGE</span>
+            </div>
+            <div class="mini-arrow">↓ IMAGE</div>
+            <div class="mini-node">
+              <span class="mini-node-dot mini-node-dot--muted"></span>
+              <span class="mini-node-name">Save Image</span>
+              <span class="mini-node-type">—</span>
+            </div>
           </div>
-          <dl class="brief-facts">
-            <div><dt>Mục tiêu đầu ra</dt><dd><strong>9:16, 5 giây</strong>; bắt đầu cận chai serum, kết đúng packshot/copy-safe frame.</dd></div>
-            <div><dt>Input / workflow</dt><dd>Hai keyframe đã duyệt + prompt chuyển động; thử <strong>Wan2.1 FLF2V</strong> đúng checkpoint/task.</dd></div>
-            <div><dt>Giữ cố định</dt><dd>Seed, hai keyframe, prompt, tỷ lệ khung, số frame, scheduler và model revision.</dd></div>
-            <div><dt>Đang thử nghiệm</dt><dd>Chỉ thay <strong>một</strong> giả thuyết/lượt: wording về camera hoặc mức conditioning mà workflow đó công bố.</dd></div>
-            <div><dt>Giới hạn</dt><dd>Ngân sách render 30 phút/3 candidate trên GPU đã chọn; không suy ra tốc độ chung cho GPU hay model khác.</dd></div>
-            <div><dt>Đánh giá</dt><dd>Frame đầu/cuối đúng brief, logo không méo, sản phẩm liền mạch, transition không có morph/jump rõ.</dd></div>
-            <div><dt>Dấu hiệu thất bại</dt><dd>Frame cuối lệch packshot; chữ/logo biến dạng; nắp chai đổi hình; vật thể “tan” giữa shot.</dd></div>
-            <div><dt>Bước kế tiếp</dt><dd>Kiểm tra tương thích bố cục/ánh sáng của hai keyframe; nếu vẫn lệch, tách shot ngắn hơn hoặc compositing thay vì tăng mọi knob.</dd></div>
-          </dl>
-        </article>
-        <p class="scope-note"><strong>Phạm vi kỹ thuật:</strong> T2V/I2V/FLF2V ở đây mô tả loại điều kiện đầu vào. Chúng không quy định một preset, VRAM hay chất lượng chung. Hãy ghi chính xác model, checkpoint, revision, resolution, số frame và GPU trước khi so sánh run.</p>
-      </div>
-    </section>
-
-    <section class="lesson-section" id="kiem-tra" aria-labelledby="kiem-tra-heading">
-      <div class="shell">
-        <div class="section-head">
-          <p class="section-kicker">05 · Checkpoint</p>
-          <h2 id="kiem-tra-heading">Hai tình huống dễ nhầm</h2>
-          <p>Tự chọn mode trước khi mở đáp án. Mỗi đáp án giải thích bằng ràng buộc, không bằng tên công cụ.</p>
-        </div>
-        <div class="checkpoint">
-          <details>
-            <summary>Shot sản phẩm đã có ảnh packshot, cuối clip không cần cố định — mode nào?</summary>
-            <p><strong>I2V.</strong> Ảnh packshot là khung đầu cần giữ; model có thể tự phát triển chuyển động và điểm kết thúc.</p>
-          </details>
-          <details>
-            <summary>Nhân vật phải đi từ cửa vào đúng chiếc ghế ở cuối shot — mode nào?</summary>
-            <p><strong>FLF2V.</strong> Hãy chuẩn bị khung đầu ở cửa và khung cuối tại ghế. Prompt đơn thuần không khóa điểm đến mạnh bằng một khung cuối.</p>
-          </details>
         </div>
       </div>
     </section>
 
-    <section class="lesson-section" id="bai-lien-quan" aria-labelledby="related-heading">
-      <div class="shell">
-        <div class="section-head">
-          <p class="section-kicker">Knowledge links</p>
-          <h2 id="related-heading">Bài liên quan</h2>
-          <p>Theo quan hệ cơ chế và chẩn đoán, không theo từ khóa.</p>
+    <!-- FLOW POSITION MINI-MAP -->
+    <div class="shell">
+      <nav class="flow-minimap" aria-label="Vị trí trong lộ trình">
+        <span class="flow-minimap-label">LỘ TRÌNH</span>
+        <span class="flow-minimap-sep">›</span>
+        <a class="flow-minimap-item" href="video-generation-part-3-lesson-4.html">3.4: Validate & Export</a>
+        <span class="flow-minimap-sep">›</span>
+        <strong class="flow-minimap-item current" aria-current="step">4.1: Node & Workflow JSON</strong>
+        <span class="flow-minimap-sep">›</span>
+        <a class="flow-minimap-item" href="video-generation-part-4-lesson-2.html">4.2: Custom Node & Manager</a>
+      </nav>
+    </div>
+
+    <!-- ── Section 1: Node & Node-graph ── -->
+    <section id="node-graph" class="content-section shell">
+      <p class="section-index">01 / 04</p>
+      <h2 class="section-h2">Node là gì?</h2>
+      <p class="section-lead">
+        ComfyUI biểu diễn pipeline bằng <strong>node-graph</strong>: mỗi node khai báo inputs,
+        outputs và thao tác của nó; bạn nối chúng lại để tạo pipeline có thể kiểm tra và tái sử dụng.
+      </p>
+
+      <!-- PREREQUISITE CALLOUT -->
+      <div class="prereq-callout" role="note" aria-label="Yêu cầu trước bài học">
+        <div class="prereq-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 8v4m0 4h.01"/></svg>
         </div>
-        <nav class="related-grid" aria-label="Các bài học liên quan">
-          <a class="related-card" href="video-generation-part-3-lesson-5.html"><span>Kiến thức nền</span><h3>3.5 · Dataset &amp; Captioning</h3><p>Keyframe là asset có chủ đích: học cách kiểm tra coverage/caption trước khi đổ lỗi mọi failure cho mode video.</p></a>
-          <a class="related-card" href="video-generation-part-4-lesson-2.html"><span>Cùng cơ chế</span><h3>4.2 · CLIP Vision Encode</h3><p>Nối từ “ảnh làm điều kiện” sang cách một workflow có thể biểu diễn ảnh cho model, thay vì hiểu I2V là copy pixel.</p></a>
-          <a class="related-card" href="video-generation-part-4-lesson-7.html"><span>Chẩn đoán tiếp</span><h3>4.7 · Latent strength &amp; noise aug</h3><p>Sau khi chọn I2V/FLF2V, tách các biến độ bám/độ linh hoạt theo đúng workflow thay vì săn một con số chuẩn.</p></a>
-        </nav>
+        <div>
+          <p class="prereq-title">Cần biết trước</p>
+          <p class="prereq-body">Bài này bắt đầu phần Generation Setup. Cần hoàn thành đầy đủ phần Training — đặc biệt Bài 3.4 (Validate & Export Checkpoint) — trước khi tiến hành generation workflow.</p>
+          <a class="prereq-link" href="video-generation-part-3-lesson-4.html">← Xem lại bài trước: Validate & Export Checkpoint (3.4)</a>
+        </div>
+      </div>
+
+      <div class="def-panel">
+        <p class="def-panel-title">Định nghĩa</p>
+        <p class="def-panel-text">
+          <strong>Node</strong> là một hộp chức năng có <em>cổng vào</em> (inputs) và
+          <em>cổng ra</em> (outputs). Dữ liệu chảy từ node này sang node kia
+          qua các đường kết nối gọi là <em>edges</em>.
+          Toàn bộ chuỗi node đó tạo thành một <strong>workflow</strong>.
+        </p>
+      </div>
+
+      <div class="node-types">
+        <div class="node-type-card">
+          <span class="node-type-badge badge--orange">Loader</span>
+          <h3>Load Checkpoint</h3>
+          <p>Ví dụ node lõi cho checkpoint tương thích; outputs cụ thể phụ thuộc node và gói model đang cài.</p>
+        </div>
+        <div class="node-type-card">
+          <span class="node-type-badge badge--cyan">Encoder</span>
+          <h3>CLIP Text Encode</h3>
+          <p>Ví dụ node lõi: mã hoá prompt thành CONDITIONING. Video model có thể dùng text encoder/node khác.</p>
+        </div>
+        <div class="node-type-card">
+          <span class="node-type-badge badge--acid">Sampler</span>
+          <h3>KSampler</h3>
+          <p>Chạy quá trình denoising. Nhận MODEL + CONDITIONING + LATENT, trả về LATENT mới.</p>
+        </div>
+        <div class="node-type-card">
+          <span class="node-type-badge badge--cyan">Decoder</span>
+          <h3>VAE Decode</h3>
+          <p>Chuyển LATENT thành ảnh pixel (IMAGE) bằng Variational Autoencoder.</p>
+        </div>
+        <div class="node-type-card">
+          <span class="node-type-badge badge--muted">Output</span>
+          <h3>Save Image</h3>
+          <p>Lưu IMAGE ra file. Không có cổng ra — đây là điểm cuối của pipeline.</p>
+        </div>
       </div>
     </section>
 
-    <section class="lesson-section" id="nguon" aria-labelledby="sources-heading">
-      <div class="shell">
-        <div class="section-head">
-          <p class="section-kicker">Sources</p>
-          <h2 id="sources-heading">Phạm vi nguồn chính chủ</h2>
-          <p>Những nguồn này xác nhận năng lực/model cụ thể; chúng không biến mọi workflow thành cùng một API.</p>
+    <!-- ── Section 2: Edges & Data Types ── -->
+    <section id="edges" class="content-section shell">
+      <p class="section-index">02 / 04</p>
+      <h2 class="section-h2">Kết nối &amp; Kiểu dữ liệu</h2>
+      <p class="section-lead">
+        Mỗi edge (đường nối) mang một kiểu dữ liệu cụ thể.
+        Hai cổng chỉ kết nối được khi kiểu dữ liệu <em>khớp nhau</em>.
+      </p>
+
+      <div class="dtype-table-wrap" style="overflow-x: auto; max-width: 100%; width: 100%;"><table class="dtype-table" aria-label="Các kiểu dữ liệu trong ComfyUI">
+        <thead>
+          <tr>
+            <th scope="col">Kiểu</th>
+            <th scope="col">Từ node</th>
+            <th scope="col">Đến node</th>
+            <th scope="col">Mô tả ngắn</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="dtype-tag dtype-tag--orange">MODEL</span></td>
+            <td>Load Checkpoint</td>
+            <td>KSampler</td>
+            <td>Weights của UNet / Diffusion model</td>
+          </tr>
+          <tr>
+            <td><span class="dtype-tag dtype-tag--cyan">CLIP</span></td>
+            <td>Load Checkpoint</td>
+            <td>CLIP Text Encode</td>
+            <td>Encoder ngôn ngữ để xử lý prompt</td>
+          </tr>
+          <tr>
+            <td><span class="dtype-tag dtype-tag--acid">CONDITIONING</span></td>
+            <td>CLIP Text Encode</td>
+            <td>KSampler</td>
+            <td>Embeddings điều hướng denoising</td>
+          </tr>
+          <tr>
+            <td><span class="dtype-tag dtype-tag--orange">LATENT</span></td>
+            <td>Empty Latent / KSampler</td>
+            <td>KSampler / VAE Decode</td>
+            <td>Biểu diễn nén trong không gian latent</td>
+          </tr>
+          <tr>
+            <td><span class="dtype-tag dtype-tag--cyan">VAE</span></td>
+            <td>Load Checkpoint</td>
+            <td>VAE Decode / VAE Encode</td>
+            <td>Encoder–Decoder nén/giải nén pixel</td>
+          </tr>
+          <tr>
+            <td><span class="dtype-tag dtype-tag--muted">IMAGE</span></td>
+            <td>VAE Decode / Load Image</td>
+            <td>Save Image / Preview</td>
+            <td>Tensor ảnh pixel [B,H,W,C]</td>
+          </tr>
+        </tbody>
+      </table></div>
+
+      <details class="disclosure">
+        <summary class="disclosure-summary">
+          <span class="disclosure-arrow" aria-hidden="true">▸</span>
+          Tại sao kiểu dữ liệu quan trọng?
+        </summary>
+        <div class="disclosure-body">
+          ComfyUI kiểm tra type tại runtime. Nếu bạn cắm nhầm cổng (ví dụ: nối IMAGE vào chỗ cần LATENT),
+          workflow sẽ báo lỗi ngay thay vì chạy sai âm thầm. Màu sắc của dây nối trong giao diện
+          phản ánh kiểu dữ liệu — <em>cùng màu = kết nối được</em>.
         </div>
-        <ul class="source-list">
-          <li><a href="https://github.com/Wan-Video/Wan2.1" rel="noreferrer">Wan2.1 official repository — công bố T2V, I2V, FLF2V và hướng dẫn inference theo task/checkpoint.</a></li>
-          <li><a href="https://github.com/Tencent-Hunyuan/HunyuanVideo-I2V" rel="noreferrer">HunyuanVideo-I2V official repository — phạm vi I2V và first-frame consistency của model này.</a></li>
-          <li><a href="https://github.com/Tencent-Hunyuan/OmniWeaving" rel="noreferrer">OmniWeaving official repository — ví dụ phân biệt first-frame I2V với key-frames-to-video/interpolation.</a></li>
-        </ul>
+      </details>
+    </section>
+
+    <!-- ── Section 3: Workflow JSON ── -->
+    <section id="workflow-json" class="content-section shell">
+      <p class="section-index">03 / 04</p>
+      <h2 class="section-h2">Workflow JSON</h2>
+      <p class="section-lead">
+        Frontend lưu graph canvas trong JSON để chia sẻ hoặc tái sử dụng. Để chạy qua API,
+        hãy export riêng <em>Save (API Format)</em>; hai định dạng phục vụ hai mục đích khác nhau.
+      </p>
+
+      <div class="def-panel">
+        <p class="def-panel-title">Cấu trúc</p>
+        <p class="def-panel-text">
+          Trong API format, node thường được đặt dưới key id và dùng <code>class_type</code>
+          cùng <code>inputs</code>. Giá trị input có thể là hằng số hoặc tham chiếu output khác.
+          Trường metadata/canvas là dữ liệu của frontend, không phải contract để automation dựa vào.
+        </p>
+      </div>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-label">workflow.json — cấu trúc cơ bản</span>
+          <span class="code-block-badge">JSON</span>
+        </div>
+        <div class="code-block-wrap">
+          <button class="code-copy-btn" type="button" aria-label="Sao chép code" data-copy-target="wf-json-1">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            Copy
+          </button>
+          <pre id="wf-json-1" aria-label="Ví dụ Workflow JSON"><span class="tok-brace">{</span>
+  <span class="tok-key">"1"</span><span class="tok-brace">:</span> <span class="tok-brace">{</span>                          <span class="tok-comment">// id của node</span>
+    <span class="tok-key">"class_type"</span><span class="tok-brace">:</span> <span class="tok-str">"CheckpointLoaderSimple"</span><span class="tok-brace">,</span>
+    <span class="tok-key">"inputs"</span><span class="tok-brace">:</span> <span class="tok-brace">{</span>
+      <span class="tok-key">"ckpt_name"</span><span class="tok-brace">:</span> <span class="tok-str">"v1-5-pruned.safetensors"</span>
+    <span class="tok-brace">}</span><span class="tok-brace">,</span>
+    <span class="tok-key">"_meta"</span><span class="tok-brace">:</span> <span class="tok-brace">{</span> <span class="tok-key">"title"</span><span class="tok-brace">:</span> <span class="tok-str">"Load Checkpoint"</span> <span class="tok-brace">}</span>
+  <span class="tok-brace">}</span><span class="tok-brace">,</span>
+  <span class="tok-key">"6"</span><span class="tok-brace">:</span> <span class="tok-brace">{</span>
+    <span class="tok-key">"class_type"</span><span class="tok-brace">:</span> <span class="tok-str">"CLIPTextEncode"</span><span class="tok-brace">,</span>
+    <span class="tok-key">"inputs"</span><span class="tok-brace">:</span> <span class="tok-brace">{</span>
+      <span class="tok-key">"text"</span><span class="tok-brace">:</span> <span class="tok-str">"a cat in a forest"</span><span class="tok-brace">,</span>
+      <span class="tok-key">"clip"</span><span class="tok-brace">:</span> <span class="tok-brace">[</span><span class="tok-str">"1"</span><span class="tok-brace">,</span> <span class="tok-num">1</span><span class="tok-brace">]</span>   <span class="tok-comment">// [node_id, output_index]</span>
+    <span class="tok-brace">}</span>
+  <span class="tok-brace">}</span><span class="tok-brace">,</span>
+  <span class="tok-comment">// ... thêm các node khác</span>
+<span class="tok-brace">}</span></pre>
+        </div>
+      </div>
+
+      <p class="prose-note">
+        Tham chiếu đến output của node khác được viết dạng
+        <code class="inline-mono">["node_id", output_index]</code>.
+        Ví dụ <code class="inline-mono">["1", 1]</code> nghĩa là
+        "lấy output thứ 2 (index 1) của node có id là 1" — tức là cổng CLIP từ Load Checkpoint.
+      </p>
+
+      <details class="disclosure">
+        <summary class="disclosure-summary">
+          <span class="disclosure-arrow" aria-hidden="true">▸</span>
+          Cách Export và Import Workflow JSON
+        </summary>
+        <div class="disclosure-body">
+          <strong class="prose-strong">Export:</strong> Dùng <kbd class="key-badge">Save</kbd>
+          để lưu workflow cho canvas; dùng <em>Save (API Format)</em> khi cần payload thực thi.<br /><br />
+          <strong class="prose-strong">Import:</strong> Kéo thả file <code>.json</code> vào canvas,
+          hoặc dùng nút <em>Load</em>. ComfyUI sẽ tái tạo toàn bộ sơ đồ node chính xác.
+        </div>
+      </details>
+    </section>
+
+    <!-- ── Section 4: API Format ── -->
+    <section id="api-format" class="content-section shell">
+      <p class="section-index">04 / 04</p>
+      <h2 class="section-h2">API Format</h2>
+      <p class="section-lead">
+        API Format là graph thực thi mà frontend xuất ra để gửi tới endpoint prompt của server.
+        Nó phù hợp với automation, nhưng node khả dụng và input hợp lệ vẫn phụ thuộc phiên bản ComfyUI,
+        custom node và model đã cài trên máy đích.
+      </p>
+
+      <div class="compare-grid">
+        <div class="compare-col">
+          <div class="compare-col-header">
+            <p class="compare-col-title">Workflow JSON thông thường</p>
+            <p class="compare-col-sub">Dùng trong giao diện / chia sẻ</p>
+          </div>
+          <div class="compare-col-body">
+            <ul>
+              <li>Lưu trực tiếp từ canvas</li>
+              <li>Giữ thông tin để frontend dựng lại canvas</li>
+              <li>Import/Export qua giao diện ComfyUI</li>
+              <li>Không nên coi là payload API ổn định</li>
+            </ul>
+          </div>
+        </div>
+        <div class="compare-col">
+          <div class="compare-col-header">
+            <p class="compare-col-title">API Format</p>
+            <p class="compare-col-sub">Dùng để chạy tự động / lập trình</p>
+          </div>
+          <div class="compare-col-body">
+            <ul>
+              <li>Export bằng cách bật <em>Dev mode</em> → <em>Save (API Format)</em></li>
+              <li>Tập trung vào node id, <code>class_type</code> và <code>inputs</code></li>
+              <li>Gửi qua HTTP POST tới <code>/prompt</code></li>
+              <li>Phù hợp cho script, queue worker và automation</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="code-block code-block--spaced">
+        <div class="code-block-header">
+          <span class="code-block-label">Gửi request API — Python</span>
+          <span class="code-block-badge">Python</span>
+        </div>
+        <div class="code-block-wrap">
+          <button class="code-copy-btn" type="button" aria-label="Sao chép code" data-copy-target="wf-api-1">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            Copy
+          </button>
+          <pre id="wf-api-1" aria-label="Ví dụ gửi request API ComfyUI bằng Python"><span class="tok-key">import</span> requests, json
+
+workflow_api = json.load(<span class="tok-key">open</span>(<span class="tok-str">"workflow_api.json"</span>))
+
+payload = <span class="tok-brace">{</span>
+    <span class="tok-str">"prompt"</span><span class="tok-brace">:</span> workflow_api<span class="tok-brace">,</span>
+    <span class="tok-str">"client_id"</span><span class="tok-brace">:</span> <span class="tok-str">"my-script-01"</span>
+<span class="tok-brace">}</span>
+
+response = requests.post(
+    <span class="tok-str">"http://127.0.0.1:8188/prompt"</span><span class="tok-brace">,</span>
+    json=payload
+)
+print(response.json())  <span class="tok-comment"># {"prompt_id": "...", "number": ...}</span></pre>
+        </div>
+      </div>
+
+      <p class="prose-note">
+        Khi server nhận job, phản hồi có thể chứa <code class="inline-mono">prompt_id</code> cùng lỗi theo node.
+        Theo dõi bằng WebSocket hoặc history của đúng deployment; đường dẫn/khả năng có thể khác giữa local và Cloud.
+      </p>
+
+      <aside class="production-brief" aria-labelledby="brief-heading">
+        <p class="brief-kicker">Production brief · mô phỏng quy trình</p>
+        <h3 class="brief-title" id="brief-heading">Batch hero shot cho landing page: đừng đổi prompt, seed và model cùng lúc</h3>
+        <p class="brief-intro">Một team cần 12 frame mở đầu nhất quán cho teaser sản phẩm. Mục đích của workflow API là tạo biến thể có thể truy vết, không phải tìm một preset “tốt nhất”.</p>
+        <dl class="brief-grid">
+          <div class="brief-item"><dt>Mục tiêu / bối cảnh</dt><dd>Hero frame 16:9 cho teaser web; cần bố cục lặp lại đủ ổn để art director chọn.</dd></div>
+          <div class="brief-item"><dt>Input / workflow giả định</dt><dd>API-format export của workflow image baseline; script chỉ sửa input <code>seed</code> của sampler.</dd></div>
+          <div class="brief-item"><dt>Giữ cố định</dt><dd>Checkpoint, prompt, negative prompt, resolution, sampler và scheduler. Đây là control của A/B test.</dd></div>
+          <div class="brief-item"><dt>Đang thử nghiệm</dt><dd>Seed theo từng job. Sau khi chọn bố cục, mới mở test thứ hai cho prompt hoặc parameter khác.</dd></div>
+          <div class="brief-item"><dt>Giới hạn</dt><dd>Ngân sách 20 phút trên GPU nội bộ; dừng batch khi queue, VRAM hoặc node validation báo lỗi — không suy diễn tốc độ chung.</dd></div>
+          <div class="brief-item"><dt>Đánh giá / thất bại</dt><dd>So bố cục, đọc được chữ/logo, lỗi anatomy và tính nhất quán thương hiệu. Seed tốt nhưng chữ vỡ là thất bại, không phải “pass”.</dd></div>
+        </dl>
+        <div class="experiment-lab" aria-labelledby="experiment-heading">
+          <h3 id="experiment-heading">A/B switch: thay đúng một biến</h3>
+          <p>Chọn một lượt chạy. Đây là <strong>mô phỏng</strong>: không hiển thị benchmark hay thời gian GPU thật.</p>
+          <div class="experiment-controls" role="group" aria-label="Chọn biến thể workflow mô phỏng">
+            <button class="experiment-button" type="button" data-experiment="baseline" aria-pressed="true">A · baseline seed 1042</button>
+            <button class="experiment-button" type="button" data-experiment="seed">B · chỉ đổi seed 7931</button>
+            <button class="experiment-button" type="button" data-experiment="bad">Sai phương pháp · đổi seed + prompt</button>
+          </div>
+          <output class="experiment-output" id="experiment-output" aria-live="polite">A / baseline — input thay đổi: không có. So với B, mọi field trừ seed phải giống hệt để quy kết khác biệt cho seed.</output>
+        </div>
+      </aside>
+
+      <ul class="source-list" aria-label="Nguồn kỹ thuật chính chủ">
+        <li><a href="https://docs.comfy.org/development/cloud/overview">ComfyUI Cloud API overview</a>: API format do frontend xuất và job chạy bất đồng bộ.</li>
+        <li><a href="https://docs.comfy.org/api-reference/cloud/workflow/submit-a-workflow-for-execution">ComfyUI prompt API reference</a>: payload chứa graph thực thi và phản hồi có prompt id/node errors.</li>
+        <li><a href="https://github.com/Comfy-Org/ComfyUI">ComfyUI repository</a>: dự án node/graph và backend chính chủ.</li>
+      </ul>
+    </section>
+
+    <!-- ── Interactive Node Graph ── -->
+    <section id="interactive-graph" class="graph-section shell">
+      <p class="section-index">Demo tương tác</p>
+      <h2 class="section-h2">Sơ đồ Node &amp; JSON</h2>
+      <p class="section-lead">
+        Chọn bất kỳ node nào bằng chuột, chạm hoặc phím <kbd class="key-badge">Tab</kbd> + <kbd class="key-badge">Enter</kbd> để xem cấu trúc JSON tương ứng.
+        Bạn sẽ thấy ngay cách mỗi node được biểu diễn trong file workflow.
+      </p>
+
+      <div class="graph-stage">
+        <!-- Node graph -->
+        <div class="graph-canvas">
+          <p class="graph-canvas-label">Workflow — chọn node để khám phá</p>
+          <div class="graph-nodes">
+
+            <!-- Node 1 -->
+            <button class="graph-node" aria-pressed="false"
+              data-node-id="1" aria-label="Node: Load Checkpoint, nhấn để xem JSON">
+              <span class="graph-node-icon node-icon--orange" aria-hidden="true">⬡</span>
+              <span class="graph-node-text">
+                <span class="graph-node-name">Load Checkpoint</span>
+                <span class="graph-node-sub">CheckpointLoaderSimple</span>
+              </span>
+              <span class="graph-node-id">#1</span>
+            </button>
+
+            <div class="graph-edge" aria-hidden="true">
+              <span class="graph-edge-label">MODEL · CLIP · VAE ↓</span>
+            </div>
+
+            <!-- Node 6 -->
+            <button class="graph-node" aria-pressed="false"
+              data-node-id="6" aria-label="Node: CLIP Text Encode, nhấn để xem JSON">
+              <span class="graph-node-icon node-icon--cyan" aria-hidden="true">⬡</span>
+              <span class="graph-node-text">
+                <span class="graph-node-name">CLIP Text Encode</span>
+                <span class="graph-node-sub">CLIPTextEncode</span>
+              </span>
+              <span class="graph-node-id">#6</span>
+            </button>
+
+            <div class="graph-edge" aria-hidden="true">
+              <span class="graph-edge-label">CONDITIONING ↓</span>
+            </div>
+
+            <!-- Node 3 -->
+            <button class="graph-node" aria-pressed="false"
+              data-node-id="3" aria-label="Node: KSampler, nhấn để xem JSON">
+              <span class="graph-node-icon node-icon--acid" aria-hidden="true">⬡</span>
+              <span class="graph-node-text">
+                <span class="graph-node-name">KSampler</span>
+                <span class="graph-node-sub">KSampler</span>
+              </span>
+              <span class="graph-node-id">#3</span>
+            </button>
+
+            <div class="graph-edge" aria-hidden="true">
+              <span class="graph-edge-label">LATENT ↓</span>
+            </div>
+
+            <!-- Node 8 -->
+            <button class="graph-node" aria-pressed="false"
+              data-node-id="8" aria-label="Node: VAE Decode, nhấn để xem JSON">
+              <span class="graph-node-icon node-icon--cyan" aria-hidden="true">⬡</span>
+              <span class="graph-node-text">
+                <span class="graph-node-name">VAE Decode</span>
+                <span class="graph-node-sub">VAEDecode</span>
+              </span>
+              <span class="graph-node-id">#8</span>
+            </button>
+
+            <div class="graph-edge" aria-hidden="true">
+              <span class="graph-edge-label">IMAGE ↓</span>
+            </div>
+
+            <!-- Node 9 -->
+            <button class="graph-node" aria-pressed="false"
+              data-node-id="9" aria-label="Node: Save Image, nhấn để xem JSON">
+              <span class="graph-node-icon node-icon--muted" aria-hidden="true">⬡</span>
+              <span class="graph-node-text">
+                <span class="graph-node-name">Save Image</span>
+                <span class="graph-node-sub">SaveImage</span>
+              </span>
+              <span class="graph-node-id">#9</span>
+            </button>
+
+          </div>
+        </div>
+
+        <!-- JSON detail panel -->
+        <div class="json-panel" id="json-detail-panel">
+          <div class="json-panel-header">
+            <span class="json-panel-title" id="json-panel-title">JSON Node</span>
+            <span class="json-panel-hint" id="json-panel-hint">Chọn node để xem</span>
+          </div>
+          <div class="json-panel-body" id="json-panel-body" aria-live="polite" aria-label="Chi tiết JSON của node">
+            <div class="json-panel-empty">
+              <span class="json-panel-empty-icon" aria-hidden="true">◈</span>
+              <span>Click vào một node để xem cấu trúc JSON tương ứng</span>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
-    <section class="lesson-section" aria-labelledby="ghi-nho-heading">
+    <!-- ── Checkpoint ── -->
+    <section id="checkpoint" class="checkpoint-section shell">
+      <p class="section-index">Kiểm tra hiểu biết</p>
+      <h2 class="section-h2">Checkpoint</h2>
+      <p class="section-lead">3 câu hỏi nhanh để củng cố những gì vừa học.</p>
+
+      <!-- Q1 -->
+      <div class="quiz-card" data-quiz="q1">
+        <p class="quiz-q">1. Trong Workflow JSON, cú pháp <code class="inline-mono">["1", 0]</code> trong trường <code>inputs</code> có nghĩa là gì?</p>
+        <div class="quiz-options" role="list">
+          <button class="quiz-option" data-correct="false" aria-label="Đáp án A">
+            <span class="quiz-option-letter" aria-hidden="true">A</span>
+            <span class="quiz-option-text">Lấy input thứ nhất của node 0</span>
+          </button>
+          <button class="quiz-option" data-correct="true" aria-label="Đáp án B">
+            <span class="quiz-option-letter" aria-hidden="true">B</span>
+            <span class="quiz-option-text">Lấy output đầu tiên (index 0) của node có id là "1"</span>
+          </button>
+          <button class="quiz-option" data-correct="false" aria-label="Đáp án C">
+            <span class="quiz-option-letter" aria-hidden="true">C</span>
+            <span class="quiz-option-text">Lấy node id 0 từ group số 1</span>
+          </button>
+        </div>
+        <div class="quiz-feedback correct" id="q1-fb-correct" role="status">
+          ✓ Chính xác! <code>["node_id", output_index]</code> — phần tử đầu là id, phần tử sau là vị trí cổng ra (bắt đầu từ 0).
+        </div>
+        <div class="quiz-feedback wrong" id="q1-fb-wrong" role="status">
+          Chưa đúng. Cú pháp là <code>["node_id", output_index]</code>: "1" là id của node nguồn, 0 là cổng ra đầu tiên của node đó.
+        </div>
+        <button class="button quiz-reset" aria-label="Thử lại câu 1">↺ Thử lại</button>
+      </div>
+
+      <!-- Q2 -->
+      <div class="quiz-card" data-quiz="q2">
+        <p class="quiz-q">2. Điểm khác biệt chính giữa Workflow JSON thông thường và API Format là gì?</p>
+        <div class="quiz-options" role="list">
+          <button class="quiz-option" data-correct="false" aria-label="Đáp án A">
+            <span class="quiz-option-letter" aria-hidden="true">A</span>
+            <span class="quiz-option-text">API Format dùng định dạng YAML thay vì JSON</span>
+          </button>
+          <button class="quiz-option" data-correct="false" aria-label="Đáp án B">
+            <span class="quiz-option-letter" aria-hidden="true">B</span>
+            <span class="quiz-option-text">API Format chứa nhiều metadata hơn về vị trí node trên canvas</span>
+          </button>
+          <button class="quiz-option" data-correct="true" aria-label="Đáp án C">
+            <span class="quiz-option-letter" aria-hidden="true">C</span>
+            <span class="quiz-option-text">API Format là graph thực thi do frontend export để gửi tới server; workflow canvas không nên được coi là payload API ổn định</span>
+          </button>
+        </div>
+        <div class="quiz-feedback correct" id="q2-fb-correct" role="status">
+          ✓ Đúng! API Format tập trung vào graph thực thi. Hãy export lại từ đúng frontend/version thay vì tự suy ra payload từ dữ liệu canvas.
+        </div>
+        <div class="quiz-feedback wrong" id="q2-fb-wrong" role="status">
+          Chưa đúng. Cả hai đều là JSON, nhưng payload API là graph thực thi do frontend export; node và input hợp lệ còn phụ thuộc installation đích.
+        </div>
+        <button class="button quiz-reset" aria-label="Thử lại câu 2">↺ Thử lại</button>
+      </div>
+
+      <!-- Q3 -->
+      <div class="quiz-card" data-quiz="q3">
+        <p class="quiz-q">3. Node nào trong workflow chuẩn KHÔNG có cổng ra (output port)?</p>
+        <div class="quiz-options" role="list">
+          <button class="quiz-option" data-correct="false" aria-label="Đáp án A">
+            <span class="quiz-option-letter" aria-hidden="true">A</span>
+            <span class="quiz-option-text">KSampler</span>
+          </button>
+          <button class="quiz-option" data-correct="false" aria-label="Đáp án B">
+            <span class="quiz-option-letter" aria-hidden="true">B</span>
+            <span class="quiz-option-text">VAE Decode</span>
+          </button>
+          <button class="quiz-option" data-correct="true" aria-label="Đáp án C">
+            <span class="quiz-option-letter" aria-hidden="true">C</span>
+            <span class="quiz-option-text">Save Image</span>
+          </button>
+        </div>
+        <div class="quiz-feedback correct" id="q3-fb-correct" role="status">
+          ✓ Chính xác! Save Image là điểm cuối (terminal node) — nhận IMAGE và ghi ra file, không có output cho node nào tiếp theo.
+        </div>
+        <div class="quiz-feedback wrong" id="q3-fb-wrong" role="status">
+          Chưa đúng. Save Image là node cuối cùng, nhận IMAGE từ VAE Decode và không có cổng ra nào. KSampler và VAE Decode đều có outputs.
+        </div>
+        <button class="button quiz-reset" aria-label="Thử lại câu 3">↺ Thử lại</button>
+      </div>
+    </section>
+
+    <!-- ── Takeaways ── -->
+    <section class="takeaway-section shell">
+      <p class="section-index">Tổng kết</p>
+      <h2 class="section-h2">Những điều cần nhớ</h2>
+      <div class="takeaway-list">
+        <div class="takeaway-item">
+          <span class="takeaway-num">01</span>
+          <p class="takeaway-text"><strong>ComfyUI = node-graph.</strong> Mỗi node là một bước xử lý độc lập; dữ liệu chạy theo chiều các đường kết nối (edges).</p>
+        </div>
+        <div class="takeaway-item">
+          <span class="takeaway-num">02</span>
+          <p class="takeaway-text"><strong>Kiểu dữ liệu phải khớp.</strong> MODEL, CLIP, CONDITIONING, LATENT, VAE, IMAGE — mỗi cổng chỉ chấp nhận đúng một kiểu.</p>
+        </div>
+        <div class="takeaway-item">
+          <span class="takeaway-num">03</span>
+          <p class="takeaway-text"><strong>Workflow JSON</strong> lưu toàn bộ sơ đồ. Tham chiếu giữa node dùng cú pháp <code class="inline-mono">["node_id", output_index]</code>.</p>
+        </div>
+        <div class="takeaway-item">
+          <span class="takeaway-num">04</span>
+          <p class="takeaway-text"><strong>API Format</strong> là graph thực thi do frontend export để gửi tới endpoint prompt. Export lại khi đổi version/node thay vì coi JSON canvas là contract API.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="takeaway-section shell" aria-labelledby="related-heading">
+      <p class="section-index">Bài liên quan</p>
+      <h2 class="section-h2" id="related-heading">Nối graph với pipeline video và vận hành</h2>
+      <p class="section-lead">Các link dưới đây nối theo cơ chế và workflow thật, không chỉ vì có cùng từ khoá.</p>
+      <nav class="related-grid" aria-label="Các bài học liên quan">
+        <a class="related-card" href="video-generation-part-1-lesson-1.html">
+          <span class="related-tag">Nền tảng · latent diffusion</span>
+          <strong>Phần 1 · Bài 1: Diffusion Model</strong>
+          <small>Giải thích vì sao KSampler thao tác latent và conditioning thay vì pixel trực tiếp.</small>
+        </a>
+        <a class="related-card" href="video-generation-part-1-lesson-3.html">
+          <span class="related-tag">Cùng cơ chế · conditioning</span>
+          <strong>Phần 1 · Bài 3: CLIP &amp; Text Encoding</strong>
+          <small>Làm rõ text encoder và embedding trước khi nối output vào sampler của workflow.</small>
+        </a>
+        <a class="related-card" href="video-generation-part-4-lesson-4.html">
+          <span class="related-tag">Ứng dụng tiếp theo · video workflow</span>
+          <strong>Phần 6 · Bài 4: WanVideo trong ComfyUI</strong>
+          <small>Áp dụng cách đọc graph/API format cho workflow video có model và node chuyên biệt.</small>
+        </a>
+      </nav>
+    </section>
+
+    <!-- HANDOFF CARD -->
+    <section class="content-section" id="handoff" aria-labelledby="handoff-heading">
       <div class="shell">
-        <div class="takeaway">
-          <span class="takeaway-mark" aria-hidden="true">→</span>
+        <div class="handoff-card">
+          <div class="handoff-card-icon" aria-hidden="true">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </div>
           <div>
-            <h2 id="ghi-nho-heading">Một câu để nhớ</h2>
-            <p><strong>T2V</strong> khi chỉ có ý tưởng; <strong>I2V</strong> khi cần giữ điểm xuất phát; <strong>FLF2V</strong> khi cả điểm xuất phát lẫn điểm đến đều là yêu cầu.</p>
+            <p class="handoff-card-label">Bài tiếp theo</p>
+            <h2 class="handoff-card-title" id="handoff-heading">Custom Node & ComfyUI Manager</h2>
+            <p class="handoff-card-body">Sau khi hiểu node-graph và JSON, bài tiếp theo giải thích cách cài đặt và quản lý custom nodes thông qua ComfyUI Manager — bao gồm xử lý missing-node errors và kiểm tra tương thích phiên bản.</p>
+            <a class="button primary" href="video-generation-part-4-lesson-2.html" data-curriculum-next>Sang Bài 4.2 →</a>
           </div>
         </div>
       </div>
     </section>
+
   </main>
 
-  <footer>
-    <div class="shell footer-inner">
-      <p>Video Generation Study · Part 4 / Lesson 1</p>
-      <a class="button" href="index.html">Về danh sách bài học</a>
+  <footer class="page-footer shell" role="contentinfo">
+    <div class="page-footer-inner" style="display:flex;justify-content:space-between;align-items:center;width:100%">
+      <span class="footer-meta" data-curriculum-completion-label>VIDEO GEN LAB · GENERATION SETUP · BÀI 4.1 / NODE &amp; WORKFLOW JSON</span>
+      <nav class="hero-actions" aria-label="Điều hướng bài học">
+        <a href="video-generation-part-3-lesson-4.html" class="button button--sm" data-curriculum-prev data-curriculum-title-fallback>← Bài 3.4: Validate, Select &amp; Export Checkpoint</a>
+        <a href="video-generation-part-4-lesson-2.html" class="button button--sm primary" data-curriculum-next data-curriculum-title-fallback>Bài 4.2: Custom Node &amp; Manager →</a>
+      </nav>
     </div>
-    <nav class="shell lesson-nav" aria-label="Điều hướng bài học">
-      <a class="button" href="index.html">← Mục lục</a>
-      <a class="button primary" href="video-generation-part-4-lesson-2.html">Bài 4.2 · CLIP Vision Encode →</a>
-    </nav>
   </footer>
 
   <script>
-    (() => {
-      const form = document.querySelector('#mode-form');
-      const mode = document.querySelector('#result-mode');
-      const title = document.querySelector('#result-title');
-      const reason = document.querySelector('#result-reason');
-      const note = document.querySelector('#asset-note');
-      const progress = document.querySelector('.progress-fill');
-
-      const recommendations = {
-        t2v: {
-          mode: 'T2V',
-          title: 'Bắt đầu từ prompt',
-          reason: 'Bạn chưa có điểm neo hình ảnh và không khóa khung cuối. T2V cho model dựng bố cục lẫn chuyển động; hãy kiểm tra model cụ thể có task T2V.',
-          note: '<strong>Đủ đầu vào.</strong> Viết prompt mô tả chủ thể, chuyển động và bối cảnh.'
-        },
-        i2v: {
-          mode: 'I2V',
-          title: 'Giữ khung đầu, mở khung cuối',
-          reason: 'Một ảnh đã xác định điểm xuất phát, còn điểm kết thúc được để mở. I2V dùng ảnh đó làm neo rồi phát triển chuyển động; mức bám phụ thuộc model và workflow.',
-          note: '<strong>Đủ đầu vào.</strong> Prompt nên tập trung vào chuyển động thay vì mô tả lại toàn bộ ảnh.'
-        },
-        flf2v: {
-          mode: 'FLF2V',
-          title: 'Khóa cả điểm đầu lẫn điểm đến',
-          reason: 'Khung cuối là một yêu cầu cụ thể. FLF2V dùng hai khung neo và sinh phần chuyển tiếp ở giữa, nếu checkpoint/workflow bạn chọn thực sự hỗ trợ task này.',
-          note: '<strong>Đủ đầu vào.</strong> Kiểm tra hai khung có chủ thể, tỷ lệ và bố cục đủ tương thích để chuyển tiếp.'
-        }
-      };
-
-      const updateRecommendation = () => {
-        const visualInput = new FormData(form).get('visual-input');
-        const endpoint = new FormData(form).get('endpoint');
-        let result;
-
-        if (endpoint === 'fixed' || visualInput === 'both') {
-          result = {...recommendations.flf2v};
-          if (visualInput === 'none') {
-            result.note = '<strong>Còn thiếu asset.</strong> Hãy tạo hoặc chọn cả khung đầu và khung cuối trước khi chạy FLF2V.';
-          } else if (visualInput === 'first') {
-            result.note = '<strong>Còn thiếu asset.</strong> Bạn đã có khung đầu; hãy chuẩn bị thêm khung cuối cần đạt tới.';
-          }
-        } else if (visualInput === 'first') {
-          result = recommendations.i2v;
-        } else {
-          result = recommendations.t2v;
-        }
-
-        mode.textContent = result.mode;
-        title.textContent = result.title;
-        reason.textContent = result.reason;
-        note.innerHTML = result.note;
-      };
-
-      const updateProgress = () => {
-        const scrollable = document.documentElement.scrollHeight - window.innerHeight;
-        const percent = scrollable > 0 ? Math.min(100, Math.max(0, window.scrollY / scrollable * 100)) : 0;
-        progress.style.width = `${percent}%`;
-      };
-
-      form.addEventListener('change', updateRecommendation);
-      window.addEventListener('scroll', updateProgress, {passive: true});
-      updateRecommendation();
+    // ── Progress bar ──
+    (function () {
+      var fill = document.getElementById('progress-fill');
+      if (!fill) return;
+      function updateProgress() {
+        var scrollTop = window.scrollY || document.documentElement.scrollTop;
+        var docHeight = document.documentElement.scrollHeight - window.innerHeight;
+        var pct = docHeight > 0 ? Math.min(100, (scrollTop / docHeight) * 100) : 0;
+        fill.style.width = pct + '%';
+      }
+      window.addEventListener('scroll', updateProgress, { passive: true });
       updateProgress();
     })();
+
+    // ── Controlled API-format experiment (simulation, no GPU request) ──
+    (function () {
+      var output = document.getElementById('experiment-output');
+      var buttons = document.querySelectorAll('.experiment-button');
+      if (!output || !buttons.length) return;
+      var messages = {
+        baseline: 'A / baseline — input thay đổi: không có. So với B, mọi field trừ seed phải giống hệt để quy kết khác biệt cho seed.',
+        seed: 'B / seed test — chỉ sửa inputs.seed: 1042 → 7931. Nếu bố cục khác, ghi seed, prompt hash và version workflow trước khi art direction chọn frame.',
+        bad: 'Không thể quy kết kết quả — seed và prompt cùng đổi. Bước tiếp theo: quay lại baseline, tách thành hai test độc lập rồi so sánh từng biến.'
+      };
+      buttons.forEach(function (button) {
+        button.addEventListener('click', function () {
+          buttons.forEach(function (item) { item.setAttribute('aria-pressed', 'false'); });
+          button.setAttribute('aria-pressed', 'true');
+          output.textContent = messages[button.dataset.experiment];
+        });
+      });
+    })();
+
+    // ── Interactive node graph ──
+    (function () {
+      var nodeData = {
+        '1': {
+          name: 'Load Checkpoint',
+          json: {
+            "1": {
+              "class_type": "CheckpointLoaderSimple",
+              "inputs": { "ckpt_name": "v1-5-pruned.safetensors" },
+              "_meta": { "title": "Load Checkpoint" }
+            }
+          },
+          note: 'Outputs: [MODEL, CLIP, VAE] — index 0, 1, 2'
+        },
+        '6': {
+          name: 'CLIP Text Encode',
+          json: {
+            "6": {
+              "class_type": "CLIPTextEncode",
+              "inputs": {
+                "text": "a cat in a forest, photorealistic",
+                "clip": ["1", 1]
+              },
+              "_meta": { "title": "CLIP Text Encode (positive)" }
+            }
+          },
+          note: 'clip: ["1", 1] = output index 1 (CLIP) của node #1'
+        },
+        '3': {
+          name: 'KSampler',
+          json: {
+            "3": {
+              "class_type": "KSampler",
+              "inputs": {
+                "model": ["1", 0],
+                "positive": ["6", 0],
+                "negative": ["7", 0],
+                "latent_image": ["5", 0],
+                "seed": 12345,
+                "steps": 20,
+                "cfg": 7,
+                "sampler_name": "euler",
+                "scheduler": "normal",
+                "denoise": 1.0
+              }
+            }
+          },
+          note: 'model: ["1",0] = MODEL · positive: ["6",0] = CONDITIONING'
+        },
+        '8': {
+          name: 'VAE Decode',
+          json: {
+            "8": {
+              "class_type": "VAEDecode",
+              "inputs": {
+                "samples": ["3", 0],
+                "vae": ["1", 2]
+              }
+            }
+          },
+          note: 'samples: ["3",0] = LATENT từ KSampler · vae: ["1",2] = VAE'
+        },
+        '9': {
+          name: 'Save Image',
+          json: {
+            "9": {
+              "class_type": "SaveImage",
+              "inputs": {
+                "images": ["8", 0],
+                "filename_prefix": "ComfyUI"
+              }
+            }
+          },
+          note: 'Terminal node — không có output. images: ["8",0] = IMAGE'
+        }
+      };
+
+      function syntaxHighlight(obj) {
+        var str = JSON.stringify(obj, null, 2);
+        str = str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        return str.replace(
+          /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+          function (match) {
+            var cls = 'tok-num';
+            if (/^"/.test(match)) {
+              cls = /:$/.test(match) ? 'tok-key' : 'tok-str';
+            }
+            return '<span class="' + cls + '">' + match + '</span>';
+          }
+        );
+      }
+
+      var panelTitle = document.getElementById('json-panel-title');
+      var panelHint  = document.getElementById('json-panel-hint');
+      var panelBody  = document.getElementById('json-panel-body');
+      var buttons    = document.querySelectorAll('.graph-node');
+      var activeId   = null;
+
+      buttons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var id = btn.dataset.nodeId;
+          if (activeId === id) {
+            btn.setAttribute('aria-pressed', 'false');
+            activeId = null;
+            panelTitle.textContent = 'JSON Node';
+            panelHint.textContent  = 'Chọn node để xem';
+            panelBody.innerHTML    = '<div class="json-panel-empty"><span class="json-panel-empty-icon" aria-hidden="true">◈</span><span>Click vào một node để xem cấu trúc JSON tương ứng</span></div>';
+            return;
+          }
+          buttons.forEach(function (b) { b.setAttribute('aria-pressed', 'false'); });
+          btn.setAttribute('aria-pressed', 'true');
+          activeId = id;
+          var data = nodeData[id];
+          if (!data) return;
+          panelTitle.textContent = data.name;
+          panelHint.textContent  = '#' + id;
+          panelBody.innerHTML    =
+            '<pre>' + syntaxHighlight(data.json) + '</pre>' +
+            '<p class="json-panel-note">' + data.note + '</p>';
+        });
+      });
+    })();
+
+    // ── Quiz logic ──
+    (function () {
+      document.querySelectorAll('.quiz-card').forEach(function (card) {
+        var options  = card.querySelectorAll('.quiz-option');
+        var fbCorrect = card.querySelector('.quiz-feedback.correct');
+        var fbWrong   = card.querySelector('.quiz-feedback.wrong');
+        var resetBtn  = card.querySelector('.quiz-reset');
+        var answered  = false;
+
+        options.forEach(function (opt) {
+          opt.addEventListener('click', function () {
+            if (answered) return;
+            answered = true;
+            var isCorrect = opt.dataset.correct === 'true';
+            options.forEach(function (o) {
+              o.disabled = true;
+              if (o.dataset.correct === 'true') {
+                o.dataset.state = 'correct';
+              } else if (o === opt && !isCorrect) {
+                o.dataset.state = 'wrong';
+              }
+            });
+            if (isCorrect) { fbCorrect.classList.add('show'); }
+            else           { fbWrong.classList.add('show'); }
+            resetBtn.classList.add('show');
+          });
+        });
+
+        resetBtn.addEventListener('click', function () {
+          answered = false;
+          options.forEach(function (o) {
+            o.disabled = false;
+            delete o.dataset.state;
+          });
+          fbCorrect.classList.remove('show');
+          fbWrong.classList.remove('show');
+          resetBtn.classList.remove('show');
+        });
+      });
+    })();
+
+    // ── Code copy logic ──
+    document.querySelectorAll('.code-copy-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const target = document.getElementById(btn.dataset.copyTarget);
+        if (!target) return;
+        navigator.clipboard.writeText(target.textContent).then(() => {
+          btn.classList.add('copied');
+          btn.textContent = '✓ Đã copy';
+          setTimeout(() => {
+            btn.classList.remove('copied');
+            btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy';
+          }, 2000);
+        });
+      });
+    });
   </script>
 </body>
 </html>

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="dark" data-curriculum-id="runpod-operations">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chạy workflow trên RunPod — Phần 6, Bài 5 | Video Gen Lab</title>
+  <meta name="description" content="Lập kế hoạch Pod, Network Volume và một lần chạy ComfyUI trên RunPod với chi phí, dữ liệu và tiêu chí kiểm tra rõ ràng." />
+  <script src="video-generation-curriculum.js"></script>
+  <script src="video-generation-theme.js"></script>
+  <link rel="stylesheet" href="video-generation-design-system.css" />
+  <style>
+    .topnav a { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+    .hero { padding: 78px 0 64px; }
+    .hero-grid { display:grid; grid-template-columns:minmax(0,1fr) 390px; gap:42px; align-items:end; }
+    .eyebrow,.section-label,.mono { font:700 .72rem/1.4 var(--font-mono); letter-spacing:.13em; text-transform:uppercase; }
+    .eyebrow { color:var(--cyan); margin:0 0 18px; }
+    h1 { max-width:780px; margin:0 0 22px; font-size:clamp(3.25rem,8vw,7.4rem); line-height:.92; letter-spacing:-.075em; }
+    .lead { max-width:680px; margin:0; color:var(--muted); font-size:1.15rem; }
+    .hero-actions,.nav-actions { display:flex; gap:12px; flex-wrap:wrap; margin-top:30px; }
+    .run-card,.panel,.case-card,.related-card { border:1px solid var(--line); border-radius:var(--radius); background:var(--panel); }
+    .run-card { padding:25px; box-shadow:10px 10px 0 color-mix(in srgb,var(--cyan) 9%,transparent); }
+    .run-card h2 { margin:0 0 14px; font-size:1.1rem; }
+    .run-card ol { padding-left:1.25rem; margin:0; color:var(--muted); }
+    .run-card li+li { margin-top:9px; }
+    section { border-top:1px solid var(--line); padding:70px 0; }
+    .section-label { color:var(--dim); margin:0 0 10px; }
+    .section-heading { margin:0 0 14px; font-size:clamp(2rem,4vw,3.1rem); line-height:1.02; letter-spacing:-.045em; }
+    .intro { max-width:720px; margin:0 0 32px; color:var(--muted); }
+    .notice { border-left:3px solid var(--orange); padding:18px 20px; background:color-mix(in srgb,var(--orange) 8%,var(--panel)); border-radius:0 14px 14px 0; color:var(--muted); }
+    .notice strong { color:var(--ink); }
+    .flow { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-top:28px; }
+    .flow-step { position:relative; min-height:158px; padding:20px; border:1px solid var(--line); border-radius:16px; background:var(--panel); }
+    .flow-step strong { display:block; color:var(--ink); font-size:1.05rem; }
+    .flow-step p { margin:9px 0 0; color:var(--muted); font-size:.9rem; }
+    .flow-step span { color:var(--cyan); }
+    .flow-step:not(:last-child)::after { content:"→"; position:absolute; right:-12px; top:50%; z-index:1; transform:translateY(-50%); width:24px; color:var(--cyan); text-align:center; background:var(--night); }
+    .two-col { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+    .panel { padding:25px; }
+    .panel h3 { margin:0 0 12px; font-size:1.12rem; }
+    .panel p,.panel li { color:var(--muted); }
+    .panel ul { padding-left:1.2rem; margin:0; }
+    .panel li+li { margin-top:8px; }
+    .fact { color:var(--ink); font-weight:800; }
+    .checklist { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin:26px 0 0; }
+    .check { min-height:88px; padding:15px; border:1px solid var(--line); border-radius:14px; background:var(--panel-2); }
+    .check strong { display:block; font-size:.9rem; }
+    .check span { display:block; margin-top:4px; color:var(--muted); font-size:.82rem; }
+    .sim { overflow:hidden; }
+    .sim-head { display:flex; align-items:start; gap:16px; padding:22px 25px; border-bottom:1px solid var(--line); background:var(--panel-2); }
+    .sim-head h3 { margin:0; font-size:1.12rem; }
+    .sim-head p { margin:3px 0 0; color:var(--muted); font-size:.87rem; }
+    .sim-body { padding:25px; }
+    .fields { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+    label { display:block; color:var(--dim); font:700 .7rem/1.4 var(--font-mono); letter-spacing:.1em; text-transform:uppercase; }
+    input,select { width:100%; min-height:48px; margin-top:8px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--panel); color:var(--ink); }
+    .sim-result { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:20px; }
+    .metric { padding:15px; border:1px solid var(--line); border-radius:14px; background:var(--panel-2); }
+    .metric span { display:block; color:var(--dim); font:700 .66rem/1.4 var(--font-mono); letter-spacing:.1em; text-transform:uppercase; }
+    .metric output { display:block; margin-top:5px; font-size:1.45rem; font-weight:900; color:var(--acid); }
+    .feedback { min-height:48px; margin:18px 0 0; padding:13px 15px; border:1px solid color-mix(in srgb,var(--cyan) 35%,transparent); border-radius:12px; color:var(--cyan); background:color-mix(in srgb,var(--cyan) 8%,transparent); }
+    .case-card { padding:28px; border-color:color-mix(in srgb,var(--acid-fill) 55%,var(--line)); }
+    .case-card h3 { margin:0 0 8px; font-size:1.3rem; }
+    .case-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:21px; }
+    .case-grid div { padding:14px; border-left:2px solid var(--cyan); background:var(--panel-2); }
+    .case-grid strong { display:block; font:700 .67rem/1.4 var(--font-mono); letter-spacing:.1em; color:var(--dim); text-transform:uppercase; }
+    .case-grid p { margin:5px 0 0; color:var(--muted); font-size:.9rem; }
+    .source-list { display:grid; gap:10px; padding:0; list-style:none; }
+    .source-list a,.related-card a { display:inline-flex; align-items:center; min-height:44px; color:var(--ink); text-decoration-thickness:1px; text-underline-offset:3px; }
+    .related { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+    .related-card { padding:20px; }
+    .related-card h3 { margin:0 0 8px; font-size:1rem; }
+    .related-card p { margin:0; color:var(--muted); font-size:.88rem; }
+    .lesson-nav { display:flex; justify-content:space-between; gap:16px; align-items:center; padding:30px 0 0; }
+    footer { padding:30px 0; border-top:1px solid var(--line); color:var(--dim); font-size:.86rem; }
+    footer a { display:inline-flex; align-items:center; min-height:44px; }
+    @media (max-width:850px) { .hero-grid,.two-col { grid-template-columns:1fr; } .flow { grid-template-columns:1fr; } .flow-step:not(:last-child)::after { content:"↓"; top:auto; bottom:-20px; left:50%; right:auto; transform:translateX(-50%); } .related { grid-template-columns:1fr; } }
+    @media (max-width:580px) { .hero { padding:50px 0; } section { padding:52px 0; } .fields,.sim-result,.case-grid,.checklist { grid-template-columns:1fr; } .sim-head,.lesson-nav { flex-direction:column; } .button { width:100%; } }
+    @media (prefers-reduced-motion: no-preference) { .flow-step,.metric { transition:transform .2s ease,border-color .2s ease; } .flow-step:hover,.metric:focus-within { transform:translateY(-3px); border-color:var(--cyan); } }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Bỏ qua điều hướng</a>
+  <header class="topbar">
+    <div class="topbar-inner"><a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true"></span>Video Gen Lab</a><nav class="topnav" aria-label="Điều hướng bài học"><a href="video-generation-part-7-lesson-3.html" data-curriculum-prev>← Bài 7.3</a><a href="index.html" data-curriculum-home>Trang chủ</a></nav></div>
+    <div class="progress-track" aria-hidden="true"><div class="progress-fill" id="progressFill"></div></div>
+  </header>
+  <main id="main">
+    <section class="hero" aria-labelledby="lesson-title"><div class="shell"><div class="hero-grid"><div><p class="eyebrow" data-curriculum-hero-label>OUTPUT &amp; OPERATIONS · BÀI 7.4 · RUNPOD</p><h1 id="lesson-title">Chạy workflow<br>trên RunPod</h1><p class="lead">Biến một workflow ComfyUI đã kiểm tra thành một lần chạy cloud có thể lặp lại: chọn nơi lưu dữ liệu, ghi rõ giả định chi phí, và biết khi nào phải dừng để chẩn đoán.</p><div class="hero-actions"><a class="button primary" href="#simulator">Lập kế hoạch một pod</a><a class="button" href="#production-case">Xem production brief</a></div></div><aside class="run-card" aria-label="Trình tự chạy an toàn"><h2>Trình tự an toàn</h2><ol><li>Kiểm tra workflow local/JSON và model license.</li><li>Tạo volume cùng datacenter với Pod.</li><li>Ghi lại image, version, GPU, seed và input.</li><li>Stop khi tạm nghỉ, terminate khi không còn cần Pod; sao lưu output quan trọng.</li></ol></aside></div></div></section>
+
+    <section id="foundation" aria-labelledby="foundation-heading"><div class="shell"><p class="section-label">01 — Phạm vi</p><h2 class="section-heading" id="foundation-heading">Pod là compute; Network Volume là dữ liệu</h2><p class="intro">Theo tài liệu RunPod, Network Volume tồn tại độc lập với compute và với Pod thường thay thế volume disk, thường mount tại <code>/workspace</code>. Chỉ chọn GPU sau khi biết model, precision, số frame, resolution và các node của workflow.</p><div class="notice"><strong>Điều chỉnh quan trọng:</strong> Stop giải phóng compute cho một lần tạm nghỉ; dữ liệu ở <code>/workspace</code> trên Network Volume vẫn còn sau Stop hoặc terminate. Storage vẫn có phí, nên cần budget và backup riêng.</div><div class="flow" aria-label="Dữ liệu đi từ volume tới pod và output"><article class="flow-step"><span class="mono">A</span><strong>Network Volume</strong><p>Models, workflow JSON và output được giữ bền. Pod phải được tạo cùng lúc với volume.</p></article><article class="flow-step"><span class="mono">B</span><strong>Pod + template</strong><p>Chọn GPU sẵn có tại datacenter của volume; image/template và port là cấu hình của Pod.</p></article><article class="flow-step"><span class="mono">C</span><strong>Lần chạy có log</strong><p>Lưu prompt, seed, commit node, model hash và output để A/B test có thể truy vết.</p></article></div></div></section>
+
+    <section id="preflight" aria-labelledby="preflight-heading"><div class="shell"><p class="section-label">02 — Preflight</p><h2 class="section-heading" id="preflight-heading">Đừng suy ra VRAM từ tên model</h2><p class="intro">Không có một mức VRAM hay GPU “đủ cho Wan” áp dụng cho mọi workflow video. Footprint thay đổi theo checkpoint, precision/quantization, VAE/text encoder, resolution, frame count, batch và implementation node. Đọc model card/repository của model cụ thể và thử một workload nhỏ trước.</p><div class="two-col"><article class="panel"><h3>Biến giữ cố định khi A/B</h3><ul><li>Model file + checksum/version và custom-node version.</li><li>Prompt, negative prompt, seed, scheduler, frame/resolution.</li><li>Image/template, CUDA/PyTorch environment nếu workflow phụ thuộc.</li></ul></article><article class="panel"><h3>Biến chỉ thay một lần</h3><ul><li>GPU hoặc hourly rate trong thử nghiệm chi phí.</li><li>Precision/quantization <em>hoặc</em> số frame/resolution.</li><li>Một tham số sampler/nút, rồi đọc log và output trước khi đổi tiếp.</li></ul></article></div><div class="checklist"><div class="check"><strong>Datacenter</strong><span>Volume giới hạn lựa chọn GPU theo vị trí; kiểm tra availability trước deploy.</span></div><div class="check"><strong>Giá</strong><span>Giá/availability thay đổi. Lấy giá hiện tại trong console, không dùng bảng tĩnh của bài học.</span></div><div class="check"><strong>Dữ liệu</strong><span>Không coi storage là backup dài hạn; xuất output và workflow quan trọng ra nơi khác.</span></div><div class="check"><strong>Port &amp; auth</strong><span>Chỉ expose đúng port của image đã chọn; kiểm tra hướng dẫn của template, không giả định mọi template đều giống nhau.</span></div></div></div></section>
+
+    <section id="simulator" aria-labelledby="sim-heading"><div class="shell"><p class="section-label">03 — Mô phỏng</p><h2 class="section-heading" id="sim-heading">Estimator phiên chạy</h2><p class="intro">Đây là <strong>mô phỏng chi phí</strong>, không phải báo giá hay benchmark RunPod. Nhập hourly rate bạn vừa xem trong console và thời lượng dự kiến. Output chỉ giúp đặt ngưỡng budget trước khi chạy.</p><div class="panel sim"><div class="sim-head"><div><h3>Budget guardrail</h3><p>Thay đổi input bằng bàn phím, touch hoặc chuột; phản hồi sẽ được thông báo.</p></div></div><div class="sim-body"><div class="fields"><label for="hourly-rate">Hourly rate bạn quan sát (USD)<input id="hourly-rate" type="number" min="0" step="0.01" value="0.75" inputmode="decimal" /></label><label for="run-hours">Thời lượng dự kiến (giờ)<input id="run-hours" type="number" min="0" max="72" step="0.25" value="2" inputmode="decimal" /></label></div><div class="sim-result"><div class="metric"><span>Compute mô phỏng</span><output id="compute-cost" for="hourly-rate run-hours">$1.50</output></div><div class="metric"><span>Ngưỡng 20% buffer</span><output id="buffer-cost" for="hourly-rate run-hours">$1.80</output></div><div class="metric"><span>Decision point</span><output id="decision-point" for="hourly-rate run-hours">2.0 h</output></div></div><p id="sim-feedback" class="feedback" role="status" aria-live="polite">Mô phỏng: đặt alarm trước 2.0 giờ; phí storage và transfer không nằm trong số này.</p></div></div></div></section>
+
+    <section id="production-case" aria-labelledby="case-heading"><div class="shell"><p class="section-label">04 — Production brief</p><h2 class="section-heading" id="case-heading">Case: B-roll 6 giây cho trang sản phẩm</h2><p class="intro">Một team cần một shot chuyển động chai nước 6 giây cho trang PDP, có thể lặp lại sau khi client chọn hướng. Đây là kế hoạch vận hành, không phải preset tốt nhất cho mọi model.</p><article class="case-card"><h3>Giả định workflow: I2V ComfyUI đã chạy được ở scale nhỏ</h3><div class="case-grid"><div><strong>Mục tiêu &amp; bối cảnh</strong><p>1 shot 16:9, 6 giây; camera push-in nhẹ để chèn trên product page.</p></div><div><strong>Input / model / workflow</strong><p>Ảnh packshot đã duyệt, workflow I2V đã export JSON, model + node versions ghi trong run sheet.</p></div><div><strong>Giữ cố định</strong><p>Packshot, prompt, seed, workflow JSON, resolution, số frame và version node trong vòng A/B.</p></div><div><strong>Đang thử nghiệm</strong><p>Một thay đổi/lần: GPU <em>hoặc</em> precision; không đồng thời đổi sampler/LoRA.</p></div><div><strong>Giới hạn</strong><p>Budget compute mô phỏng $6/run, giới hạn 4 giờ; storage tính riêng. Xem giá thật trước khi deploy.</p></div><div><strong>Đánh giá</strong><p>Giữ logo/nhãn, không méo chai, motion ổn định, runtime và error log có thể tái tạo.</p></div><div><strong>Dấu hiệu thất bại</strong><p>OOM, missing-node, màu/nhãn drift, frame flicker hoặc URL/port không truy cập được.</p></div><div><strong>Bước tiếp theo</strong><p>OOM: giảm một biến theo docs model; missing-node: đối chiếu version; chất lượng lỗi: quay lại output A/B và thay đúng một biến.</p></div></div></article></div></section>
+
+    <section id="operations" aria-labelledby="operations-heading"><div class="shell"><p class="section-label">05 — Vận hành</p><h2 class="section-heading" id="operations-heading">Stop có chủ đích, ghi log có chủ đích</h2><p class="intro">RunPod tính compute và storage theo cơ chế riêng. Khi tạm nghỉ, Stop Pod để giải phóng compute; file ở Network Volume vẫn giữ sau Stop hoặc terminate. Xuất output quan trọng và kiểm tra billing history/console thay vì suy đoán phí.</p><div class="two-col"><article class="panel"><h3>Run sheet tối thiểu</h3><ul><li>Pod ID, datacenter, GPU, image/template và thời điểm bắt đầu/kết thúc.</li><li>Model source/license, hash, workflow JSON và node versions.</li><li>Input/seed/prompt; resolution, frames, precision và output path.</li><li>Wall time, lỗi, cost quan sát được và kết luận A/B.</li></ul></article><article class="panel"><h3>Khi có lỗi</h3><ul><li><span class="fact">Không khởi động:</span> đọc system/container logs trước khi đổi GPU.</li><li><span class="fact">Không thấy file:</span> kiểm tra mount/path; không giả định template tự scan thư mục.</li><li><span class="fact">GPU unavailable:</span> chọn option có sẵn cùng location hoặc đổi kế hoạch, không di chuyển volume ngầm.</li><li><span class="fact">Output quan trọng:</span> backup ngoài RunPod trước khi số dư/storage gặp sự cố.</li></ul></article></div></div></section>
+
+    <section id="related" aria-labelledby="related-heading"><div class="shell"><p class="section-label">06 — Bài liên quan</p><h2 class="section-heading" id="related-heading">Nối workflow với lần chạy cloud</h2><div class="related"><article class="related-card"><h3><a href="video-generation-part-4-lesson-1.html">Node &amp; Workflow JSON</a></h3><p>Export workflow và truy vết node là điều kiện để lần chạy cloud tái tạo được.</p></article><article class="related-card"><h3><a href="video-generation-part-4-lesson-3.html">Checkpoint &amp; Model Loaders</a></h3><p>Đối chiếu loader, model type và đường dẫn trước khi quy lỗi cho GPU hay storage.</p></article><article class="related-card"><h3><a href="video-generation-part-4-lesson-4.html">Bộ node WanVideo</a></h3><p>Liên hệ các node WanVideo với run sheet và phép A/B một biến của bài này.</p></article></div>
+      <nav class="lesson-nav" aria-label="Điều hướng bài học">
+        <a class="button" href="video-generation-part-7-lesson-3.html" data-curriculum-prev data-curriculum-title-fallback>← Bài 7.3: Experiment Loop &amp; Reproducibility</a>
+        <span style="font-family:var(--font-mono);font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--acid);align-self:center;" data-curriculum-breadcrumb>P6 / L5</span>
+      </nav>
+    </div></section>
+  </main>
+  <footer><div class="shell"><span data-curriculum-completion-label>Video Gen Lab</span> · <a href="index.html" data-curriculum-home>Về mục lục</a></div></footer>
+  <script src="video-generation-navigation.js"></script>
+  <script>
+    (() => {
+      const fill = document.getElementById('progressFill');
+      const updateProgress = () => { const total = document.documentElement.scrollHeight - innerHeight; fill.style.width = total > 0 ? `${Math.min(100, scrollY / total * 100)}%` : '0%'; };
+      addEventListener('scroll', updateProgress, { passive: true }); updateProgress();
+      const rate = document.getElementById('hourly-rate'); const hours = document.getElementById('run-hours');
+      const compute = document.getElementById('compute-cost'); const buffer = document.getElementById('buffer-cost'); const point = document.getElementById('decision-point'); const feedback = document.getElementById('sim-feedback');
+      const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
+      function recalc() {
+        const r = Math.max(0, Number(rate.value) || 0); const h = Math.max(0, Number(hours.value) || 0); const total = r * h;
+        compute.value = money.format(total); buffer.value = money.format(total * 1.2); point.value = `${h.toFixed(2)} h`;
+        feedback.textContent = `Mô phỏng: ${money.format(total)} compute cho ${h.toFixed(2)} giờ ở ${money.format(r)}/giờ; đặt giới hạn ${money.format(total * 1.2)}. Phí storage và điều kiện thực tế không nằm trong số này.`;
+      }
+      rate.addEventListener('input', recalc); hours.addEventListener('input', recalc); recalc();
+    })();
+  </script>
+</body>
+</html>

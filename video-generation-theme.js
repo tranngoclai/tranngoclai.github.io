@@ -21,7 +21,7 @@
 
     const isDark = theme === 'dark';
     const nextThemeLabel = isDark ? 'Bật light mode' : 'Bật dark mode';
-    button.setAttribute('aria-label', 'Chế độ tối');
+    button.setAttribute('aria-label', nextThemeLabel);
     button.setAttribute('title', nextThemeLabel);
     button.setAttribute('aria-pressed', String(isDark));
     button.querySelector('.theme-toggle-icon').textContent = isDark ? '☀' : '☾';

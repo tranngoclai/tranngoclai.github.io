@@ -1,429 +1,242 @@
-<!doctype html>
-<html lang="vi">
+<!DOCTYPE html>
+<html lang="vi" data-theme="dark" data-curriculum-id="first-t2v">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Bài học ControlNet giúp chọn tín hiệu cấu trúc phù hợp và cân bằng control strength với độ tự do sinh video.">
-  <title>ControlNet — Điều kiện cấu trúc | Video Generation Study</title>
-  <link rel="icon" href="video-generation-favicon.svg" type="image/svg+xml">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="video-generation-favicon.svg" />
+  <meta name="description" content="Bài học thực hành First T2V: So sánh trực quan Base Model vs Exported LoRA từ Phase 3 bằng công cụ slider tương tác, kiểm thử prompt baseline và giữ nguyên các thông số nâng cao." />
+  <title>Generation Setup · Bài 4.7 — First T2V: Base vs Exported LoRA</title>
   <script src="video-generation-theme.js"></script>
-  <link rel="stylesheet" href="video-generation-design-system.css">
+  <link rel="stylesheet" href="video-generation-design-system.css" />
+  <script src="video-generation-curriculum.js"></script>
+  <script src="video-generation-navigation.js"></script>
   <style>
+    main { overflow: hidden; }
+    section { scroll-margin-top: 86px; }
+
     .hero {
-      padding: clamp(66px, 10vw, 122px) 0 72px;
+      position: relative;
+      padding: 96px 0 72px;
       border-bottom: 1px solid var(--line);
-    }
-
-    .hero-grid,
-    .section-head,
-    .lab,
-    .closing {
-      display: grid;
-      grid-template-columns: minmax(0, 1.15fr) minmax(290px, .65fr);
-      gap: clamp(34px, 7vw, 88px);
-    }
-
-    .hero-grid { align-items: end; }
-
-    .eyebrow,
-    .section-index,
-    .signal-tag,
-    .micro-label,
-    legend {
-      font-family: var(--font-mono);
-      font-size: .75rem;
-      font-weight: 850;
-      letter-spacing: .11em;
-      text-transform: uppercase;
-    }
-
-    .eyebrow,
-    .section-index { color: var(--cyan); }
-
-    h1 {
-      max-width: 900px;
-      margin: 18px 0 24px;
-      font-size: clamp(3.2rem, 8.6vw, 7.8rem);
-      line-height: .87;
-      letter-spacing: -.075em;
-    }
-
-    .hero-lead {
-      max-width: 720px;
-      margin: 0;
-      color: var(--muted);
-      font-size: clamp(1.05rem, 2vw, 1.3rem);
-    }
-
-    .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
-
-    .goal-note {
-      padding: 26px;
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      background: var(--panel);
-      box-shadow: 12px 12px 0 color-mix(in srgb, var(--acid-fill) 14%, transparent);
-    }
-
-    .goal-note p { margin: 10px 0 0; color: var(--muted); }
-    .goal-note strong { color: var(--ink); }
-
-    main section { padding: clamp(70px, 9vw, 110px) 0; }
-    main section + section { border-top: 1px solid var(--line); }
-
-    .section-head { align-items: end; margin-bottom: 42px; }
-    .section-head h2,
-    .closing h2 {
-      max-width: 800px;
-      margin: 8px 0 0;
-      font-size: clamp(2rem, 5vw, 4.35rem);
-      line-height: .98;
-      letter-spacing: -.055em;
-    }
-
-    .section-head > p { margin: 0; color: var(--muted); }
-
-    .definition {
-      border-left: 5px solid var(--acid-fill);
-      padding: 26px 30px;
-      background: var(--panel);
-      font-size: clamp(1.06rem, 2vw, 1.28rem);
-    }
-
-    .definition p { max-width: 940px; margin: 0; }
-
-    .flow {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      overflow: hidden;
-      background: var(--panel);
-    }
-
-    .flow-step {
-      position: relative;
-      min-height: 210px;
-      padding: 25px 23px;
-      border-right: 1px solid var(--line);
-    }
-
-    .flow-step:last-child { border-right: 0; }
-    .flow-step::after {
-      content: "→";
-      position: absolute;
-      z-index: 2;
-      top: 46%;
-      right: -17px;
-      width: 34px;
-      height: 34px;
-      display: grid;
-      place-items: center;
-      border: 1px solid var(--line);
-      border-radius: 50%;
-      background: var(--night);
-      color: var(--cyan);
-      font-family: var(--font-mono);
-      font-weight: 900;
-    }
-
-    .flow-step:last-child::after { content: none; }
-    .flow-step.control { background: color-mix(in srgb, var(--cyan) 9%, var(--panel)); }
-    .flow-step h3 { margin: 30px 0 10px; font-size: 1.1rem; line-height: 1.2; }
-    .flow-step p { margin: 0; color: var(--muted); font-size: .92rem; }
-    .micro-label { color: var(--dim); }
-    .flow-step.control .micro-label { color: var(--cyan); }
-
-    .signal-table {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
       overflow: hidden;
     }
-
-    .signal-card { padding: 28px; border-right: 1px solid var(--line); background: var(--panel); }
-    .signal-card:last-child { border-right: 0; }
-    .signal-tag { color: var(--cyan); }
-    .signal-card h3 { margin: 26px 0 8px; font-size: 1.2rem; }
-    .signal-card p { margin: 0; color: var(--muted); }
-    .signal-card dl { margin: 22px 0 0; }
-    .signal-card dt { margin-top: 13px; font-weight: 800; }
-    .signal-card dd { margin: 2px 0 0; color: var(--muted); }
-
-    .rule {
-      margin-top: 26px;
-      padding: 22px 26px;
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      background: var(--panel-2);
-    }
-
-    .rule p { margin: 0; }
-
-    .lab {
-      grid-template-columns: minmax(310px, .8fr) minmax(0, 1.2fr);
-      padding: clamp(24px, 5vw, 50px);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      background: var(--panel);
-      box-shadow: 14px 14px 0 color-mix(in srgb, var(--cyan) 12%, transparent);
-    }
-
-    .lab-controls h3 { margin: 8px 0 12px; font-size: clamp(1.6rem, 3vw, 2.5rem); line-height: 1.05; }
-    .lab-controls > p { margin: 0; color: var(--muted); }
-
-    fieldset { min-width: 0; margin: 28px 0 0; padding: 0; border: 0; }
-    legend { margin-bottom: 12px; color: var(--ink); }
-    .signal-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-    .signal-option { position: relative; }
-    .signal-option input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
-    .signal-option span {
-      min-height: 48px;
-      display: grid;
-      place-items: center;
-      padding: 9px 10px;
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      background: var(--night);
-      color: var(--muted);
-      font-weight: 800;
-    }
-
-    .signal-option input:checked + span {
-      border-color: var(--acid-fill);
-      background: var(--acid-fill);
-      color: #111;
-    }
-
-    .signal-option input:focus-visible + span { outline: 3px solid var(--cyan); outline-offset: 4px; }
-
-    .range-control { margin-top: 28px; }
-    .range-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
-    .range-head label { font-weight: 850; }
-    .strength-output { color: var(--acid); font-family: var(--font-mono); font-size: 1.18rem; font-weight: 900; }
-    input[type="range"] { width: 100%; min-height: 44px; margin-top: 9px; accent-color: var(--acid); }
-    .range-ends { display: flex; justify-content: space-between; color: var(--dim); font-family: var(--font-mono); font-size: .73rem; }
-    .help { margin: 12px 0 0; color: var(--muted); font-size: .9rem; }
-    .reset { margin-top: 20px; }
-
-    .result {
-      min-width: 0;
-      padding: 28px;
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      background: var(--night);
-    }
-
-    .preview {
-      position: relative;
-      min-height: 220px;
-      overflow: hidden;
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      background:
-        linear-gradient(90deg, transparent 49.7%, color-mix(in srgb, var(--line) 70%, transparent) 50%, transparent 50.3%),
-        linear-gradient(transparent 49.7%, color-mix(in srgb, var(--line) 70%, transparent) 50%, transparent 50.3%),
-        var(--panel);
-      background-size: 42px 42px;
-    }
-
-    .preview-shape { position: absolute; inset: 20px; }
-    .preview-shape::before,
-    .preview-shape::after { content: ""; position: absolute; }
-
-    .preview[data-signal="pose"] .preview-shape::before {
-      left: 50%; top: 13%; width: 36px; height: 36px; border: 4px solid var(--cyan); border-radius: 50%; transform: translateX(-50%);
-    }
-
-    .preview[data-signal="pose"] .preview-shape::after {
-      left: 50%; top: 34%; width: 116px; height: 130px;
-      transform: translateX(-50%);
-      background:
-        linear-gradient(90deg, transparent 47%, var(--cyan) 47% 53%, transparent 53%),
-        linear-gradient(32deg, transparent 47%, var(--cyan) 47% 53%, transparent 53%),
-        linear-gradient(-32deg, transparent 47%, var(--cyan) 47% 53%, transparent 53%);
-    }
-
-    .preview[data-signal="depth"] .preview-shape {
-      inset: 34px 13%;
-      background:
-        radial-gradient(circle at 30% 55%, var(--ink) 0 8%, transparent 8.5%),
-        radial-gradient(ellipse at 68% 48%, var(--dim) 0 20%, transparent 20.5%),
-        linear-gradient(130deg, transparent 0 30%, color-mix(in srgb, var(--cyan) 55%, var(--panel)) 30% 64%, transparent 64%);
-      filter: grayscale(.35);
-    }
-
-    .preview[data-signal="edges"] .preview-shape {
-      inset: 28px 15%;
-      border: 4px solid var(--cyan);
-      border-radius: 48% 48% 20% 20%;
-      transform: skewX(-8deg);
-    }
-
-    .preview[data-signal="edges"] .preview-shape::before { inset: 22% 18%; border: 3px solid var(--cyan); border-radius: 50%; }
-    .preview[data-signal="edges"] .preview-shape::after { left: 12%; right: 12%; bottom: 18%; border-top: 3px solid var(--cyan); }
-
-    .preview-caption {
-      position: absolute;
-      left: 14px;
-      bottom: 12px;
-      padding: 6px 9px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: var(--night);
-      color: var(--ink);
+    .hero-meta {
       font-family: var(--font-mono);
       font-size: .72rem;
-      font-weight: 800;
+      letter-spacing: .14em;
+      color: var(--dim);
+      text-transform: uppercase;
+      margin: 0 0 20px;
     }
-    .brand { min-height: 44px; align-items: center; }
-    details a { display: inline-flex; align-items: center; min-height: 44px; color: var(--cyan); }
+    .hero-title {
+      max-width: 900px;
+      font-size: clamp(2.6rem, 7vw, 5.4rem);
+      font-weight: 900;
+      letter-spacing: -.05em;
+      line-height: .96;
+      margin: 0 0 24px;
+      background: linear-gradient(135deg, var(--ink) 30%, var(--cyan) 65%, var(--acid) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero-lead {
+      font-size: clamp(1.05rem, 1.8vw, 1.25rem);
+      color: var(--muted);
+      max-width: 680px;
+      margin: 0 0 28px;
+      line-height: 1.6;
+    }
+    .hero-badges { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 30px; }
+    .hero-badge {
+      font-family: var(--font-mono);
+      font-size: .65rem;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      padding: 5px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      color: var(--dim);
+    }
+    .hero-badge.acid { border-color: var(--acid); color: var(--acid); }
+    .hero-badge.cyan { border-color: var(--cyan); color: var(--cyan); }
 
-    .result-head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; margin-top: 22px; }
-    .result-head h3 { margin: 0; font-size: 1.25rem; }
-    .zone { color: var(--cyan); font-family: var(--font-mono); font-size: .76rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
-    .result-summary { min-height: 78px; margin: 14px 0 22px; color: var(--muted); }
+    .content-section { padding-block: 80px; border-top: 1px solid var(--line); }
+    .section-head { display: grid; grid-template-columns: 1fr 1.3fr; gap: 48px; margin-bottom: 40px; align-items: end; }
+    .section-index { color: var(--acid); font-family: var(--font-mono); font-size: .82rem; font-weight: 700; }
 
-    .gauges { display: grid; gap: 16px; }
-    .gauge { display: grid; grid-template-columns: 150px 1fr 3ch; gap: 12px; align-items: center; }
-    .gauge label { color: var(--muted); font-family: var(--font-mono); font-size: .73rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
-    progress { width: 100%; height: 10px; border: 0; border-radius: 999px; overflow: hidden; background: var(--panel-2); }
-    progress::-webkit-progress-bar { background: var(--panel-2); }
-    progress::-webkit-progress-value { background: var(--cyan-fill); }
-    progress::-moz-progress-bar { background: var(--cyan-fill); }
-    .gauge:nth-child(2) progress::-webkit-progress-value { background: var(--acid-fill); }
-    .gauge:nth-child(2) progress::-moz-progress-bar { background: var(--acid-fill); }
-    .gauge:nth-child(3) progress::-webkit-progress-value { background: var(--orange); }
-    .gauge:nth-child(3) progress::-moz-progress-bar { background: var(--orange); }
-    .gauge output { font-family: var(--font-mono); text-align: right; }
-
-    .decision { margin: 22px 0 0; padding-top: 20px; border-top: 1px solid var(--line); }
-
-    .diagnosis {
+    /* Pipeline Step Indicators */
+    .pipeline-steps {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+      margin: 32px 0;
+    }
+    .step-card {
       border: 1px solid var(--line);
-      border-radius: var(--radius);
-      overflow: hidden;
+      border-radius: 12px;
+      padding: 16px;
+      background: var(--panel);
+      text-align: center;
+      transition: all .2s ease;
+    }
+    .step-card.active {
+      border-color: var(--cyan);
+      background: rgba(0,224,255,.08);
+      transform: translateY(-2px);
+    }
+    .step-num {
+      font-family: var(--font-mono);
+      font-size: .75rem;
+      color: var(--acid);
+      display: block;
+      margin-bottom: 6px;
+    }
+    .step-title {
+      font-size: .9rem;
+      font-weight: 700;
+      color: var(--ink);
     }
 
-    .diagnosis article { padding: 27px; border-right: 1px solid var(--line); background: var(--panel); }
-    .diagnosis article:last-child { border-right: 0; }
-    .diagnosis h3 { margin: 24px 0 8px; font-size: 1.08rem; }
-    .diagnosis p { margin: 0; color: var(--muted); }
-
-    .production-brief,
-    .related-list,
-    .lesson-nav {
+    /* Comparison Slider Component */
+    .slider-container {
+      position: relative;
+      width: 100%;
+      max-width: 840px;
+      aspect-ratio: 16 / 9;
+      margin: 32px auto;
+      border-radius: 16px;
+      overflow: hidden;
       border: 1px solid var(--line);
-      border-radius: var(--radius);
+      box-shadow: 0 16px 48px rgba(0,0,0,.3);
+      user-select: none;
+      touch-action: pan-y;
+    }
+    .img-layer {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 1.2rem;
+      font-weight: 700;
+    }
+    .img-layer.base {
+      background: radial-gradient(circle at 30% 40%, #1e2a38 0%, #0d131a 100%);
+      color: var(--cyan);
+    }
+    .img-layer.adapter {
+      background: radial-gradient(circle at 70% 60%, #2e381e 0%, #111a0d 100%);
+      color: var(--acid);
+    }
+    .layer-caption {
+      position: absolute;
+      top: 16px;
+      padding: 6px 14px;
+      border-radius: 8px;
+      background: rgba(0,0,0,.65);
+      backdrop-filter: blur(8px);
+      font-family: var(--font-mono);
+      font-size: .75rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      border: 1px solid var(--line);
+    }
+    .layer-caption.left { left: 16px; color: var(--cyan); }
+    .layer-caption.right { right: 16px; color: var(--acid); }
+
+    .slider-divider {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: var(--acid);
+      cursor: ew-resize;
+      z-index: 10;
+    }
+    .slider-handle {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: var(--acid);
+      color: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      box-shadow: 0 0 16px rgba(200,255,61,.5);
+    }
+
+    /* Deferred Knobs Callouts */
+    .knobs-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 20px;
+      margin-top: 32px;
+    }
+    .knob-card {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 20px;
       background: var(--panel);
     }
-
-    .brief-meta {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 0;
-      margin: 0;
+    .knob-card h4 {
+      margin: 0 0 8px;
+      color: var(--dim);
+      font-family: var(--font-mono);
+      font-size: .85rem;
     }
-
-    .brief-meta > div { min-width: 0; padding: 22px 24px; border-bottom: 1px solid var(--line); }
-    .brief-meta > div:nth-child(odd) { border-right: 1px solid var(--line); }
-    .brief-meta > div:nth-last-child(-n + 2) { border-bottom: 0; }
-    .brief-meta dt { color: var(--cyan); font-family: var(--font-mono); font-size: .72rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
-    .brief-meta dd { margin: 7px 0 0; color: var(--muted); }
-    .brief-meta strong { color: var(--ink); }
-
-    .simulation-note {
-      margin: 20px 0 0;
-      padding: 14px 16px;
-      border-left: 3px solid var(--orange);
-      background: color-mix(in srgb, var(--orange) 8%, var(--panel));
+    .knob-card p {
+      margin: 0 0 12px;
       color: var(--muted);
-      font-size: .92rem;
+      font-size: .9rem;
+      line-height: 1.5;
     }
-
-    .visually-hidden {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
+    .knob-card a {
+      font-family: var(--font-mono);
+      font-size: .8rem;
+      color: var(--cyan);
+      text-decoration: none;
     }
+    .knob-card a:hover { text-decoration: underline; }
 
-    .related-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: hidden; }
-    .related-list a { min-height: 168px; padding: 24px; border-right: 1px solid var(--line); text-decoration: none; transition: background .2s ease, color .2s ease; }
-    .related-list a:last-child { border-right: 0; }
-    .related-list a:hover { background: var(--panel-2); }
-    .related-list strong { display: block; margin-bottom: 8px; color: var(--ink); font-size: 1.05rem; }
-    .related-list span { color: var(--muted); font-size: .92rem; }
-
-    .lesson-nav { display: flex; gap: 12px; justify-content: space-between; padding: 16px; }
-    .lesson-nav .button { flex: 1 1 0; text-align: center; }
-
-    details { margin-top: 26px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); }
-    summary { min-height: 56px; padding: 16px 20px; cursor: pointer; font-weight: 850; }
-    details p { margin: 0; padding: 0 20px 22px; color: var(--muted); }
-
-    .closing-list { margin: 0; padding: 0; list-style: none; counter-reset: takeaway; }
-    .closing-list li { counter-increment: takeaway; display: grid; grid-template-columns: 42px 1fr; gap: 12px; padding: 19px 0; border-bottom: 1px solid var(--line); }
-    .closing-list li::before { content: "0" counter(takeaway); color: var(--cyan); font-family: var(--font-mono); font-weight: 900; }
-
-    footer { padding: 34px 0 50px; border-top: 1px solid var(--line); color: var(--muted); }
-    .footer-inner { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
-    footer p { margin: 0; }
-
-    @media (max-width: 900px) {
-      .hero-grid,
-      .section-head,
-      .lab,
-      .closing { grid-template-columns: 1fr; }
-      .goal-note { max-width: 610px; }
-      .flow { grid-template-columns: 1fr 1fr; }
-      .flow-step:nth-child(2) { border-right: 0; }
-      .flow-step:nth-child(-n + 2) { border-bottom: 1px solid var(--line); }
-      .flow-step:nth-child(2)::after { content: none; }
-      .signal-table,
-      .diagnosis,
-      .related-list { grid-template-columns: 1fr; }
-      .signal-card,
-      .diagnosis article,
-      .related-list a { border-right: 0; border-bottom: 1px solid var(--line); }
-      .signal-card:last-child,
-      .diagnosis article:last-child,
-      .related-list a:last-child { border-bottom: 0; }
+    /* Flow Minimap */
+    .flow-minimap {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 14px 0;
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      color: var(--dim);
+      border-bottom: 1px solid var(--line);
     }
+    .flow-minimap-label { letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin-right: 4px; }
+    .flow-minimap-sep { color: var(--line); }
+    .flow-minimap-item { color: var(--muted); text-decoration: none; padding: 2px 6px; border-radius: 4px; transition: color .15s; }
+    .flow-minimap-item:hover { color: var(--cyan); }
+    .flow-minimap-item.current { color: var(--acid); background: rgba(200,255,61,.1); padding: 2px 8px; border-radius: 4px; }
 
-    @media (max-width: 640px) {
-      .topnav { display: none; }
-      .hero { padding-top: 54px; }
-      h1 { font-size: clamp(3.25rem, 18vw, 5rem); }
-      .hero-actions .button { width: 100%; }
-      .flow { grid-template-columns: 1fr; }
-      .flow-step { min-height: 0; border-right: 0; border-bottom: 1px solid var(--line); }
-      .flow-step:nth-child(3) { border-bottom: 1px solid var(--line); }
-      .flow-step::after { content: none; }
-      .lab { padding: 22px; }
-      .signal-options { grid-template-columns: 1fr; }
-      .result { padding: 20px 17px; }
-      .gauge { grid-template-columns: 1fr 3ch; }
-      .gauge progress { grid-column: 1 / -1; grid-row: 2; }
-      .brief-meta { grid-template-columns: 1fr; }
-      .brief-meta > div,
-      .brief-meta > div:nth-last-child(-n + 2) { border-right: 0; border-bottom: 1px solid var(--line); }
-      .brief-meta > div:last-child { border-bottom: 0; }
-      .lesson-nav { flex-direction: column; }
-      .footer-inner { align-items: flex-start; flex-direction: column; }
-    }
+    /* Output Artifact Badge */
+    .output-artifact { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: rgba(200,255,61,.08); border: 1px solid rgba(200,255,61,.25); border-radius: 10px; margin-bottom: 20px; font-size: .85rem; flex-wrap: wrap; }
+    .output-artifact svg { color: var(--acid); flex-shrink: 0; }
+    .output-artifact-label { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--acid); }
+    .output-artifact-text { color: var(--muted); }
 
-    @media (prefers-reduced-motion: reduce) {
-      .related-list a,
-      .lesson-nav .button { transition: none; }
+    .page-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-block: 40px;
+      border-top: 1px solid var(--line);
     }
   </style>
 </head>
@@ -432,438 +245,223 @@
 
   <header class="topbar">
     <div class="topbar-inner">
-      <a class="brand" href="index.html" aria-label="Video Generation Study — Trang chủ">
+      <a class="brand" href="index.html" data-curriculum-home aria-label="Video Gen Lab — về trang chủ">
         <span class="brand-mark" aria-hidden="true"></span>
-        <span>Video Generation Study</span>
+        VIDEO GEN LAB
       </a>
       <nav class="topnav" aria-label="Điều hướng bài học">
-        <a href="index.html">Lộ trình</a>
-        <a href="#control-lab">Control lab</a>
+        <a href="video-generation-part-4-lesson-5.html" data-curriculum-prev>← Bài 4.6</a>
+        <a href="index.html" data-curriculum-home>Trang chủ</a>
+        <a href="video-generation-part-4-lesson-8.html" data-curriculum-next>Bài 4.8 →</a>
       </nav>
-      <div class="progress-track" aria-hidden="true"><div class="progress-fill"></div></div>
     </div>
   </header>
 
   <main id="main-content">
-    <section class="hero">
-      <div class="shell hero-grid">
-        <div>
-          <div class="eyebrow">Part 4 · Bài 06 · Intermediate</div>
-          <h1>ControlNet</h1>
-          <p class="hero-lead">Prompt nói video nên có gì. ControlNet bổ sung một “bản vẽ” để chỉ rõ hình học, pose hoặc đường biên nên nằm ở đâu — mà không buộc bạn giữ nguyên màu sắc và nội dung ảnh nguồn.</p>
-          <div class="hero-actions">
-            <a class="button primary" href="#signals">Chọn control signal</a>
-            <a class="button" href="#control-lab">Thử strength</a>
+    <!-- HERO -->
+    <div class="shell">
+      <section class="hero" aria-labelledby="hero-heading">
+        <p class="hero-meta" data-curriculum-hero-label>GENERATION SETUP · BÀI 4.7 · LAB</p>
+        <h1 class="hero-title" id="hero-heading">First T2V Baseline:<br />Base vs Exported LoRA.</h1>
+        <p class="hero-lead">Kết nối kết quả export LoRA từ Phase 3.4 vào luồng Text-to-Video đầu tiên. Chạy so sánh đối chiếu giữa Base Model thuần và Base + LoRA với cùng prompt validation, seed và thông số preset chuẩn.</p>
+        <div class="hero-badges">
+          <span class="hero-badge acid">Base vs Adapter</span>
+          <span class="hero-badge cyan">Fixed Seed Baseline</span>
+          <span class="hero-badge">Reproducible Preset</span>
+          <span class="hero-badge">Side-by-Side Visual</span>
+        </div>
+        <!-- OUTPUT ARTIFACT BADGE -->
+        <div class="output-artifact" role="note">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          <span class="output-artifact-label">Đầu ra bài học:</span>
+          <span class="output-artifact-text">Kết quả so sánh trực quan Base Model vs. Base + Exported LoRA với cùng seed/prompt — xác nhận LoRA tái tạo đúng nhận dạng mục tiêu</span>
+        </div>
+      </section>
+    </div>
+
+    <!-- FLOW POSITION MINI-MAP -->
+    <div class="shell">
+      <nav class="flow-minimap" aria-label="Vị trí trong lộ trình">
+        <span class="flow-minimap-label">LỘ TRÌNH</span>
+        <span class="flow-minimap-sep">›</span>
+        <a class="flow-minimap-item" href="video-generation-part-4-lesson-5.html">4.6: Positive &amp; Negative Prompt</a>
+        <span class="flow-minimap-sep">›</span>
+        <strong class="flow-minimap-item current" aria-current="step">4.7: First T2V Baseline</strong>
+        <span class="flow-minimap-sep">›</span>
+        <a class="flow-minimap-item" href="video-generation-part-4-lesson-8.html">4.8: Prompt Weighting &amp; Token Context</a>
+      </nav>
+    </div>
+
+    <!-- PREREQUISITES & HANDOFF CONTEXT -->
+    <section class="content-section" id="context">
+      <div class="shell">
+        <div class="context-box" style="margin: 0 0 40px; border-left: 4px solid var(--acid); background: var(--panel); padding: 24px; border-radius: var(--radius);">
+          <div style="font-family: var(--font-mono); font-size: .75rem; color: var(--acid); text-transform: uppercase; margin-bottom: 8px;">Tiền đề từ Phase 3.4 & Handoff</div>
+          <p style="margin: 0; color: var(--muted); line-height: 1.6;">
+            <strong>Yêu cầu đầu vào:</strong> Bạn đã có file LoRA export thành công tại <a href="video-generation-part-3-lesson-4.html">Bài 3.4 (Validate & Export Checkpoint)</a>.
+            Mục tiêu của bài thực hành này là xác nhận trực quan rằng LoRA tái tạo đúng nhận dạng/phong cách mục tiêu mà không làm hỏng khả năng tạo hình tổng thể của Base Model.
+          </p>
+        </div>
+
+        <div class="section-head">
+          <div>
+            <span class="section-index">01 / LUỒNG XỬ LÝ</span>
+            <h2>Các bước trong Pipeline T2V Đầu Tiên</h2>
+          </div>
+          <p class="section-intro">Hiểu cách dữ liệu di chuyển qua các module từ prompt văn bản đến video hoàn chỉnh.</p>
+        </div>
+
+        <div class="pipeline-steps">
+          <div class="step-card active">
+            <span class="step-num">STEP 1</span>
+            <div class="step-title">Loader</div>
+          </div>
+          <div class="step-card">
+            <span class="step-num">STEP 2</span>
+            <div class="step-title">Prompt Encode</div>
+          </div>
+          <div class="step-card">
+            <span class="step-num">STEP 3</span>
+            <div class="step-title">Latent Init</div>
+          </div>
+          <div class="step-card">
+            <span class="step-num">STEP 4</span>
+            <div class="step-title">Sample / Denoise</div>
+          </div>
+          <div class="step-card">
+            <span class="step-num">STEP 5</span>
+            <div class="step-title">VAE Decode</div>
+          </div>
+          <div class="step-card">
+            <span class="step-num">STEP 6</span>
+            <div class="step-title">Save Video</div>
           </div>
         </div>
-        <aside class="goal-note" aria-label="Mục tiêu bài học">
-          <div class="eyebrow">Mục tiêu</div>
-          <p>Sau bài này, bạn có thể <strong>chọn đúng signal cấu trúc</strong> cho điều cần giữ và giải thích trade-off giữa control strength với tự do của prompt.</p>
-        </aside>
       </div>
     </section>
 
-    <section aria-labelledby="definition-title">
+    <!-- INTERACTIVE SLIDER COMPARISON -->
+    <section class="content-section" id="comparison">
       <div class="shell">
         <div class="section-head">
           <div>
-            <div class="section-index">01 · Mental model</div>
-            <h2 id="definition-title">Giữ cấu trúc, không sao chép toàn bộ ảnh</h2>
+            <span class="section-index">02 / SO SÁNH TRỰC QUAN</span>
+            <h2>Base Model vs. Base + LoRA</h2>
           </div>
-          <p>Control image thường được preprocessor rút gọn thành tín hiệu như skeleton, depth map hoặc edge map. Signal càng đúng với mục tiêu, bạn càng ít phải ép strength.</p>
-        </div>
-        <div class="definition">
-          <p><strong>Trong kiến trúc ControlNet gốc cho text-to-image,</strong> một bản sao trainable của các khối diffusion nhận control map; các zero convolution nối nó với backbone đã khóa để bổ sung residual theo không gian. Nhiều pipeline hiện đại cũng có tham số scale cho residual, nhưng tên tham số, loại control tương thích và tác động lên thời gian thay đổi theo model và framework.</p>
-        </div>
-        <details>
-          <summary>Nguồn và phạm vi của mô tả kỹ thuật</summary>
-          <p>Kiến trúc “locked copy / trainable copy / zero convolution” ở trên đến từ <a href="https://arxiv.org/abs/2302.05543">paper ControlNet gốc</a> và áp dụng trực tiếp cho text-to-image. Ví dụ API về <code>conditioning_scale</code> là hành vi của <a href="https://huggingface.co/docs/diffusers/main/api/models/controlnet">Diffusers ControlNetModel</a>; một UI, node hoặc video model khác có thể dùng tên và cơ chế khác.</p>
-        </details>
-      </div>
-    </section>
-
-    <section aria-labelledby="flow-title">
-      <div class="shell">
-        <div class="section-head">
-          <div>
-            <div class="section-index">02 · Data flow</div>
-            <h2 id="flow-title">Từ frame nguồn đến residual điều khiển</h2>
-          </div>
-          <p>Điều quan trọng không phải ảnh nguồn đẹp đến đâu, mà preprocessor có trích đúng quan hệ không gian bạn cần giữ hay không. Sơ đồ mô tả cơ chế ControlNet kiểu diffusion image; một video workflow chỉ nên dùng khi model/node của nó tài liệu hóa control tương ứng.</p>
-        </div>
-        <div class="flow" role="img" aria-label="Frame nguồn đi qua preprocessor thành control map, ControlNet mã hóa map thành residual cấu trúc, rồi backbone denoise theo cả prompt và residual.">
-          <article class="flow-step">
-            <div class="micro-label">01 · Source</div>
-            <h3>Frame / video nguồn</h3>
-            <p>Chứa nhiều thông tin: subject, màu, texture, ánh sáng và cấu trúc.</p>
-          </article>
-          <article class="flow-step">
-            <div class="micro-label">02 · Extract</div>
-            <h3>Preprocessor</h3>
-            <p>Chỉ giữ loại cấu trúc cần thiết: pose, depth hoặc edges.</p>
-          </article>
-          <article class="flow-step control">
-            <div class="micro-label">03 · Control</div>
-            <h3>ControlNet branch</h3>
-            <p>Mã hóa control map và tạo residual được scale theo strength.</p>
-          </article>
-          <article class="flow-step">
-            <div class="micro-label">04 · Generate</div>
-            <h3>Denoising backbone</h3>
-            <p>Kết hợp prompt với residual để sinh output có cấu trúc được neo.</p>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <section id="signals" aria-labelledby="signals-title">
-      <div class="shell">
-        <div class="section-head">
-          <div>
-            <div class="section-index">03 · Signal choice</div>
-            <h2 id="signals-title">Chọn theo quan hệ cần giữ</h2>
-          </div>
-          <p>Đừng bắt đầu bằng “ControlNet nào mạnh nhất?”. Hãy bắt đầu bằng câu hỏi: output sai ở pose, không gian 3D hay đường viền?</p>
-        </div>
-        <div class="signal-table">
-          <article class="signal-card">
-            <div class="signal-tag">Pose</div>
-            <h3>Giữ khớp và động tác</h3>
-            <p>Skeleton đơn giản hóa cơ thể thành các keypoint và liên kết.</p>
-            <dl>
-              <dt>Chọn khi</dt>
-              <dd>Cần nhân vật mới tái hiện stance, gesture hoặc choreography.</dd>
-              <dt>Không giữ tốt</dt>
-              <dd>Độ sâu cảnh, silhouette chi tiết, vật thể không có keypoint.</dd>
-            </dl>
-          </article>
-          <article class="signal-card">
-            <div class="signal-tag">Depth</div>
-            <h3>Giữ quan hệ gần — xa</h3>
-            <p>Depth map biểu diễn hình học thô và phân lớp không gian.</p>
-            <dl>
-              <dt>Chọn khi</dt>
-              <dd>Cần bố cục, phối cảnh hoặc vị trí camera ổn định.</dd>
-              <dt>Không giữ tốt</dt>
-              <dd>Đường nét nhỏ, texture hoặc identity chính xác.</dd>
-            </dl>
-          </article>
-          <article class="signal-card">
-            <div class="signal-tag">Edges</div>
-            <h3>Giữ contour và biên</h3>
-            <p>Edge map neo các đường bao có độ tương phản rõ.</p>
-            <dl>
-              <dt>Chọn khi</dt>
-              <dd>Cần silhouette sản phẩm, kiến trúc hoặc hình dạng đồ vật.</dd>
-              <dt>Không giữ tốt</dt>
-              <dd>Quan hệ chiều sâu và phần bề mặt không tạo edge rõ.</dd>
-            </dl>
-          </article>
-        </div>
-        <div class="rule"><p><strong>Quy tắc chọn:</strong> Pose cho khớp người · Depth cho không gian 3D · Edges cho đường bao. Chỉ dùng signal chứa đúng thông tin bạn muốn bảo toàn.</p></div>
-      </div>
-    </section>
-
-    <section id="control-lab" aria-labelledby="lab-title">
-      <div class="shell">
-        <div class="section-head">
-          <div>
-            <div class="section-index">04 · Control lab</div>
-            <h2 id="lab-title">Signal đúng trước, strength vừa đủ sau</h2>
-          </div>
-          <p>Chọn điều cần giữ cho shot “nhân vật chạy qua ga tàu”, rồi dùng phím mũi tên trên thanh strength để đọc trade-off.</p>
+          <p class="section-intro">Kéo thanh trượt slider bên dưới để so sánh trực tiếp ảnh/video được sinh từ Base Model thuần (trái) và Base Model + LoRA adapter (phải) trên cùng seed 424242.</p>
         </div>
 
-        <div class="lab">
-          <div class="lab-controls">
-            <div class="eyebrow">Shot thử nghiệm</div>
-            <h3>Cyberpunk runner · tracking shot</h3>
-            <p>Prompt muốn đổi nhân vật, trang phục và ánh sáng. Control signal chỉ nên neo đúng phần cấu trúc cần thiết. Đây là mô phỏng học tập: các chỉ báo dùng đơn vị tương đối, không phải benchmark của một model hay node cụ thể.</p>
-
-            <fieldset>
-              <legend>1. Cấu trúc cần giữ</legend>
-              <div class="signal-options">
-                <label class="signal-option">
-                  <input type="radio" name="signal" value="pose" checked>
-                  <span>Pose</span>
-                </label>
-                <label class="signal-option">
-                  <input type="radio" name="signal" value="depth">
-                  <span>Depth</span>
-                </label>
-                <label class="signal-option">
-                  <input type="radio" name="signal" value="edges">
-                  <span>Edges</span>
-                </label>
-              </div>
-            </fieldset>
-
-            <div class="range-control">
-              <div class="range-head">
-                <label for="strength">2. Control strength</label>
-                <output class="strength-output" id="strength-value" for="strength">0.65</output>
-              </div>
-              <input id="strength" type="range" min="0" max="1" step="0.05" value="0.65" aria-describedby="strength-help">
-              <div class="range-ends" aria-hidden="true"><span>0 · tự do</span><span>1 · bám chặt</span></div>
-              <p class="help" id="strength-help">Radio dùng phím mũi tên; range dùng phím mũi tên để đổi từng 0.05. Sau khi thả range hoặc đổi signal, một thông báo ngắn sẽ xác nhận cấu hình.</p>
-              <button class="button reset" id="reset-lab" type="button">Đặt lại Pose · 0.65</button>
+        <div class="slider-container" id="visualSlider">
+          <div class="img-layer base">
+            <div class="layer-caption left">Base Model Only</div>
+            <div style="text-align:center">
+              <div style="font-size:3rem;margin-bottom:12px">👤</div>
+              <div>Generic Character Features</div>
+              <div style="font-size:.8rem;color:var(--dim);margin-top:6px">Prompt: "a photo of character exemplar walking..."</div>
             </div>
           </div>
-
-          <div class="result">
-            <div class="preview" id="preview" data-signal="pose" role="img" aria-label="Minh họa signal pose đang được chọn.">
-              <div class="preview-shape" aria-hidden="true"></div>
-              <span class="preview-caption" id="preview-caption">POSE · keypoints + limbs</span>
+          <div class="img-layer adapter" id="adapterLayer" style="clip-path: polygon(50% 0, 100% 0, 100% 100%, 50% 100%);">
+            <div class="layer-caption right">Base + Exported LoRA (Strength 1.0)</div>
+            <div style="text-align:center">
+              <div style="font-size:3rem;margin-bottom:12px">✨👤</div>
+              <div>Consented Exemplar Identity Matched</div>
+              <div style="font-size:.8rem;color:var(--acid);margin-top:6px">Trigger: "sks person walking in cinematic lighting..."</div>
             </div>
-
-            <div class="result-head">
-              <h3>Kết quả dự kiến</h3>
-              <span class="zone" id="zone">Neo có kiểm soát</span>
-            </div>
-            <p class="result-summary" id="result-summary" aria-live="polite">Pose giữ nhịp chạy và hướng tay chân. Ở strength 0.65, prompt vẫn có khoảng trống để đổi nhân vật, trang phục và phong cách.</p>
-
-            <div class="gauges" aria-label="Chỉ báo trade-off">
-              <div class="gauge">
-                <label for="structure-gauge">Bám cấu trúc</label>
-                <progress id="structure-gauge" max="100" value="65">65%</progress>
-                <output id="structure-number">65</output>
-              </div>
-              <div class="gauge">
-                <label for="freedom-gauge">Tự do prompt</label>
-                <progress id="freedom-gauge" max="100" value="55">55%</progress>
-                <output id="freedom-number">55</output>
-              </div>
-              <div class="gauge">
-                <label for="conflict-gauge">Rủi ro xung đột</label>
-                <progress id="conflict-gauge" max="100" value="28">28%</progress>
-                <output id="conflict-number">28</output>
-              </div>
-            </div>
-            <p class="decision" id="decision"><strong>Quyết định:</strong> Dùng Pose khi động tác quan trọng hơn hình dạng cảnh; chỉ tăng tiếp nếu tay chân vẫn bị trôi.</p>
-            <p class="visually-hidden" id="lab-status" aria-live="polite" aria-atomic="true"></p>
+          </div>
+          <div class="slider-divider" id="sliderDivider" style="left: 50%;">
+            <div class="slider-handle">↔</div>
           </div>
         </div>
-        <p class="simulation-note"><strong>Phạm vi mô phỏng:</strong> “bám cấu trúc”, “tự do prompt” và “rủi ro xung đột” là thang tương đối để giải thích trade-off. Chúng không dự đoán chất lượng, VRAM hay thời gian của một checkpoint, phiên bản hoặc extension cụ thể.</p>
       </div>
     </section>
 
-    <section aria-labelledby="production-title">
+    <!-- DEFERRED KNOBS -->
+    <section class="content-section" id="deferred-knobs">
       <div class="shell">
         <div class="section-head">
           <div>
-            <div class="section-index">05 · Production brief</div>
-            <h2 id="production-title">A/B test cho một shot cần giữ choreography</h2>
+            <span class="section-index">03 / THÔNG SỐ CỐ ĐỊNH</span>
+            <h2>Các Knobs Được Cố Định & Defer Bài Phía Sau</h2>
           </div>
-          <p>Đây là cách biến “tăng strength thử xem” thành một phép thử có biến kiểm soát. Preset là giả định của brief, không phải cấu hình tốt nhất cho mọi video model.</p>
+          <p class="section-intro">Để đảm bảo tính tái lập (reproducibility) trong bài baseline đầu tiên, ta giữ nguyên các thông số sampler/scheduler và sẽ tìm hiểu sâu ở các bài học tiếp theo.</p>
         </div>
-        <article class="production-brief" aria-label="Production brief: runner quảng cáo thể thao">
-          <dl class="brief-meta">
-            <div><dt>Mục tiêu đầu ra</dt><dd><strong>Clip 4 giây, 24 fps:</strong> vận động viên chạy ngang khung hình, đổi áo sang màu thương hiệu nhưng giữ nhịp tay-chân cho cut quảng cáo.</dd></div>
-            <div><dt>Bối cảnh dùng</dt><dd>Social cut cần biến thể art direction nhanh; motion plate đã được motion designer duyệt.</dd></div>
-            <div><dt>Input / workflow giả định</dt><dd>Chuỗi frame có OpenPose ổn định; video model và ControlNet-compatible pose adapter đã được chính workflow đó hỗ trợ. Sinh cùng seed nếu framework cho phép.</dd></div>
-            <div><dt>Giữ cố định</dt><dd>Prompt, negative prompt, seed, resolution, frame count, sampler/schedule và control map. Không đổi nhiều biến cùng lúc.</dd></div>
-            <div><dt>Biến thử nghiệm</dt><dd>A: conditioning scale thấp hơn. B: cao hơn. Chỉ thay scale; nếu pose drift vẫn lặp lại, thử map sạch hơn ở vòng sau, không suy ra scale là nguyên nhân duy nhất.</dd></div>
-            <div><dt>Giới hạn</dt><dd>Ngân sách thử: tối đa 8 lượt render và 30 phút GPU queue. Ghi lại model, version, GPU, resolution và thời gian thực tế trước khi so sánh tốc độ/VRAM.</dd></div>
-            <div><dt>Tiêu chí đánh giá</dt><dd>Reviewer chấm frame đầu/cuối và scrub toàn clip: khớp chính đúng nhịp, trang phục đổi được, không flicker gây chú ý, và silhouette không bị khóa cứng.</dd></div>
-            <div><dt>Failure → bước kế</dt><dd>Pose bơi: kiểm tra keypoint theo thời gian. Outfit không đổi / hình cứng: hạ scale. Flicker dù map sạch: thử workflow temporal-control được model tài liệu hóa hoặc chuyển sang bài chẩn đoán motion.</dd></div>
-          </dl>
-        </article>
+
+        <div class="knobs-grid">
+          <div class="knob-card">
+            <h4>FIXED KNOB 1</h4>
+            <h3 style="margin:0 0 10px;font-size:1.1rem;color:var(--ink)">Conditioning &amp; Guidance (CFG = 6.0)</h3>
+            <p>Được giữ cố định ở mức 6.0 để đo chính xác lực học của LoRA.</p>
+            <a href="video-generation-part-6-lesson-4.html">Tìm hiểu thêm tại Bài 6.4 (CFG & Guidance) →</a>
+          </div>
+
+          <div class="knob-card">
+            <h4>FIXED KNOB 2</h4>
+            <h3 style="margin:0 0 10px;font-size:1.1rem;color:var(--ink)">Sampler &amp; Scheduler (UniPC / Euler)</h3>
+            <p>Dùng preset sampler/scheduler tiêu chuẩn với 25 bước khử nhiễu.</p>
+            <a href="video-generation-part-6-lesson-2.html">Tìm hiểu thêm tại Bài 6.2 (Scheduler) & 6.3 (Sampler) →</a>
+          </div>
+
+          <div class="knob-card">
+            <h4>FIXED KNOB 3</h4>
+            <h3 style="margin:0 0 10px;font-size:1.1rem;color:var(--ink)">Frames &amp; Resolution (81 frames, 720p)</h3>
+            <p>Cấu hình độ phân giải và độ dài khung hình chuẩn của Wan2.2.</p>
+            <a href="video-generation-part-5-lesson-2.html">Tìm hiểu thêm tại Bài 5.2 (FPS, Frames & Resolution) →</a>
+          </div>
+        </div>
       </div>
     </section>
 
-    <section aria-labelledby="diagnosis-title">
+    <!-- HANDOFF CARD -->
+    <section class="content-section" id="next-step">
       <div class="shell">
-        <div class="section-head">
+        <div class="next-card" style="border-radius: 22px; padding: 32px; background: var(--cyan); color: #092024; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 24px;">
           <div>
-            <div class="section-index">06 · Diagnosis</div>
-            <h2 id="diagnosis-title">Đọc lỗi trước khi tăng strength</h2>
+            <span style="font-family: var(--font-mono); font-size: .75rem; text-transform: uppercase; font-weight: 700; color: #24535a;">Hoàn thành Bài 4.7</span>
+            <h3 style="margin: 8px 0 0; font-size: 1.6rem; color: #092024;">Tiếp theo: Bài 4.8 — Prompt Weighting &amp; Token Context</h3>
+            <p style="margin: 6px 0 0; color: #29565c;">Sau baseline cố định, hãy tinh chỉnh đúng một biến prompt mỗi lượt: weighting hoặc token context.</p>
           </div>
-          <p>Strength không sửa được một signal thiếu thông tin. Nếu bạn chọn sai map, tăng strength chỉ ép model bám sai thứ mạnh hơn. Với video, frame-to-frame stability là một heuristic chẩn đoán: hãy xác nhận hành vi trên model/workflow bạn đang dùng.</p>
+          <a class="button primary" style="background:#092024;color:#fff;border-color:#092024;" href="video-generation-part-4-lesson-8.html" data-curriculum-next data-curriculum-title-fallback>Bài 4.8: Prompt Weighting &amp; Token Context →</a>
         </div>
-        <div class="diagnosis">
-          <article>
-            <div class="micro-label">Control thấp</div>
-            <h3>Cấu trúc bị drift</h3>
-            <p>Pose đổi, horizon trượt hoặc silhouette biến dạng. Tăng từng bước nhỏ nếu signal đã đúng.</p>
-          </article>
-          <article>
-            <div class="micro-label">Control vừa</div>
-            <h3>Neo đúng, prompt còn sống</h3>
-            <p>Quan hệ chính được giữ nhưng texture, identity, ánh sáng và chi tiết vẫn theo prompt.</p>
-          </article>
-          <article>
-            <div class="micro-label">Control cao</div>
-            <h3>Output cứng hoặc artifact</h3>
-            <p>Model cố sao chép map quá sát, nhất là khi prompt yêu cầu hình học mâu thuẫn với control.</p>
-          </article>
-        </div>
-        <details>
-          <summary>Video cần lưu ý gì thêm so với một ảnh?</summary>
-          <p>Control map cần ổn định theo thời gian. Keypoint nhảy, depth nhấp nháy hoặc edge thay đổi thất thường có thể biến thành jitter trong output. Trước khi tăng strength, hãy kiểm tra tính nhất quán giữa các frame của signal.</p>
-        </details>
-      </div>
-    </section>
-
-    <section aria-labelledby="closing-title">
-      <div class="shell closing">
-        <div>
-          <div class="section-index">07 · Ghi nhớ</div>
-          <h2 id="closing-title">Một quyết định hai bước</h2>
-        </div>
-        <ol class="closing-list">
-          <li><span>Xác định chính xác quan hệ cần giữ: khớp, độ sâu hay đường biên.</span></li>
-          <li><span>Chọn preprocessor và ControlNet tương ứng với loại signal đó.</span></li>
-          <li><span>Dùng strength thấp nhất vẫn giữ được cấu trúc; giảm khi prompt bị khóa hoặc xuất hiện artifact.</span></li>
-        </ol>
-      </div>
-    </section>
-
-    <section aria-labelledby="related-title">
-      <div class="shell">
-        <div class="section-head">
-          <div>
-            <div class="section-index">08 · Bài liên quan</div>
-            <h2 id="related-title">Nối control với workflow kế tiếp</h2>
-          </div>
-          <p>Đọc theo câu hỏi bạn đang gặp: giữ identity, kiểm soát noise của I2V, hay chuyển sang conditioning khác trong pipeline.</p>
-        </div>
-        <nav class="related-list" aria-label="Bài liên quan">
-          <a href="video-generation-part-4-lesson-5.html"><strong>InstantID — identity conditioning</strong><span>Kết hợp đúng vai trò: InstantID giải bài giữ người, còn ControlNet neo hình học/pose; đừng dùng một tín hiệu để kỳ vọng cả hai.</span></a>
-          <a href="video-generation-part-4-lesson-7.html"><strong>Latent strength &amp; noise aug</strong><span>Khi I2V vừa drift vừa quá bám frame đầu, phân biệt conditioning cấu trúc với mức noise/latent trước khi chỉnh.</span></a>
-          <a href="video-generation-part-5-lesson-1.html"><strong>FPS, Frames &amp; Resolution</strong><span>Số frame và resolution đổi chi phí lẫn độ khó giữ control ổn định; khóa chúng trước khi A/B test strength hoặc control signal.</span></a>
-        </nav>
       </div>
     </section>
   </main>
 
-  <footer>
-    <div class="shell footer-inner">
-      <p>Video Generation Study · Part 4 / Lesson 6</p>
-      <nav class="lesson-nav" aria-label="Điều hướng tuần tự">
-        <a class="button" href="video-generation-part-4-lesson-5.html">← Bài 5 · InstantID</a>
-        <a class="button primary" href="video-generation-part-4-lesson-7.html">Bài 7 · Latent strength →</a>
-      </nav>
+  <footer class="shell">
+    <div class="page-footer">
+      <span class="footer-text" data-curriculum-completion-label>VIDEO GEN LAB · GENERATION SETUP · BÀI 4.7 / FIRST T2V BASELINE</span>
+      <a class="button" href="video-generation-part-4-lesson-5.html" data-curriculum-prev data-curriculum-title-fallback>← Bài 4.6: Positive &amp; Negative Prompt</a>
+      <a class="button primary" href="video-generation-part-4-lesson-8.html" data-curriculum-next data-curriculum-title-fallback>Bài 4.8: Prompt Weighting &amp; Token Context →</a>
     </div>
   </footer>
 
   <script>
+    'use strict';
+    // Interactive Slider logic
     (() => {
-      const radios = [...document.querySelectorAll('input[name="signal"]')];
-      const strength = document.querySelector('#strength');
-      const strengthValue = document.querySelector('#strength-value');
-      const preview = document.querySelector('#preview');
-      const previewCaption = document.querySelector('#preview-caption');
-      const zone = document.querySelector('#zone');
-      const summary = document.querySelector('#result-summary');
-      const decision = document.querySelector('#decision');
-      const labStatus = document.querySelector('#lab-status');
-      const reset = document.querySelector('#reset-lab');
-      const progressFill = document.querySelector('.progress-fill');
-      const gauges = {
-        structure: document.querySelector('#structure-gauge'),
-        freedom: document.querySelector('#freedom-gauge'),
-        conflict: document.querySelector('#conflict-gauge')
-      };
-      const gaugeNumbers = {
-        structure: document.querySelector('#structure-number'),
-        freedom: document.querySelector('#freedom-number'),
-        conflict: document.querySelector('#conflict-number')
+      const slider = document.getElementById('visualSlider');
+      const adapterLayer = document.getElementById('adapterLayer');
+      const divider = document.getElementById('sliderDivider');
+      if (!slider || !adapterLayer || !divider) return;
+
+      let isDragging = false;
+
+      const updateSlider = (clientX) => {
+        const rect = slider.getBoundingClientRect();
+        let offsetX = clientX - rect.left;
+        if (offsetX < 0) offsetX = 0;
+        if (offsetX > rect.width) offsetX = rect.width;
+        const pct = (offsetX / rect.width) * 100;
+        divider.style.left = `${pct}%`;
+        adapterLayer.style.clipPath = `polygon(${pct}% 0, 100% 0, 100% 100%, ${pct}% 100%)`;
       };
 
-      const signals = {
-        pose: {
-          label: 'Pose',
-          caption: 'POSE · keypoints + limbs',
-          aria: 'Minh họa signal pose với keypoint và liên kết tay chân.',
-          keeps: 'nhịp chạy và hướng tay chân',
-          freedom: 'nhân vật, trang phục và phong cách',
-          choice: 'Dùng Pose khi động tác quan trọng hơn hình dạng cảnh'
-        },
-        depth: {
-          label: 'Depth',
-          caption: 'DEPTH · near ↔ far',
-          aria: 'Minh họa depth map biểu diễn quan hệ gần và xa.',
-          keeps: 'phối cảnh ga tàu và quan hệ gần — xa',
-          freedom: 'identity, chất liệu và ánh sáng',
-          choice: 'Dùng Depth khi không gian 3D quan trọng hơn đường nét nhỏ'
-        },
-        edges: {
-          label: 'Edges',
-          caption: 'EDGES · contours',
-          aria: 'Minh họa edge map biểu diễn đường bao của chủ thể.',
-          keeps: 'silhouette và các contour nổi bật',
-          freedom: 'màu, texture và nội dung bên trong đường bao',
-          choice: 'Dùng Edges khi đường viền phải chính xác hơn chiều sâu'
-        }
-      };
+      slider.addEventListener('mousedown', (e) => { isDragging = true; updateSlider(e.clientX); });
+      window.addEventListener('mousemove', (e) => { if (isDragging) updateSlider(e.clientX); });
+      window.addEventListener('mouseup', () => { isDragging = false; });
 
-      const readStrength = (value) => {
-        if (value <= .3) return {
-          zone: 'Gợi ý nhẹ',
-          text: 'Signal chỉ gợi hướng. Prompt có nhiều tự do nhưng cấu trúc có thể drift khỏi control map.',
-          advice: 'tăng strength nếu cấu trúc chính chưa ổn định'
-        };
-        if (value <= .75) return {
-          zone: 'Neo có kiểm soát',
-          text: '',
-          advice: 'chỉ tăng tiếp nếu phần cấu trúc cần giữ vẫn bị trôi'
-        };
-        return {
-          zone: 'Khóa cấu trúc',
-          text: 'Control map chiếm ưu thế. Cấu trúc bám chặt hơn nhưng prompt khó thay đổi hình học và artifact dễ xuất hiện khi hai tín hiệu mâu thuẫn.',
-          advice: 'giảm strength nếu output cứng, ít biến hóa hoặc có artifact'
-        };
-      };
-
-      const selectedSignal = () => radios.find((radio) => radio.checked).value;
-
-      const updateLab = (announce = false) => {
-        const key = selectedSignal();
-        const signal = signals[key];
-        const value = Number(strength.value);
-        const reading = readStrength(value);
-        const structure = Math.round(value * 100);
-        const freedom = Math.round(100 - value * 70);
-        const conflict = Math.round(Math.max(0, (value - .4) * 105));
-
-        strengthValue.value = value.toFixed(2);
-        preview.dataset.signal = key;
-        preview.setAttribute('aria-label', signal.aria);
-        previewCaption.textContent = signal.caption;
-        zone.textContent = reading.zone;
-        summary.textContent = reading.text || signal.label + ' giữ ' + signal.keeps + '. Ở strength ' + value.toFixed(2) + ', prompt vẫn có khoảng trống để đổi ' + signal.freedom + '.';
-        decision.innerHTML = '<strong>Quyết định:</strong> ' + signal.choice + '; ' + reading.advice + '.';
-
-        Object.entries({structure, freedom, conflict}).forEach(([name, amount]) => {
-          gauges[name].value = amount;
-          gauges[name].textContent = amount + '%';
-          gaugeNumbers[name].value = amount;
-        });
-
-        if (announce) {
-          labStatus.textContent = 'Mô phỏng: ' + signal.label + ', strength ' + value.toFixed(2) + '. ' + reading.zone + '.';
-        }
-      };
-
-      const updateProgress = () => {
-        const distance = document.documentElement.scrollHeight - window.innerHeight;
-        const amount = distance > 0 ? Math.min(100, Math.max(0, window.scrollY / distance * 100)) : 0;
-        progressFill.style.width = amount + '%';
-      };
-
-      radios.forEach((radio) => radio.addEventListener('change', () => updateLab(true)));
-      strength.addEventListener('input', updateLab);
-      strength.addEventListener('change', () => updateLab(true));
-      reset.addEventListener('click', () => {
-        radios[0].checked = true;
-        strength.value = '0.65';
-        updateLab(true);
-        radios[0].focus();
-      });
-      window.addEventListener('scroll', updateProgress, {passive: true});
-      window.addEventListener('resize', updateProgress);
-      updateLab();
-      updateProgress();
+      slider.addEventListener('touchstart', (e) => { isDragging = true; updateSlider(e.touches[0].clientX); }, {passive: true});
+      window.addEventListener('touchmove', (e) => { if (isDragging) updateSlider(e.touches[0].clientX); }, {passive: true});
+      window.addEventListener('touchend', () => { isDragging = false; });
     })();
   </script>
 </body>

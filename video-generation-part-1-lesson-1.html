@@ -1,13 +1,15 @@
 <!DOCTYPE html>
-<html lang="vi" data-theme="dark">
+<html lang="vi" data-theme="dark" data-curriculum-id="diffusion">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="icon" href="video-generation-favicon.svg" />
   <meta name="description" content="Bài học tương tác về Diffusion Model & Denoising: forward noising, reverse denoising, cách model học dự đoán noise, và vòng lặp khử nhiễu từng bước theo timestep và sigma." />
-  <title>Phần 1 · Bài 1 — Diffusion Model & Denoising</title>
+  <title>Model Architecture · Bài 1.1 — Diffusion Model & Denoising</title>
   <script src="video-generation-theme.js"></script>
   <link rel="stylesheet" href="video-generation-design-system.css" />
+  <script src="video-generation-curriculum.js"></script>
+  <script src="video-generation-navigation.js"></script>
   <style>
     main { overflow: hidden; }
     section { scroll-margin-top: 86px; }
@@ -602,6 +604,61 @@
       .ruler-track { grid-template-columns: repeat(6, 1fr); }
       .ruler-track .ruler-tick:nth-child(n+7) { display: none; }
     }
+    /* ── Curriculum standard blocks ───────────────────────── */
+    .flow-minimap {
+      display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 14px 0;
+      font-family: var(--font-mono); font-size: .72rem; color: var(--dim);
+      border-bottom: 1px solid var(--line);
+    }
+    .flow-minimap-label { letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin-right: 4px; }
+    .flow-minimap-sep { color: var(--line); }
+    .flow-minimap-item { color: var(--muted); text-decoration: none; padding: 2px 6px; border-radius: 4px; transition: color .15s; }
+    .flow-minimap-item:hover { color: var(--cyan); }
+    .flow-minimap-item.current { color: var(--acid); background: rgba(200,255,61,.1); padding: 2px 8px; border-radius: 4px; }
+
+    .prereq-callout {
+      display: flex; gap: 16px; padding: 18px 24px;
+      border: 1px solid rgba(98,231,245,.3); border-left: 4px solid var(--cyan); border-radius: var(--radius);
+      background: rgba(98,231,245,.05); margin-bottom: 32px; align-items: flex-start;
+    }
+    .prereq-icon { color: var(--cyan); flex-shrink: 0; margin-top: 2px; }
+    .prereq-title { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--cyan); margin: 0 0 6px; }
+    .prereq-body { color: var(--muted); font-size: .9rem; line-height: 1.55; margin: 0 0 10px; }
+    .prereq-link { color: var(--cyan); font-size: .85rem; text-decoration: none; }
+    .prereq-link:hover { text-decoration: underline; }
+
+    .output-artifact {
+      display: flex; align-items: center; gap: 10px; padding: 10px 16px;
+      background: rgba(200,255,61,.08); border: 1px solid rgba(200,255,61,.25); border-radius: 10px;
+      margin-bottom: 20px; font-size: .85rem; flex-wrap: wrap;
+    }
+    .output-artifact svg { color: var(--acid); flex-shrink: 0; }
+    .output-artifact-label { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--acid); }
+    .output-artifact-text { color: var(--muted); }
+
+    .handoff-card {
+      display: grid; grid-template-columns: 60px 1fr; gap: 24px; align-items: start; padding: 40px;
+      border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); position: relative; overflow: hidden;
+    }
+    .handoff-card::before {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(135deg, rgba(200,255,61,.05) 0%, transparent 60%); pointer-events: none;
+    }
+    .handoff-card-icon {
+      display: flex; align-items: center; justify-content: center; width: 56px; height: 56px;
+      border-radius: 50%; background: rgba(200,255,61,.1); color: var(--acid); flex-shrink: 0;
+    }
+    .handoff-card-label { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin: 0 0 8px; }
+    .handoff-card-title { font-size: clamp(1.6rem, 3vw, 2.4rem); font-weight: 900; letter-spacing: -.04em; margin: 0 0 16px; color: var(--ink); }
+    .handoff-card-body { color: var(--muted); font-size: .95rem; line-height: 1.6; margin: 0 0 24px; }
+    .phase-contract { margin: 26px 0 0; padding: 18px; border: 1px solid var(--line); border-left: 4px solid var(--cyan); border-radius: 16px; background: color-mix(in srgb, var(--panel) 88%, transparent); }
+    .phase-contract h2 { margin: 0; font: 800 .78rem/1.35 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--cyan); }
+    .phase-contract > p { margin: 8px 0 14px; color: var(--muted); font-size: .92rem; }
+    .phase-contract-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .phase-contract-item { padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--panel-2); }
+    .phase-contract-item strong { display: block; margin-bottom: 4px; font: 800 .68rem/1.3 var(--font-mono); letter-spacing: .07em; text-transform: uppercase; color: var(--ink); }
+    .phase-contract-item span { display: block; color: var(--muted); font-size: .82rem; line-height: 1.45; }
+    @media (max-width: 700px) { .phase-contract-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -609,18 +666,14 @@
 
   <header class="topbar">
     <div class="topbar-inner">
-      <a class="brand" href="index.html" aria-label="Video Gen Lab — về trang chủ">
+      <a class="brand" href="index.html" data-curriculum-home aria-label="Video Gen Lab — về trang chủ">
         <span class="brand-mark" aria-hidden="true"></span>
         VIDEO GEN LAB
       </a>
-      <nav class="topnav" aria-label="Bài học">
-        <a href="video-generation-part-1-lesson-1.html" aria-current="page">Bài 1</a>
-        <a href="video-generation-part-1-lesson-2.html">Bài 2</a>
-        <a href="video-generation-part-1-lesson-3.html">Bài 3</a>
-        <a href="video-generation-part-1-lesson-4.html">Bài 4</a>
-        <a href="video-generation-part-1-lesson-5.html">Bài 5</a>
-        <a href="video-generation-part-1-lesson-6.html">Bài 6</a>
-        <a href="index.html">Trang chủ</a>
+      <nav class="topnav" aria-label="Điều hướng bài học">
+        <a href="video-generation-part-0-lesson-1.html" data-curriculum-prev>← Bài 0.1</a>
+        <a href="index.html" data-curriculum-home>Trang chủ</a>
+        <a href="video-generation-part-1-lesson-2.html" data-curriculum-next>Bài 1.2 →</a>
       </nav>
       <div class="progress-track" aria-hidden="true"><div class="progress-fill" id="progressFill"></div></div>
     </div>
@@ -630,14 +683,29 @@
     <!-- HERO -->
     <div class="shell">
       <section class="hero" aria-labelledby="hero-heading">
-        <p class="hero-meta">PART 1 · BÀI 1 · MODEL ARCHITECTURE</p>
+        <p class="hero-meta" data-curriculum-hero-label>MODEL ARCHITECTURE · BÀI 1.1 · CORE</p>
         <h1 class="hero-title" id="hero-heading">Diffusion Model<br />&amp; Denoising.</h1>
-        <p class="hero-lead">Diffusion học cách đảo ngược một quá trình thêm nhiễu có kiểm soát. Bài này đi từ trực giác forward/reverse, đến cách model học dự đoán noise, rồi tới vòng lặp khử nhiễu từng bước theo timestep và sigma.</p>
+        <p class="hero-lead">Đây là kiến trúc dùng chung, không phải một bài chỉ về train hay inference: base model học đảo noise khi pretrain; checkpoint đã học dùng cơ chế ấy để denoise khi bạn render video.</p>
+        <aside class="phase-contract" aria-label="Vị trí của bài trong lộ trình">
+          <h2>Bạn đang ở đâu?</h2>
+          <p>Phase Kiến trúc Model giải thích khối dùng chung trước khi bạn thực hành train LoRA hoặc inference.</p>
+          <div class="phase-contract-grid">
+            <div class="phase-contract-item"><strong>Base pretraining</strong><span>Học dự đoán noise từ dữ liệu sạch; chỉ hiểu khái niệm, không chạy trong khóa này.</span></div>
+            <div class="phase-contract-item"><strong>LoRA training</strong><span>Dùng checkpoint diffusion có sẵn làm nền; Phase 2–3 mới cấu hình adapter và dữ liệu.</span></div>
+            <div class="phase-contract-item"><strong>Inference</strong><span>Scheduler lặp denoising trên latent noise để tạo video; bạn sẽ vận hành ở Phase 4–7.</span></div>
+          </div>
+        </aside>
         <div class="hero-badges" aria-hidden="true">
           <span class="hero-badge cyan">Forward Noising</span>
           <span class="hero-badge acid">Reverse Denoising</span>
           <span class="hero-badge">Timestep</span>
           <span class="hero-badge">Sigma σ</span>
+        </div>
+        <!-- OUTPUT ARTIFACT BADGE -->
+        <div class="output-artifact" role="note">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          <span class="output-artifact-label">Đầu ra bài học:</span>
+          <span class="output-artifact-text">Trực giác về forward/reverse diffusion, cách model học dự đoán noise, và vai trò của timestep σ trong mỗi bước denoising của Wan2.2</span>
         </div>
         <div class="hero-cta-row">
           <a class="button primary" href="#experiment">
@@ -649,12 +717,37 @@
       </section>
     </div>
 
+    <!-- FLOW POSITION MINI-MAP -->
+    <div class="shell">
+      <nav class="flow-minimap" aria-label="Vị trí trong lộ trình">
+        <span class="flow-minimap-label">LỘ TRÌNH</span>
+        <span class="flow-minimap-sep">›</span>
+        <a class="flow-minimap-item" href="video-generation-part-0-lesson-1.html">Bài 0.1: Tổng quan</a>
+        <span class="flow-minimap-sep">›</span>
+        <strong class="flow-minimap-item current" aria-current="step">Bài 1.1: Diffusion &amp; Denoising</strong>
+        <span class="flow-minimap-sep">›</span>
+        <a class="flow-minimap-item" href="video-generation-part-1-lesson-2.html">Bài 1.2: VAE &amp; Latent Space</a>
+      </nav>
+    </div>
+
     <!-- 01 · TRỰC GIÁC -->
     <section class="content-section" id="intuition" data-nav="Trực giác">
       <div class="shell">
         <div class="section-head fade-up">
           <div><span class="section-index">01 / TRỰC GIÁC</span><h2>Hai chiều,<br />một ý tưởng.</h2></div>
           <p class="section-intro">Ta tạo một bài toán có sẵn đáp án: chủ động làm hỏng dữ liệu sạch bằng noise (forward), rồi huấn luyện model đảo ngược quá trình đó (reverse).</p>
+        </div>
+
+        <!-- PREREQUISITE CALLOUT -->
+        <div class="prereq-callout" role="note" aria-label="Yêu cầu trước bài học">
+          <div class="prereq-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 8v4m0 4h.01"/></svg>
+          </div>
+          <div>
+            <p class="prereq-title">Cần biết trước</p>
+            <p class="prereq-body">Bài này là điểm khởi đầu của lộ trình. Xem bản đồ tổng quan trước để nắm toàn cảnh.</p>
+            <a class="prereq-link" href="video-generation-part-0-lesson-1.html">← Xem lại bài trước: Tổng quan</a>
+          </div>
         </div>
 
         <div class="definition fade-up">
@@ -665,9 +758,9 @@
         <div class="context-box fade-up">
           <div class="context-label">
             <span class="live-dot" aria-hidden="true"></span>
-            Bối cảnh thực tế · ComfyUI + Wan2.2
+            Bối cảnh thực tế · Video Generation Pipeline
           </div>
-          <p>Bạn là video creator đang chạy Wan2.2 trong ComfyUI. Mỗi lần bạn nhấn "Queue Prompt", model bắt đầu từ một tensor noise thuần (~<strong>14.6 GB VRAM</strong> cho 720p), rồi chạy <strong>20 bước denoising</strong> để tạo ra video. Quá trình forward/reverse bạn sắp học chính là cái đang xảy ra bên dưới mỗi lần render đó.</p>
+          <p>Trong một video generation pipeline, mỗi lần inference bắt đầu từ một tensor noise thuần (~<strong>14.6 GB VRAM</strong> cho Wan2.2 720p), rồi chạy <strong>20 bước denoising</strong> để tạo ra video. Quá trình forward/reverse bạn sắp học chính là cái xảy ra bên dưới mỗi lần render đó — bất kể bạn dùng tool nào.</p>
         </div>
 
         <div class="direction-grid">
@@ -735,20 +828,17 @@
               <span class="terminal-dot amber"></span>
               <span class="terminal-dot green"></span>
             </div>
-            <span class="terminal-title">ComfyUI · KSampler node — thực tế</span>
+            <span class="terminal-title">Inference config — Wan2.2 T2V (ví dụ)</span>
             <button class="terminal-copy" data-copy-target="code-forward" type="button">Copy</button>
           </div>
-          <div class="terminal-body" id="code-forward"><span class="cmt"># Wan2.2 trong ComfyUI — cấu hình forward noise step</span>
+          <div class="terminal-body" id="code-forward"><span class="cmt"># Wan2.2 — inference config (model-agnostic view)</span>
 <span class="cmt"># VRAM 720p ≈ 14.6 GB · steps = 20 · cfg = 6.0</span>
-<span class="kw">node</span> <span class="fn">KSampler</span> {
-  model:       <span class="str">"wan2.2-t2v-14B-fp8.safetensors"</span>
-  scheduler:   <span class="str">"karras"</span>        <span class="cmt"># quyết định T→σ mapping</span>
-  sampler:     <span class="str">"euler"</span>         <span class="cmt"># thuật toán update mỗi bước</span>
-  steps:       <span class="num">20</span>              <span class="cmt"># bao nhiêu bước denoising</span>
-  denoise:     <span class="num">1.0</span>             <span class="cmt"># 1.0 = bắt đầu từ noise thuần</span>
-  cfg:         <span class="num">6.0</span>
-  seed:        <span class="num">42</span>
-}</div>
+<span class="kw">scheduler</span>:   <span class="str">"karras"</span>        <span class="cmt"># quyết định T→σ mapping</span>
+<span class="kw">sampler</span>:     <span class="str">"euler"</span>         <span class="cmt"># thuật toán update mỗi bước</span>
+<span class="kw">steps</span>:       <span class="num">20</span>              <span class="cmt"># bao nhiêu bước denoising</span>
+<span class="kw">denoise</span>:     <span class="num">1.0</span>             <span class="cmt"># 1.0 = bắt đầu từ noise thuần</span>
+<span class="kw">cfg</span>:         <span class="num">6.0</span>
+<span class="kw">model</span>:       <span class="str">"wan2.2-t2v-14B-fp8.safetensors"</span></div>
         </div>
 
         <div class="note fade-up">
@@ -969,25 +1059,25 @@
         <span class="section-index">LIÊN QUAN</span>
         <h2 class="section-h2" style="margin-bottom:1.5rem">Bài liên quan</h2>
         <div class="related-grid">
-          <a class="related-card" href="video-generation-part-2-lesson-1.html">
+          <a class="related-card" href="video-generation-part-6-lesson-1.html">
             <span class="related-badge">PHAN 2 · BAI 1</span>
             <strong class="related-title">Timestep &amp; Sigma</strong>
             <p class="related-desc">Đào sâu vào cách T và σ ánh xạ nhau qua các scheduler — nền tảng cho bài này.</p>
             <span class="related-arrow">→</span>
           </a>
-          <a class="related-card" href="video-generation-part-2-lesson-2.html">
+          <a class="related-card" href="video-generation-part-6-lesson-2.html">
             <span class="related-badge">PHAN 2 · BAI 2</span>
             <strong class="related-title">Scheduler — Lịch trình noise</strong>
             <p class="related-desc">Karras, Exponential, Linear — cách mỗi scheduler phân bố các bước sigma ảnh hưởng chất lượng ra sao.</p>
             <span class="related-arrow">→</span>
           </a>
-          <a class="related-card" href="video-generation-part-2-lesson-3.html">
+          <a class="related-card" href="video-generation-part-6-lesson-3.html">
             <span class="related-badge">PHAN 2 · BAI 3</span>
             <strong class="related-title">Sampler — Thuật toán khử nhiễu</strong>
             <p class="related-desc">Euler, DPM++, DDIM — mỗi sampler tính bước update từ σ như thế nào khác nhau.</p>
             <span class="related-arrow">→</span>
           </a>
-          <a class="related-card" href="video-generation-part-3-lesson-3.html">
+          <a class="related-card" href="video-generation-part-3-lesson-2.html">
             <span class="related-badge">PHAN 3 · BAI 3</span>
             <strong class="related-title">High Noise vs Low Noise LoRA</strong>
             <p class="related-desc">Ứng dụng thực tế của khái niệm σ cao/thấp — tại sao face LoRA là Low Noise và style LoRA là High Noise.</p>
@@ -1047,13 +1137,30 @@
         </div>
       </div>
     </section>
+
+    <!-- HANDOFF CARD -->
+    <section class="content-section" id="handoff" aria-labelledby="handoff-heading">
+      <div class="shell">
+        <div class="handoff-card">
+          <div class="handoff-card-icon" aria-hidden="true">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </div>
+          <div>
+            <p class="handoff-card-label">Bài tiếp theo</p>
+            <h2 class="handoff-card-title" id="handoff-heading">VAE &amp; Latent Space</h2>
+            <p class="handoff-card-body">Sau khi hiểu model làm việc trong không gian pixel/frame, bài tiếp theo sẽ giải thích tại sao Wan2.2 thực sự làm việc trong không gian latent nhỏ gọn hơn — đây là chìa khóa để hiểu tại sao generation nhanh hơn nhiều so với pixel-space models.</p>
+            <a class="button primary" href="video-generation-part-1-lesson-2.html" data-curriculum-next>Sang Bài 1.2 →</a>
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 
   <footer class="shell">
     <div class="page-footer">
-      <span class="footer-text">VIDEO GEN LAB · PART 1 · BÀI 1 / DIFFUSION & DENOISING</span>
-      <a class="button" href="index.html">← Trang chủ</a>
-      <a class="button primary" href="video-generation-part-1-lesson-2.html">Bài 2 →</a>
+      <span class="footer-text" data-curriculum-completion-label>VIDEO GEN LAB · MODEL ARCHITECTURE · BÀI 1.1 / DIFFUSION MODEL &amp; DENOISING</span>
+      <a class="button" href="video-generation-part-0-lesson-1.html" data-curriculum-prev data-curriculum-title-fallback>← Bài 0.1: Bản đồ Video Generation end-to-end</a>
+      <a class="button primary" href="video-generation-part-1-lesson-2.html" data-curriculum-next data-curriculum-title-fallback>Bài 1.2: VAE &amp; Latent Space →</a>
     </div>
   </footer>
 

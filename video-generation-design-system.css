@@ -114,6 +114,11 @@ p { text-wrap: pretty; }
 }
 .topnav { margin-left: auto; display: flex; gap: 6px; }
 .topnav a {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 8px 10px;
   border-radius: 8px;
   color: var(--muted);
@@ -167,7 +172,20 @@ p { text-wrap: pretty; }
 
 @media (max-width: 640px) {
   .shell, .topbar-inner { width: min(calc(100% - 28px), var(--max)); }
-  .topbar-inner { min-height: 58px; }
+  /* Mobile shell intentionally keeps only the home affordance and theme action.
+     Lesson-level prev/next controls remain available in each page's lesson nav. */
+  .topbar .topbar-inner {
+    min-height: 58px;
+    gap: 8px;
+    flex-wrap: nowrap;
+  }
+  .topbar .brand {
+    min-width: 0;
+    min-height: 44px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .topbar .topnav { display: none; }
   .theme-toggle { margin-left: auto; padding-inline: 10px; }
   .theme-toggle-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }

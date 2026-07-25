@@ -1,13 +1,15 @@
 <!DOCTYPE html>
-<html lang="vi" data-theme="dark">
+<html lang="vi" data-theme="dark" data-curriculum-id="clip">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" href="video-generation-favicon.svg">
   <meta name="description" content="Phân biệt CLIP dual-encoder với cách Stable Diffusion dùng hidden state theo token để điều kiện hóa cross-attention; đối chiếu chính xác với UMT5 trong Wan2.2.">
-  <title>CLIP — Bài 3 · Video Generation Part 1</title>
+  <title>Model Architecture · Bài 1.4 — CLIP Image Representation & Conditioning</title>
   <script src="video-generation-theme.js"></script>
   <link rel="stylesheet" href="video-generation-design-system.css">
+  <script src="video-generation-curriculum.js"></script>
+  <script src="video-generation-navigation.js"></script>
   <style>
     /* ── Animations ────────────────────────────────────────── */
     @keyframes fadeUp {
@@ -673,7 +675,113 @@
       .pooled-output { flex-direction: column; }
     }
 
+    /* ── Curriculum standard blocks ───────────────────────── */
+    .flow-minimap {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 14px 0;
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      color: var(--dim);
+      border-bottom: 1px solid var(--line);
+    }
+    .flow-minimap-label {
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-right: 4px;
+    }
+    .flow-minimap-sep { color: var(--line); }
+    .flow-minimap-item {
+      color: var(--muted);
+      text-decoration: none;
+      padding: 2px 6px;
+      border-radius: 4px;
+      transition: color .15s;
+    }
+    .flow-minimap-item:hover { color: var(--cyan); }
+    .flow-minimap-item.current {
+      color: var(--acid);
+      background: rgba(200,255,61,.1);
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .prereq-callout {
+      display: flex;
+      gap: 16px;
+      padding: 18px 24px;
+      border: 1px solid rgba(98,231,245,.3);
+      border-left: 4px solid var(--cyan);
+      border-radius: var(--radius);
+      background: rgba(98,231,245,.05);
+      margin-bottom: 32px;
+      align-items: flex-start;
+    }
+    .prereq-icon { color: var(--cyan); flex-shrink: 0; margin-top: 2px; }
+    .prereq-title { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--cyan); margin: 0 0 6px; }
+    .prereq-body { color: var(--muted); font-size: .9rem; line-height: 1.55; margin: 0 0 10px; }
+    .prereq-link { color: var(--cyan); font-size: .85rem; text-decoration: none; }
+    .prereq-link:hover { text-decoration: underline; }
+    .output-artifact {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      background: rgba(200,255,61,.08);
+      border: 1px solid rgba(200,255,61,.25);
+      border-radius: 10px;
+      margin-bottom: 20px;
+      font-size: .85rem;
+      flex-wrap: wrap;
+    }
+    .output-artifact svg { color: var(--acid); flex-shrink: 0; }
+    .output-artifact-label { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--acid); }
+    .output-artifact-text { color: var(--muted); }
+    .handoff-card {
+      display: grid;
+      grid-template-columns: 60px 1fr;
+      gap: 24px;
+      align-items: start;
+      padding: 40px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      position: relative;
+      overflow: hidden;
+    }
+    .handoff-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(200,255,61,.05) 0%, transparent 60%);
+      pointer-events: none;
+    }
+    .handoff-card-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: rgba(200,255,61,.1);
+      color: var(--acid);
+      flex-shrink: 0;
+    }
+    .handoff-card-label { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin: 0 0 8px; }
+    .handoff-card-title { font-size: clamp(1.6rem, 3vw, 2.4rem); font-weight: 900; letter-spacing: -.04em; margin: 0 0 16px; color: var(--ink); }
+    .handoff-card-body { color: var(--muted); font-size: .95rem; line-height: 1.6; margin: 0 0 24px; }
+
     .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border-width: 0; }
+    .phase-contract { margin: 26px 0 0; padding: 18px; border: 1px solid var(--line); border-left: 4px solid var(--cyan); border-radius: 16px; background: color-mix(in srgb, var(--panel) 88%, transparent); }
+    .phase-contract h2 { margin: 0; font: 800 .78rem/1.35 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--cyan); }
+    .phase-contract > p { margin: 8px 0 14px; color: var(--muted); font-size: .92rem; }
+    .phase-contract-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .phase-contract-item { padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--panel-2); }
+    .phase-contract-item strong { display: block; margin-bottom: 4px; font: 800 .68rem/1.3 var(--font-mono); letter-spacing: .07em; text-transform: uppercase; color: var(--ink); }
+    .phase-contract-item span { display: block; color: var(--muted); font-size: .82rem; line-height: 1.45; }
+    @media (max-width: 700px) { .phase-contract-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -681,18 +789,14 @@
 
   <header class="topbar" role="banner">
     <div class="topbar-inner">
-      <a href="index.html" class="brand" aria-label="Video Gen Lab — Trang chủ">
+      <a href="index.html" class="brand" data-curriculum-home aria-label="Video Gen Lab — Trang chủ">
         <span class="brand-mark" aria-hidden="true"></span>
         VIDEO GEN LAB
       </a>
-      <nav class="topnav" aria-label="Bài học">
-        <a href="video-generation-part-1-lesson-1.html">Bài 1</a>
-        <a href="video-generation-part-1-lesson-2.html">Bài 2</a>
-        <a href="video-generation-part-1-lesson-3.html" aria-current="page">Bài 3</a>
-        <a href="video-generation-part-1-lesson-4.html">Bài 4</a>
-        <a href="video-generation-part-1-lesson-5.html">Bài 5</a>
-        <a href="video-generation-part-1-lesson-6.html">Bài 6</a>
-        <a href="index.html">Trang chủ</a>
+      <nav class="topnav" aria-label="Điều hướng bài học">
+        <a href="video-generation-part-1-lesson-4.html" data-curriculum-prev>← Bài 1.3</a>
+        <a href="index.html" data-curriculum-home>Trang chủ</a>
+        <a href="video-generation-part-1-lesson-5.html" data-curriculum-next>Bài 1.5 →</a>
       </nav>
       <div class="progress-track" aria-hidden="true">
         <div class="progress-fill" id="progress-fill"></div>
@@ -706,18 +810,44 @@
       <!-- ── HERO ────────────────────────────────────────── -->
       <section class="hero" aria-labelledby="hero-heading">
         <div class="hero-bg" aria-hidden="true"></div>
-        <p class="hero-meta">
-          <span>PART 1</span> · BÀI 3 · MODEL ARCHITECTURE
-        </p>
-        <h1 id="hero-heading">CLIP —<br>Contrastive Language‑Image Pre‑training</h1>
+        <p class="hero-meta" data-curriculum-hero-label>MODEL ARCHITECTURE · BÀI 1.4 · IMAGE CONDITIONING</p>
+        <h1 id="hero-heading">CLIP —<br>Image Representation &amp; Conditioning</h1>
         <p class="hero-lead">
-          Phân biệt hai vai trò thường bị trộn lẫn: CLIP học đối sánh ảnh–văn bản bằng vector tổng hợp, còn Stable Diffusion kiểu cổ điển lấy chuỗi hidden state theo token từ text encoder để điều kiện hóa cross-attention. Wan2.2 dùng UMT5, không dùng CLIP làm text encoder chính.
+          Đây là nhánh ảnh tham chiếu, đặt sau UMT5 để tách rõ hai đường conditioning: Wan2.2 dùng UMT5 cho prompt text; CLIP Vision biến ảnh tham chiếu thành embedding cho pipeline I2V.
         </p>
+        <aside class="phase-contract" aria-label="Vị trí của bài trong lộ trình">
+          <h2>Bạn đang ở đâu?</h2>
+          <p>CLIP có lịch sử pretraining ảnh–văn bản, nhưng mục tiêu của bạn ở đây là nhận biết vai trò image conditioning trong pipeline.</p>
+          <div class="phase-contract-grid">
+            <div class="phase-contract-item"><strong>Base pretraining</strong><span>CLIP học alignment ảnh–văn bản bằng contrastive learning; đây là bối cảnh, không phải thao tác khóa học.</span></div>
+            <div class="phase-contract-item"><strong>LoRA training</strong><span>Không mặc định train CLIP Vision khi train LoRA; việc đóng băng hay fine-tune phụ thuộc recipe.</span></div>
+            <div class="phase-contract-item"><strong>Inference</strong><span>Ảnh reference được encode thành embedding rồi đưa vào node/adapter I2V ở Phase 5.</span></div>
+          </div>
+        </aside>
+        <!-- OUTPUT ARTIFACT BADGE -->
+        <div class="output-artifact" role="note">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          <span class="output-artifact-label">Đầu ra bài học:</span>
+          <span class="output-artifact-text">Phân biệt rõ CLIP dual-encoder (image conditioning trong I2V) và UMT5 (text conditioning trong Wan2.2); hiểu khi nào pipeline cần CLIP Vision Encoder và khi nào cần text encoder</span>
+        </div>
         <div class="hero-actions">
           <a href="#embedding-space" class="button primary">Bắt đầu học →</a>
           <a href="index.html" class="button">Về trang chủ</a>
         </div>
       </section>
+
+      <!-- FLOW POSITION MINI-MAP -->
+      <div class="shell">
+        <nav class="flow-minimap" aria-label="Vị trí trong lộ trình">
+          <span class="flow-minimap-label">LỘ TRÌNH</span>
+          <span class="flow-minimap-sep">›</span>
+          <a class="flow-minimap-item" href="video-generation-part-1-lesson-4.html" data-curriculum-prev>1.3: UMT5</a>
+          <span class="flow-minimap-sep">›</span>
+          <strong class="flow-minimap-item current" aria-current="step">1.4: CLIP Image Conditioning</strong>
+          <span class="flow-minimap-sep">›</span>
+          <a class="flow-minimap-item" href="video-generation-part-1-lesson-5.html" data-curriculum-next>1.5: Backbone (U-Net/DiT)</a>
+        </nav>
+      </div>
 
       <!-- ── DEFINITION ───────────────────────────────────── -->
       <section class="content-section" aria-labelledby="def-heading">
@@ -725,9 +855,21 @@
           <span class="section-index">01 — Định nghĩa</span>
           <h2 class="section-h2" id="def-heading">CLIP là gì?</h2>
 
+          <!-- PREREQUISITE CALLOUT -->
+          <div class="prereq-callout" role="note" aria-label="Yêu cầu trước bài học">
+            <div class="prereq-icon" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 8v4m0 4h.01"/></svg>
+            </div>
+            <div>
+              <p class="prereq-title">Cần biết trước</p>
+              <p class="prereq-body">Bài này yêu cầu hiểu latent space từ Bài 1.2 để biết CLIP embedding được inject vào đâu trong quá trình denoising.</p>
+              <a class="prereq-link" href="video-generation-part-1-lesson-2.html" data-curriculum-prev>← Xem lại bài trước: VAE</a>
+            </div>
+          </div>
+
           <div class="scenario-callout">
             <p class="scenario-label">Tình huống thực tế</p>
-            <p class="scenario-text">Bạn đang thiết lập pipeline Wan2.2 trong ComfyUI và thấy node "CLIP Text Encode". Bạn tự hỏi: đây có phải cùng CLIP được dùng để so sánh ảnh và caption không? Câu trả lời: không hoàn toàn — và sự phân biệt này rất quan trọng.</p>
+            <p class="scenario-text">Trong một video generation pipeline, bạn gặp hai component có tên gần giống nhau: một dùng cho text conditioning, một dùng cho image conditioning. Bạn tự hỏi: đây có phải cùng CLIP được dùng để so sánh ảnh và caption không? Câu trả lời: không hoàn toàn — và sự phân biệt này rất quan trọng.</p>
           </div>
 
           <div class="definition-panel" role="note">
@@ -744,6 +886,15 @@
               Đây là chỗ dễ hiểu nhầm. Vector tổng hợp của CLIP rất hợp để <em>so sánh</em> ảnh–caption. Nhưng Stable Diffusion 1.x/2.x thường giữ lại <strong>một hidden state cho mỗi vị trí token</strong> của CLIP text transformer; cross-attention dùng cả chuỗi đó để biết vùng latent nên chú ý tới từ nào. Vì vậy "CLIP biến prompt thành một vector rồi đưa vào U-Net" là cách nói quá lược giản.
             </div>
           </details>
+
+          <aside class="scenario-callout" style="margin-top: 32px; background: color-mix(in srgb, var(--orange) 6%, var(--panel)); border-color: color-mix(in srgb, var(--orange) 25%, var(--line));">
+            <p class="scenario-label" style="color: var(--orange);">Phân biệt CLIP và UMT5 trong Wan2.2</p>
+            <p class="scenario-text">
+              • <strong>CLIP trong Wan2.2:</strong> Được dùng dưới dạng <em>CLIP Vision Encoder</em> trong các quy trình I2V (Image-to-Video). Nó tạo ra image embedding dùng cho cross-attention conditioning, <strong>KHÔNG</strong> dùng cho text conditioning.<br>
+              • <strong>UMT5 (Bài 1.3):</strong> Là text encoder chính của Wan2.2, xử lý text conditioning thông qua các token embeddings cho ngữ cảnh dài (long-context).<br>
+              <em>Không nên nhầm lẫn: CLIP không xử lý text prompt trong Wan2.2 — đó là nhiệm vụ của UMT5.</em>
+            </p>
+          </aside>
         </div>
       </section>
 
@@ -931,7 +1082,7 @@
           </p>
 
           <div class="scenario-callout">
-            <p class="scenario-label">Bạn đang dùng ComfyUI + SD 1.5</p>
+            <p class="scenario-label">Hành trình của prompt qua CLIP (ví dụ SD 1.5)</p>
             <p class="scenario-text">Khi bạn nhập prompt vào node <code>CLIPTextEncode</code>, đây là những gì xảy ra bên trong trước khi embedding đến U-Net. VRAM điển hình cho bước này: &lt;500 MB, thực hiện trong &lt;50ms trên GPU thông thường.</p>
           </div>
 
@@ -1037,8 +1188,8 @@
             <p style="font-weight:700; margin:0 0 16px;">Thử nhập prompt và xem token count trực tiếp</p>
 
             <div class="scenario-callout" style="margin-bottom:20px;">
-              <p class="scenario-label">Thực hành với ComfyUI</p>
-              <p class="scenario-text">Nhập prompt bạn định dùng cho workflow SD 1.5 của mình bên dưới. Token count phản ánh gần đúng những gì CLIPTextEncode sẽ thấy — bao gồm cả [SOS] và [EOS] ở đầu và cuối.</p>
+              <p class="scenario-label">Thử nhập prompt của bạn</p>
+              <p class="scenario-text">Nhập prompt bạn định dùng bên dưới. Token count phản ánh gần đúng những gì CLIP text encoder sẽ thấy — bao gồm cả [SOS] và [EOS] ở đầu và cuối.</p>
             </div>
 
             <div class="token-live-panel">
@@ -1090,11 +1241,11 @@
               <span class="terminal-dot red"></span>
               <span class="terminal-dot yellow"></span>
               <span class="terminal-dot green"></span>
-              <span class="terminal-title">python · comfyui_sd15_clip_inspect.py</span>
+              <span class="terminal-title">python · clip_encoding_inspect.py</span>
             </div>
             <div class="terminal-body">
               <button class="copy-btn" onclick="copyCode(this)" aria-label="Sao chép code">Copy</button>
-              <pre><span class="cmt"># Trong ComfyUI, encoder_hidden_states có shape:</span>
+              <pre><span class="cmt"># encoder_hidden_states có shape:</span>
 <span class="cmt"># [batch, seq_len, hidden_dim] — không phải [batch, hidden_dim]</span>
 
 <span class="kw">import</span> torch
@@ -1242,24 +1393,24 @@ outputs = text_encoder(**inputs)
           <h2 class="section-h2" style="margin-bottom:1.5rem">Bài liên quan</h2>
           <div class="related-grid">
             <a class="related-card" href="video-generation-part-1-lesson-4.html">
-              <span class="related-badge">PHAN 1 · BAI 4</span>
+              <span class="related-badge">PHAN 1 · BAI 3</span>
               <strong class="related-title">UMT5-XXL Text Encoder</strong>
               <p class="related-desc">Text encoder chính của Wan2.2 — so sánh trực tiếp với CLIP về token limit, đa ngôn ngữ và conditioning sequence.</p>
               <span class="related-arrow">→</span>
             </a>
-            <a class="related-card" href="video-generation-part-1-lesson-5.html">
+            <a class="related-card" href="video-generation-part-1-lesson-6.html">
               <span class="related-badge">PHAN 1 · BAI 5</span>
               <strong class="related-title">Attention — Self &amp; Cross</strong>
               <p class="related-desc">Hiểu cross-attention giúp thấy tại sao chuỗi hidden state theo token (không phải pooled vector) mới là conditioning đúng trong SD.</p>
               <span class="related-arrow">→</span>
             </a>
-            <a class="related-card" href="video-generation-part-4-lesson-2.html">
+            <a class="related-card" href="video-generation-part-5-lesson-3.html">
               <span class="related-badge">PHAN 4 · BAI 2</span>
               <strong class="related-title">CLIP Vision Encoder</strong>
               <p class="related-desc">Nhánh image encoder của CLIP — cách patch embedding hoạt động và vai trò trong image-guided generation.</p>
               <span class="related-arrow">→</span>
             </a>
-            <a class="related-card" href="video-generation-part-7-lesson-2.html">
+            <a class="related-card" href="video-generation-part-4-lesson-8.html">
               <span class="related-badge">PHAN 7 · BAI 2</span>
               <strong class="related-title">Prompt Weighting &amp; Token Limit</strong>
               <p class="related-desc">Kỹ thuật thực chiến khi prompt vượt context 77 — weighting, splitting và các trick tối ưu output.</p>
@@ -1352,12 +1503,29 @@ outputs = text_encoder(**inputs)
         </div>
       </section>
 
+      <!-- HANDOFF CARD -->
+      <section class="content-section" id="handoff" aria-labelledby="handoff-heading">
+        <div class="shell">
+          <div class="handoff-card">
+            <div class="handoff-card-icon" aria-hidden="true">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            </div>
+            <div>
+              <p class="handoff-card-label">Bài tiếp theo</p>
+              <h2 class="handoff-card-title" id="handoff-heading">U-Net vs DiT Backbone</h2>
+              <p class="handoff-card-body">Sau hai đường conditioning text và image, bài tiếp theo đi vào backbone DiT — nơi các embedding này tham gia quá trình denoising.</p>
+              <a class="button primary" href="video-generation-part-1-lesson-5.html" data-curriculum-next>Sang Bài 1.5 →</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- ── FOOTER ─────────────────────────────────────────── -->
       <footer class="page-footer" role="contentinfo">
-        <div class="footer-meta">VIDEO GEN LAB · PART 1 · BÀI 3</div>
+        <div class="footer-meta" data-curriculum-completion-label>VIDEO GEN LAB · MODEL ARCHITECTURE · BÀI 1.4 / CLIP IMAGE REPRESENTATION &amp; CONDITIONING</div>
         <div class="footer-links">
-          <a href="video-generation-part-1-lesson-2.html" class="button">← Bài 2</a>
-          <a href="video-generation-part-1-lesson-4.html" class="button primary">Bài 4 →</a>
+          <a href="video-generation-part-1-lesson-4.html" class="button" data-curriculum-prev data-curriculum-title-fallback>← Bài 1.3: UMT5/T5 Text Encoder</a>
+          <a href="video-generation-part-1-lesson-5.html" class="button primary" data-curriculum-next data-curriculum-title-fallback>Bài 1.5: U-Net vs DiT Backbone →</a>
         </div>
       </footer>
 

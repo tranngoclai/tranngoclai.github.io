@@ -1,442 +1,1224 @@
-<!doctype html>
-<html lang="vi">
+<!DOCTYPE html>
+<html lang="vi" data-theme="dark" data-curriculum-id="wan-nodes">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Hiểu luồng identity embedding của IP-Adapter FaceID, InsightFace và ArcFace; chẩn đoán tradeoff giữa độ nhất quán danh tính và chuyển động.">
-  <title>FaceID — Giữ khuôn mặt nhất quán</title>
-  <link rel="icon" href="video-generation-favicon.svg" type="image/svg+xml">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bài 4.4: Bộ node WanVideo — Generation Setup | Video Gen Lab</title>
+  <meta name="description" content="Nắm vững 4 node chính của WanVideo pipeline trong ComfyUI: WanVideoVAELoader, WanVideoClipVisionEncode, WanVideoLoraSelectMulti, và WanVideoSampler." />
+  <script src="video-generation-curriculum.js"></script>
   <script src="video-generation-theme.js"></script>
-  <link rel="stylesheet" href="video-generation-design-system.css">
+  <link rel="stylesheet" href="video-generation-design-system.css" />
   <style>
-    .lesson-hero { padding: clamp(72px, 11vw, 140px) 0 78px; }
-    .hero-grid { display: grid; grid-template-columns: minmax(0, 1.18fr) minmax(330px, .82fr); gap: clamp(42px, 7vw, 88px); align-items: center; }
-    .eyebrow,
-    .section-kicker,
-    .flow-tag,
-    .lab-label,
-    .status-label {
-      margin: 0;
-      color: var(--cyan);
-      font-family: var(--font-mono);
-      font-size: .75rem;
-      font-weight: 800;
-      letter-spacing: .12em;
-      text-transform: uppercase;
+    /* ── Hero ───────────────────────────────────────────────── */
+    .hero {
+      padding: 88px 0 72px;
     }
-    h1 { max-width: 780px; margin: 16px 0 22px; font-size: clamp(3.2rem, 8.5vw, 7rem); line-height: .88; letter-spacing: -.07em; }
-    .hero-lead { max-width: 700px; margin: 0; color: var(--muted); font-size: clamp(1.05rem, 2vw, 1.3rem); }
-    .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
-    .identity-map {
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1fr 420px;
+      gap: 48px;
+      align-items: center;
+    }
+    .hero-eyebrow {
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--cyan);
+      margin: 0 0 18px;
+    }
+    .hero h1 {
+      font-size: clamp(2.6rem, 6vw, 5.8rem);
+      font-weight: 900;
+      letter-spacing: -.07em;
+      line-height: 1;
+      margin: 0 0 22px;
+    }
+    .hero-lead {
+      color: var(--muted);
+      font-size: 1.05rem;
+      max-width: 46ch;
+      margin: 0 0 32px;
+    }
+    .hero-cta { display: flex; gap: 12px; flex-wrap: wrap; }
+    .hero-visual {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 28px 24px;
       position: relative;
       overflow: hidden;
-      min-height: 390px;
+    }
+    .hero-visual::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 70% 30%, rgba(98,231,245,.07), transparent 60%);
+      pointer-events: none;
+    }
+    .hv-label {
+      font-family: var(--font-mono);
+      font-size: .65rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin: 0 0 16px;
+    }
+    .hv-nodes { display: flex; flex-direction: column; gap: 10px; }
+    .hv-node {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: .82rem;
+    }
+    .hv-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .hv-dot.vae   { background: var(--orange); box-shadow: 0 0 10px rgba(255,138,76,.6); }
+    .hv-dot.clip  { background: var(--cyan);   box-shadow: 0 0 10px rgba(98,231,245,.6); }
+    .hv-dot.lora  { background: var(--acid);   box-shadow: 0 0 10px rgba(200,255,61,.6); }
+    .hv-dot.sampler { background: var(--red);  box-shadow: 0 0 10px rgba(255,107,107,.6); }
+    .hv-name { font-weight: 700; color: var(--ink); flex: 1; }
+    .hv-role { color: var(--dim); font-family: var(--font-mono); font-size: .68rem; }
+
+    /* ── Sections ───────────────────────────────────────────── */
+    .section { padding: 80px 0; border-top: 1px solid var(--line); }
+    .section-meta {
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin: 0 0 12px;
+    }
+    .section h2 {
+      font-size: clamp(1.6rem, 3.5vw, 2.4rem);
+      font-weight: 900;
+      letter-spacing: -.045em;
+      line-height: 1.1;
+      margin: 0 0 14px;
+    }
+    .section-lead {
+      color: var(--muted);
+      max-width: 60ch;
+      margin: 0 0 40px;
+    }
+
+    /* ── Node card ──────────────────────────────────────────── */
+    .node-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .node-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 22px 28px;
+      border-bottom: 1px solid var(--line);
+    }
+    .node-icon {
+      width: 38px; height: 38px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+    .node-icon.vae    { background: rgba(255,138,76,.15); border: 1px solid rgba(255,138,76,.35); }
+    .node-icon.clip   { background: rgba(98,231,245,.12); border: 1px solid rgba(98,231,245,.3); }
+    .node-icon.lora   { background: rgba(200,255,61,.1);  border: 1px solid rgba(200,255,61,.3); }
+    .node-icon.sampler{ background: rgba(255,107,107,.12); border: 1px solid rgba(255,107,107,.3); }
+    .node-title { margin: 0; font-size: 1rem; font-weight: 800; }
+    .node-subtitle {
+      font-family: var(--font-mono);
+      font-size: .7rem;
+      color: var(--dim);
+      margin: 2px 0 0;
+    }
+    .node-body { padding: 24px 28px; }
+    .node-desc { color: var(--muted); margin: 0 0 24px; }
+
+    /* ── IO table ───────────────────────────────────────────── */
+    .io-grid {
       display: grid;
-      place-items: center;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .io-group-label {
+      font-family: var(--font-mono);
+      font-size: .65rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin: 0 0 10px;
+    }
+    .io-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+    .io-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: .82rem;
+    }
+    .io-badge {
+      font-family: var(--font-mono);
+      font-size: .63rem;
+      padding: 2px 7px;
+      border-radius: 5px;
+      white-space: nowrap;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .io-badge.in  { background: rgba(98,231,245,.12); color: var(--cyan); border: 1px solid rgba(98,231,245,.25); }
+    .io-badge.out { background: rgba(200,255,61,.1);  color: var(--acid); border: 1px solid rgba(200,255,61,.25); }
+    .io-name { font-weight: 600; color: var(--ink); }
+    .io-desc { color: var(--dim); font-size: .75rem; margin: 2px 0 0; }
+
+    /* ── Param table (Sampler) ──────────────────────────────── */
+    .param-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .84rem;
+      margin-top: 12px;
+    }
+    .param-table th {
+      text-align: left;
+      font-family: var(--font-mono);
+      font-size: .65rem;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--dim);
+      padding: 0 12px 10px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .param-table td {
+      padding: 10px 12px 10px 0;
+      border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent);
+      vertical-align: top;
+    }
+    .param-table tr:last-child td { border-bottom: none; }
+    .param-name { font-family: var(--font-mono); color: var(--ink); font-weight: 600; }
+    .param-type { color: var(--cyan); font-family: var(--font-mono); font-size: .72rem; }
+    .param-desc { color: var(--muted); }
+
+    /* ── Pipeline diagram ───────────────────────────────────── */
+    .pipeline-section { padding: 80px 0; border-top: 1px solid var(--line); }
+    /* This is a component inventory, not a literal edge-by-edge workflow. */
+    .diagram .d-arrow { display: none; }
+
+    .mode-switch {
+      display: inline-flex;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px;
+      gap: 4px;
+      margin-bottom: 40px;
+    }
+    .mode-btn {
+      min-height: 44px;
+      padding: 6px 18px;
+      border: none;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      font-size: .84rem;
+      font-weight: 700;
+      transition: background .15s ease, color .15s ease;
+    }
+    .mode-btn[aria-pressed="true"] {
+      background: var(--acid-fill);
+      color: #111;
+    }
+    [data-theme="light"] .mode-btn[aria-pressed="true"] { color: #fff; background: var(--acid); }
+
+    .diagram-wrapper {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 40px 32px;
+      overflow-x: auto;
+    }
+    .diagram {
+      display: flex;
+      align-items: flex-start;
+      gap: 0;
+      min-width: 640px;
+      position: relative;
+    }
+
+    /* Each column = one node + optional connector */
+    .d-col { display: flex; align-items: center; }
+    .d-node-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+    }
+
+    .d-node {
+      background: var(--panel-2);
+      border: 1.5px solid var(--line);
+      border-radius: 12px;
+      padding: 14px 18px;
+      min-width: 148px;
+      cursor: pointer;
+      transition: border-color .15s ease, box-shadow .15s ease;
+      text-align: left;
+    }
+    .d-node:hover,
+    .d-node:focus-visible {
+      border-color: var(--cyan);
+      box-shadow: 0 0 0 3px rgba(98,231,245,.18);
+      outline: none;
+    }
+    .d-node[aria-expanded="true"] {
+      border-color: var(--acid-fill);
+      box-shadow: 0 0 0 3px rgba(200,255,61,.18);
+    }
+    .d-node-label {
+      font-family: var(--font-mono);
+      font-size: .65rem;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      margin: 0 0 4px;
+    }
+    .d-node-label.vae    { color: var(--orange); }
+    .d-node-label.clip   { color: var(--cyan); }
+    .d-node-label.lora   { color: var(--acid); }
+    .d-node-label.sampler{ color: var(--red); }
+    .d-node-name {
+      font-weight: 800;
+      font-size: .84rem;
+      color: var(--ink);
+      margin: 0 0 2px;
+    }
+    .d-node-hint { font-size: .7rem; color: var(--dim); margin: 0; }
+
+    /* Arrow connector */
+    .d-arrow {
+      display: flex;
+      align-items: center;
+      color: var(--dim);
+      padding: 0 8px;
+      font-size: 1.1rem;
+      flex-shrink: 0;
+    }
+    .d-arrow svg { display: block; }
+
+    /* I2V branch: clip node above sampler with vertical connector */
+    .d-branch {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .d-branch-arrow {
+      color: var(--dim);
+      font-size: 1.1rem;
+      line-height: 1;
+      margin: 4px 0;
+      text-align: center;
+    }
+
+    /* Expandable detail panel below diagram node */
+    .d-detail {
+      display: none;
+      background: var(--night);
+      border: 1px solid var(--line);
+      border-top: none;
+      border-radius: 0 0 12px 12px;
+      padding: 12px 14px;
+      font-size: .78rem;
+      color: var(--muted);
+      width: 100%;
+      max-width: 148px;
+    }
+    .d-detail.open { display: block; }
+    .d-detail strong { color: var(--ink); display: block; margin-bottom: 4px; }
+
+    /* Ghost node (disabled in T2V) */
+    .d-node.ghost {
+      opacity: .35;
+      cursor: default;
+      pointer-events: none;
+    }
+    .d-ghost-label {
+      font-size: .7rem;
+      color: var(--dim);
+      text-align: center;
+      margin-top: 4px;
+      font-style: italic;
+    }
+
+    /* Legend */
+    .diagram-legend {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      margin-top: 20px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: .76rem;
+      color: var(--muted);
+    }
+    .legend-dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    }
+
+    /* ── Tips / note ────────────────────────────────────────── */
+    .note-panel {
+      background: color-mix(in srgb, var(--panel) 70%, var(--night));
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--cyan);
+      border-radius: 10px;
+      padding: 16px 20px;
+      font-size: .88rem;
+      color: var(--muted);
+      margin: 24px 0 0;
+    }
+    .note-panel strong { color: var(--ink); }
+
+    /* ── Takeaways ──────────────────────────────────────────── */
+    .takeaway-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+    }
+    .takeaway-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 20px 22px;
+    }
+    .takeaway-num {
+      font-family: var(--font-mono);
+      font-size: .7rem;
+      color: var(--dim);
+      margin: 0 0 8px;
+    }
+    .takeaway-card p { margin: 0; font-size: .88rem; color: var(--muted); }
+    .takeaway-card p strong { color: var(--ink); }
+
+    /* ── Footer ─────────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--line);
+      padding: 36px 0;
+      text-align: center;
+      color: var(--dim);
+      font-size: .8rem;
+    }
+    footer a { color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
+
+    /* ── Responsive ─────────────────────────────────────────── */
+    @media (max-width: 900px) {
+      .hero-grid { grid-template-columns: 1fr; }
+      .hero-visual { display: none; }
+      .io-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .hero { padding: 56px 0 48px; }
+      .section, .pipeline-section { padding: 56px 0; }
+      .node-body { padding: 18px; }
+      .node-header { padding: 16px 18px; }
+    }
+
+    /* ── Utility classes (replaces inline styles) ───────────── */
+    .io-grid-mt { margin-top: 24px; }
+    .d-col-branch {
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+    .clip-branch {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+    }
+    .clip-branch.hidden { display: none; }
+    .d-node-decode {
+      opacity: .6;
+      cursor: default;
+    }
+    .d-node-label-dim { color: var(--dim); }
+    .legend-dot-vae    { background: var(--orange); }
+    .legend-dot-cyan   { background: var(--cyan); }
+    .legend-dot-acid   { background: var(--acid-fill); }
+    .legend-dot-red    { background: var(--red); }
+    .legend-item-i2v   { display: none; }
+    .legend-item-i2v.visible { display: flex; }
+    .legend-item-i2v-text { color: var(--muted); }
+    .pipeline-details  { margin-top: 24px; }
+    .pipeline-details summary {
+      cursor: pointer;
+      color: var(--muted);
+      font-size: .88rem;
+      padding: 8px 0;
+    }
+    .pipeline-note-panel {
+      margin-top: 12px;
+      border-left-color: var(--cyan);
+    }
+    .scope-note { margin-top: 18px; color: var(--muted); font-size: .86rem; }
+    .production-brief {
+      border: 1px solid var(--cyan); border-radius: var(--radius); padding: clamp(20px, 4vw, 32px);
+      background: color-mix(in srgb, var(--panel) 92%, var(--cyan));
+    }
+    .brief-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 28px; margin: 20px 0 0; }
+    .brief-grid dt { font: 700 .7rem var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--cyan); }
+    .brief-grid dd { margin: 4px 0 0; color: var(--muted); font-size: .9rem; }
+    .brief-next { margin: 20px 0 0; padding: 14px 16px; border-left: 3px solid var(--acid); background: var(--panel-2); color: var(--ink); }
+    .related-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .related-list a { display: block; min-height: 116px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--ink); text-decoration: none; }
+    .related-list a:hover { border-color: var(--cyan); background: var(--panel-2); }
+    .related-list strong { display: block; font-size: .92rem; }
+    .related-list span { display: block; margin-top: 6px; color: var(--muted); font-size: .82rem; line-height: 1.55; }
+    .lesson-nav { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 28px; }
+    @media (max-width: 680px) { .brief-grid, .related-list { grid-template-columns: 1fr; } .lesson-nav .button { width: 100%; } }
+
+    /* ── Standardized Phase 5 Blocks ── */
+    .flow-minimap {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 14px 0;
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      color: var(--dim);
+      border-bottom: 1px solid var(--line);
+    }
+    .flow-minimap-label {
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-right: 4px;
+    }
+    .flow-minimap-sep { color: var(--line); }
+    .flow-minimap-item {
+      color: var(--muted);
+      text-decoration: none;
+      padding: 2px 6px;
+      border-radius: 4px;
+      transition: color .15s;
+    }
+    .flow-minimap-item:hover { color: var(--cyan); }
+    .flow-minimap-item.current {
+      color: var(--acid);
+      background: rgba(200,255,61,.1);
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .prereq-callout {
+      display: flex;
+      gap: 16px;
+      padding: 18px 24px;
+      border: 1px solid rgba(98,231,245,.3);
+      border-left: 4px solid var(--cyan);
+      border-radius: var(--radius);
+      background: rgba(98,231,245,.05);
+      margin-bottom: 32px;
+      align-items: flex-start;
+    }
+    .prereq-icon { color: var(--cyan); flex-shrink: 0; margin-top: 2px; }
+    .prereq-title { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--cyan); margin: 0 0 6px; }
+    .prereq-body { color: var(--muted); font-size: .9rem; line-height: 1.55; margin: 0 0 10px; }
+    .prereq-link { color: var(--cyan); font-size: .85rem; text-decoration: none; }
+    .prereq-link:hover { text-decoration: underline; }
+    .output-artifact {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      background: rgba(200,255,61,.08);
+      border: 1px solid rgba(200,255,61,.25);
+      border-radius: 10px;
+      margin-bottom: 20px;
+      font-size: .85rem;
+      flex-wrap: wrap;
+    }
+    .output-artifact svg { color: var(--acid); flex-shrink: 0; }
+    .output-artifact-label { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--acid); }
+    .output-artifact-text { color: var(--muted); }
+    .handoff-card {
+      display: grid;
+      grid-template-columns: 60px 1fr;
+      gap: 24px;
+      align-items: start;
+      padding: 40px;
       border: 1px solid var(--line);
       border-radius: var(--radius);
       background: var(--panel);
-      box-shadow: 0 26px 72px rgba(0,0,0,.18);
+      position: relative;
+      overflow: hidden;
+      margin-top: 40px;
     }
-    .identity-map::before,
-    .identity-map::after { position: absolute; border: 1px solid var(--line); border-radius: 50%; content: ""; }
-    .identity-map::before { width: 290px; height: 290px; }
-    .identity-map::after { width: 210px; height: 210px; border-style: dashed; }
-    .face-mark { position: relative; z-index: 1; width: 136px; height: 164px; border: 2px solid var(--acid); border-radius: 48% 48% 44% 44%; }
-    .face-mark::before { position: absolute; top: 60px; left: 28px; width: 76px; height: 12px; border: solid var(--cyan); border-width: 3px 0; content: ""; }
-    .face-mark::after { position: absolute; bottom: 35px; left: 46px; width: 40px; height: 14px; border-bottom: 3px solid var(--cyan); border-radius: 50%; content: ""; }
-    .vector-label { position: absolute; right: 20px; bottom: 18px; color: var(--muted); font-family: var(--font-mono); font-size: .72rem; }
-    .lesson-section { padding: clamp(72px, 9vw, 112px) 0; border-top: 1px solid var(--line); }
-    .section-head { max-width: 790px; margin-bottom: 42px; }
-    .section-head h2 { margin: 10px 0 14px; font-size: clamp(2.2rem, 5vw, 4.2rem); line-height: 1; letter-spacing: -.045em; }
-    .section-head p { margin: 0; color: var(--muted); font-size: 1.06rem; }
-    .definition { max-width: 940px; margin: 0; border-left: 4px solid var(--acid-fill); padding: 8px 0 8px clamp(22px, 4vw, 42px); font-size: clamp(1.3rem, 2.5vw, 1.85rem); line-height: 1.45; }
-    .definition strong { color: var(--acid); }
-    .flow { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
-    .flow-step { position: relative; min-width: 0; padding: clamp(24px, 3vw, 36px); background: var(--panel); }
-    .flow-step + .flow-step { border-left: 1px solid var(--line); }
-    .flow-step:not(:last-child)::after { position: absolute; z-index: 2; top: 42px; right: -12px; width: 24px; height: 24px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; background: var(--night); color: var(--acid); content: "→"; font-family: var(--font-mono); font-size: .76rem; }
-    .flow-number { display: block; margin-bottom: 34px; color: var(--dim); font-family: var(--font-mono); font-size: 2rem; font-weight: 900; }
-    .flow-step h3 { margin: 9px 0 8px; font-size: 1.2rem; }
-    .flow-step p:last-child { margin: 0; color: var(--muted); font-size: .92rem; }
-    .role-split { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 24px; }
-    .role-panel { border: 1px solid var(--line); border-radius: 18px; padding: clamp(24px, 4vw, 38px); background: var(--panel); }
-    .role-panel h3 { margin: 0 0 12px; font-size: 1.4rem; }
-    .role-panel p { margin: 0; color: var(--muted); }
-    .boundary { margin-top: 24px; border: 1px solid color-mix(in srgb, var(--orange) 60%, var(--line)); border-radius: 18px; padding: 22px 24px; background: color-mix(in srgb, var(--orange) 7%, var(--panel)); }
-    .boundary strong { color: var(--orange); }
-    .boundary p { margin: 6px 0 0; color: var(--muted); }
-    .lab-grid { display: grid; grid-template-columns: minmax(0, .82fr) minmax(350px, 1.18fr); gap: 24px; align-items: stretch; }
-    .lab-controls,
-    .lab-output { border: 1px solid var(--line); border-radius: var(--radius); padding: clamp(24px, 4vw, 42px); background: var(--panel); }
-    .lab-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
-    .control + .control { margin-top: 32px; padding-top: 28px; border-top: 1px solid var(--line); }
-    .control-head { display: flex; justify-content: space-between; gap: 18px; align-items: baseline; margin-bottom: 13px; }
-    .control-head label { font-weight: 800; }
-    .control-value { color: var(--acid); font-family: var(--font-mono); font-weight: 900; }
-    input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--acid-fill); }
-    select { width: 100%; min-height: 50px; border: 1px solid var(--line); border-radius: 12px; padding: 10px 42px 10px 14px; background: var(--panel-2); color: var(--ink); font: inherit; }
-    .control-help { margin: 9px 0 0; color: var(--muted); font-size: .88rem; }
-    .lab-output { background: var(--panel-2); }
-    .status-title { margin: 10px 0 10px; font-size: clamp(1.75rem, 4vw, 3.1rem); line-height: 1; letter-spacing: -.04em; }
-    .status-copy { margin: 0 0 30px; color: var(--muted); }
-    .metric + .metric { margin-top: 22px; }
-    .metric-head { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 8px; font-size: .92rem; font-weight: 800; }
-    .metric-head span:last-child { color: var(--muted); font-family: var(--font-mono); }
-    meter { width: 100%; height: 14px; border: 0; background: var(--line); }
-    meter::-webkit-meter-bar { border: 0; border-radius: 999px; background: var(--line); }
-    meter::-webkit-meter-optimum-value { border-radius: 999px; background: var(--cyan-fill); }
-    meter::-moz-meter-bar { border-radius: 999px; background: var(--cyan-fill); }
-    .diagnosis { margin-top: 30px; border-top: 1px solid var(--line); padding-top: 22px; }
-    .diagnosis strong { display: block; margin-bottom: 6px; color: var(--acid); }
-    .diagnosis p { margin: 0; }
-    .lab-caption { margin: 18px 0 0; color: var(--dim); font-family: var(--font-mono); font-size: .75rem; }
-    .brand { min-height: 44px; align-items: center; }
-    .lab-caption a { display: inline-flex; align-items: center; min-height: 44px; color: var(--cyan); }
-    .debug-list { display: grid; gap: 0; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
-    .debug-row { display: grid; grid-template-columns: minmax(160px, .7fr) 1.3fr; gap: 30px; padding: 26px clamp(22px, 4vw, 40px); background: var(--panel); }
-    .debug-row + .debug-row { border-top: 1px solid var(--line); }
-    .debug-row h3 { margin: 0; font-size: 1.05rem; }
-    .debug-row p { margin: 0; color: var(--muted); }
-    .production-brief { display: grid; grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr); gap: 1px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--line); }
-    .brief-intro, .brief-details { padding: clamp(24px, 4vw, 40px); background: var(--panel); }
-    .brief-intro h3 { margin: 8px 0 12px; font-size: clamp(1.5rem, 3vw, 2.25rem); line-height: 1.1; }
-    .brief-intro p { margin: 0; color: var(--muted); }
-    .brief-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; padding: 0; }
-    .brief-item { min-width: 0; padding: 20px 22px; border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-    .brief-item:nth-child(odd) { border-left: 0; }
-    .brief-item:nth-last-child(-n+2) { border-bottom: 0; }
-    .brief-item h4 { margin: 0 0 6px; color: var(--cyan); font-family: var(--font-mono); font-size: .74rem; letter-spacing: .08em; text-transform: uppercase; }
-    .brief-item p { margin: 0; color: var(--muted); font-size: .91rem; }
-    .ethics { display: grid; grid-template-columns: auto 1fr; gap: 24px; border: 1px solid var(--line); border-radius: var(--radius); padding: clamp(26px, 5vw, 52px); background: var(--panel); }
-    .ethics-mark { width: 48px; height: 48px; display: grid; place-items: center; border: 1px solid var(--orange); border-radius: 50%; color: var(--orange); font-family: var(--font-mono); font-weight: 900; }
-    .ethics h2 { margin: 0 0 12px; font-size: clamp(1.8rem, 3vw, 2.7rem); }
-    .ethics p { margin: 0; color: var(--muted); }
-    .ethics ul { margin: 18px 0 0; padding-left: 20px; }
-    .ethics li + li { margin-top: 8px; }
-    .related-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-    .related-card { display: block; min-height: 176px; border: 1px solid var(--line); border-radius: 16px; padding: 22px; background: var(--panel); color: inherit; text-decoration: none; transition: transform .2s ease, border-color .2s ease, background .2s ease; }
-    .related-card:hover { transform: translateY(-3px); border-color: var(--cyan); background: var(--panel-2); }
-    .related-card h3 { margin: 8px 0; font-size: 1.15rem; line-height: 1.2; }
-    .related-card p:last-child { margin: 0; color: var(--muted); font-size: .9rem; }
-    .sr-status { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-    footer { border-top: 1px solid var(--line); padding: 34px 0 46px; color: var(--muted); }
-    .footer-inner { display: flex; justify-content: space-between; gap: 24px; align-items: center; }
-    .footer-inner p { margin: 0; }
-    @media (max-width: 900px) {
-      .hero-grid,
-      .lab-grid,
-      .production-brief { grid-template-columns: 1fr; }
-      .identity-map { max-width: 620px; min-height: 330px; }
-      .flow { grid-template-columns: 1fr 1fr; }
-      .flow-step + .flow-step { border-left: 0; }
-      .flow-step:nth-child(even) { border-left: 1px solid var(--line); }
-      .flow-step:nth-child(n+3) { border-top: 1px solid var(--line); }
-      .flow-step::after { display: none !important; }
-      .topnav { display: none; }
-      .related-grid { grid-template-columns: 1fr 1fr; }
+    .handoff-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(200,255,61,.05) 0%, transparent 60%);
+      pointer-events: none;
     }
-    @media (max-width: 640px) {
-      .lesson-hero { padding-top: 56px; }
-      h1 { font-size: clamp(3rem, 17vw, 4.8rem); }
-      .hero-actions .button { width: 100%; }
-      .flow,
-      .role-split { grid-template-columns: 1fr; }
-      .flow-step:nth-child(even) { border-left: 0; }
-      .flow-step + .flow-step { border-top: 1px solid var(--line); }
-      .debug-row { grid-template-columns: 1fr; gap: 8px; }
-      .ethics { grid-template-columns: 1fr; }
-      .footer-inner { display: grid; }
-      .brief-details, .related-grid { grid-template-columns: 1fr; }
-      .brief-item, .brief-item:nth-child(odd), .brief-item:nth-last-child(-n+2) { border: 0; border-bottom: 1px solid var(--line); }
-      .brief-item:last-child { border-bottom: 0; }
-      .lab-actions .button { width: 100%; }
+    .handoff-card-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: rgba(200,255,61,.1);
+      color: var(--acid);
+      flex-shrink: 0;
     }
-    @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
-    }
+    .handoff-card-label { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin: 0 0 8px; }
+    .handoff-card-title { font-size: clamp(1.6rem, 3vw, 2.4rem); font-weight: 900; letter-spacing: -.04em; margin: 0 0 16px; color: var(--ink); }
+    .handoff-card-body { color: var(--muted); font-size: .95rem; line-height: 1.6; margin: 0 0 24px; }
   </style>
 </head>
 <body>
-  <a class="skip-link" href="#noi-dung">Bỏ qua điều hướng</a>
-  <header class="topbar">
-    <div class="topbar-inner">
-      <a class="brand" href="index.html" aria-label="Video Generation Study — Trang chủ"><span class="brand-mark" aria-hidden="true"></span>Video Generation Study</a>
-      <nav class="topnav" aria-label="Trong bài học">
-        <a href="#pipeline">Pipeline</a>
-        <a href="#tradeoff">Tradeoff lab</a>
-        <a href="#chan-doan">Chẩn đoán</a>
-        <a href="#quyen-rieng-tu">Quyền riêng tư</a>
-      </nav>
-      <div class="progress-track" aria-hidden="true"><div class="progress-fill"></div></div>
+
+<a class="skip-link" href="#main">Chuyển tới nội dung chính</a>
+
+<header class="topbar" role="banner">
+  <div class="topbar-inner">
+    <a href="index.html" class="brand" aria-label="Video Gen Lab – trang chủ">
+      <span class="brand-mark" aria-hidden="true"></span>
+      Video Gen Lab
+    </a>
+    <nav class="topnav" aria-label="Điều hướng bài học">
+      <a href="video-generation-part-4-lesson-3.html" data-curriculum-prev>← Bài 4.3</a>
+      <a href="index.html" data-curriculum-home>Trang chủ</a>
+      <a href="video-generation-part-4-lesson-7.html" data-curriculum-next>Bài 4.5 →</a>
+    </nav>
+    <div class="progress-track" aria-hidden="true">
+      <div class="progress-fill" id="progressFill"></div>
     </div>
-  </header>
+  </div>
+</header>
 
-  <main id="noi-dung">
-    <section class="lesson-hero shell" aria-labelledby="lesson-title">
-      <div class="hero-grid">
+<main id="main">
+
+  <!-- HERO -->
+  <section class="hero shell" aria-labelledby="heroHeading">
+    <div class="hero-grid">
+      <div>
+        <p class="hero-eyebrow">Phase 4 · Bài 4.4 &mdash; Generation Setup</p>
+        <h1 id="heroHeading">Bộ node<br>WanVideo</h1>
+        <p class="hero-lead">Nắm vững 4 node cốt lõi của WanVideo pipeline: load VAE, encode vision, chọn LoRA đa tầng, và sinh video với sampler chính.</p>
+
+        <!-- OUTPUT ARTIFACT BADGE -->
+        <div class="output-artifact" role="note">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          <span class="output-artifact-label">Đầu ra bài học:</span>
+          <span class="output-artifact-text">Hiểu vai trò của từng WanVideo node, cách chúng kết nối trong pipeline Wan2.2, và cách debug khi có lỗi kết nối</span>
+        </div>
+        <div class="hero-cta">
+          <a href="#pipeline" class="button primary">Xem pipeline →</a>
+          <a href="#wanvideo-vae-loader" class="button">Bắt đầu học</a>
+        </div>
+      </div>
+      <div class="hero-visual" aria-hidden="true">
+        <p class="hv-label">4 node chính</p>
+        <div class="hv-nodes">
+          <div class="hv-node">
+            <span class="hv-dot vae"></span>
+            <span class="hv-name">WanVideoVAELoader</span>
+            <span class="hv-role">VAE</span>
+          </div>
+          <div class="hv-node">
+            <span class="hv-dot clip"></span>
+            <span class="hv-name">ClipVisionEncode</span>
+            <span class="hv-role">I2V</span>
+          </div>
+          <div class="hv-node">
+            <span class="hv-dot lora"></span>
+            <span class="hv-name">LoraSelectMulti</span>
+            <span class="hv-role">LoRA</span>
+          </div>
+          <div class="hv-node">
+            <span class="hv-dot sampler"></span>
+            <span class="hv-name">WanVideoSampler</span>
+            <span class="hv-role">Sampler</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- NODE 1: VAELoader -->
+  <section class="section shell" id="wanvideo-vae-loader" aria-labelledby="vaeHeading">
+    <p class="section-meta">01 — WanVideoVAELoader</p>
+    <h2 id="vaeHeading">Load VAE riêng cho Wan model</h2>
+    <p class="section-lead">Một workflow Wan cần VAE tương thích với checkpoint và implementation đang dùng để biến latent video thành frame. Tên node, kiểu cổng và file model thay đổi theo implementation.</p>
+
+    <!-- PREREQUISITE CALLOUT -->
+    <div class="prereq-callout" role="note" aria-label="Yêu cầu trước bài học">
+      <div class="prereq-icon" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 8v4m0 4h.01"/></svg>
+      </div>
+      <div>
+        <p class="prereq-title">Cần biết trước</p>
+        <p class="prereq-body">Bài này yêu cầu biết model loaders từ Bài 4.3 — WanVideo nodes cần các component đã được load đúng.</p>
+        <a class="prereq-link" href="video-generation-part-4-lesson-3.html">← Xem lại bài trước: 4.3: Model Loaders</a>
+      </div>
+    </div>
+
+    <div class="node-card">
+      <div class="node-header">
+        <div class="node-icon vae" aria-hidden="true">🎞</div>
         <div>
-          <p class="eyebrow">Part 04 · Lesson 04 · Identity conditioning</p>
-          <h1 id="lesson-title">FaceID</h1>
-          <p class="hero-lead">Biến khuôn mặt tham chiếu thành tín hiệu nhận dạng để video bám một danh tính ổn định hơn — nhưng vẫn phải thương lượng với biểu cảm, góc quay và chuyển động.</p>
-          <div class="hero-actions">
-            <a class="button primary" href="#pipeline">Theo luồng embedding</a>
-            <a class="button" href="#tradeoff">Thử tradeoff lab</a>
-          </div>
-        </div>
-        <div class="identity-map" role="img" aria-label="Minh họa khuôn mặt tham chiếu được biểu diễn thành một vector nhận dạng">
-          <span class="face-mark" aria-hidden="true"></span>
-          <span class="vector-label">identity_vector [d₁ … dₙ]</span>
+          <h3 class="node-title">WanVideoVAELoader</h3>
+          <p class="node-subtitle">Đọc file VAE từ thư mục models/vae/</p>
         </div>
       </div>
-    </section>
-
-    <section class="lesson-section" aria-labelledby="dinh-nghia-heading">
-      <div class="shell">
-        <p class="section-kicker">01 · Định nghĩa thực dụng</p>
-        <h2 id="dinh-nghia-heading" class="definition">FaceID không “dán” lại ảnh gốc. Nó đưa một <strong>identity embedding</strong> vào quá trình sinh để tăng xác suất các frame cùng gợi về một người.</h2>
-      </div>
-    </section>
-
-    <section class="lesson-section" id="pipeline" aria-labelledby="pipeline-heading">
-      <div class="shell">
-        <div class="section-head">
-          <p class="section-kicker">02 · Identity embedding flow</p>
-          <h2 id="pipeline-heading">Từ khuôn mặt đến tín hiệu điều kiện</h2>
-          <p>IP-Adapter FaceID là họ conditioning gốc cho diffusion text-to-image: ảnh tham chiếu được phát hiện, mã hóa thành vector đặc trưng, rồi adapter chuyển thành tín hiệu cho model sinh. Một workflow video có thể dùng tín hiệu này từng lần sinh, nhưng bản thân FaceID không cung cấp bảo đảm nhất quán theo thời gian.</p>
-        </div>
-        <div class="flow" aria-label="Bốn bước của pipeline FaceID">
-          <article class="flow-step"><span class="flow-number">01</span><p class="flow-tag">Reference</p><h3>Ảnh khuôn mặt</h3><p>Chọn ảnh rõ, đủ sáng, khuôn mặt không bị che quá nhiều.</p></article>
-          <article class="flow-step"><span class="flow-number">02</span><p class="flow-tag">InsightFace</p><h3>Phát hiện & căn chỉnh</h3><p>Xác định vùng mặt và chuẩn hóa đầu vào cho bộ mã hóa nhận dạng.</p></article>
-          <article class="flow-step"><span class="flow-number">03</span><p class="flow-tag">ArcFace</p><h3>Identity embedding</h3><p>Mã hóa đặc trưng nhận dạng thành vector; không phải ảnh thu nhỏ.</p></article>
-          <article class="flow-step"><span class="flow-number">04</span><p class="flow-tag">IP-Adapter FaceID</p><h3>Điều kiện hóa model</h3><p>Checkpoint FaceID dùng embedding InsightFace thay vì CLIP image embedding; cách node/framework áp dụng scale là chi tiết triển khai.</p></article>
-        </div>
-        <div class="role-split">
-          <article class="role-panel"><h3>InsightFace / ArcFace làm gì?</h3><p>Đọc khuôn mặt và tạo biểu diễn phục vụ nhận dạng. Có thể hình dung đây là bước “ai” được tham chiếu, không phải bước dựng chuyển động.</p></article>
-          <article class="role-panel"><h3>IP-Adapter FaceID làm gì?</h3><p>Kết nối biểu diễn nhận dạng với model sinh. Cơ chế adapter thuộc pipeline diffusion; temporal coherence, sampler và strength naming của workflow video là các lớp khác cần kiểm thử riêng.</p></article>
-        </div>
-        <aside class="boundary" aria-label="Giới hạn của FaceID">
-          <strong>Giới hạn cần nhớ</strong>
-          <p>Embedding giữ các đặc trưng nhận dạng tương đối, không bảo đảm tái tạo chính xác khuôn mặt ở mọi frame. Góc cực đoan, che khuất, ánh sáng, biểu cảm và giới hạn model vẫn có thể làm danh tính trôi.</p>
-        </aside>
-      </div>
-    </section>
-
-    <section class="lesson-section" id="tradeoff" aria-labelledby="tradeoff-heading">
-      <div class="shell">
-        <div class="section-head">
-          <p class="section-kicker">03 · Tradeoff lab</p>
-          <h2 id="tradeoff-heading">Danh tính và chuyển động cùng kéo một frame</h2>
-          <p>Tăng lực bám FaceID thường giúp neo danh tính, nhưng có thể làm model ít tự do hơn khi biểu cảm hoặc góc quay thay đổi mạnh. Điều chỉnh hai biến để xem chẩn đoán định tính.</p>
-        </div>
-        <div class="lab-grid">
-          <form class="lab-controls" id="tradeoff-form">
-            <p class="lab-label">Điều kiện thử nghiệm</p>
-            <div class="control">
-              <div class="control-head"><label for="identity-strength">Identity strength</label><output class="control-value" id="strength-value" for="identity-strength">55</output></div>
-              <input id="identity-strength" type="range" min="0" max="100" step="5" value="55">
-              <p class="control-help">Thấp: model tự do hơn. Cao: embedding danh tính có ảnh hưởng mạnh hơn.</p>
-            </div>
-            <div class="control">
-              <div class="control-head"><label for="motion-demand">Độ khó chuyển động</label></div>
-              <select id="motion-demand">
-                <option value="25">Thấp — cử động nhẹ, góc gần chính diện</option>
-                <option value="55" selected>Vừa — đổi biểu cảm và góc quay</option>
-                <option value="85">Cao — quay đầu mạnh, che khuất, chuyển động nhanh</option>
-              </select>
-              <p class="control-help">Đây là yêu cầu của shot, không phải một tham số model cụ thể.</p>
-            </div>
-            <div class="lab-actions">
-              <button class="button primary" id="ab-test" type="button" aria-describedby="lab-instructions">Lập test A/B</button>
-            </div>
-            <p class="control-help" id="lab-instructions">Tạo hai cấu hình mô phỏng: baseline thấp hơn 10 điểm và cấu hình hiện tại. Render cùng seed, prompt và shot để so sánh.</p>
-          </form>
-          <output class="lab-output" id="tradeoff-output" for="identity-strength motion-demand">
-            <p class="status-label">Chẩn đoán hiện tại</p>
-            <h3 class="status-title" id="status-title">Cân bằng nhưng cần theo dõi</h3>
-            <p class="status-copy" id="status-copy">Identity signal ở mức vừa trong khi shot yêu cầu thay đổi đáng kể. Kiểm tra drift ở các frame chuyển góc hoặc đổi biểu cảm.</p>
-            <div class="metric">
-              <div class="metric-head"><span>Neo danh tính dự kiến</span><span id="identity-score-label">51 / 100</span></div>
-              <meter id="identity-score" min="0" max="100" value="51">51 trên 100</meter>
-            </div>
-            <div class="metric">
-              <div class="metric-head"><span>Dư địa chuyển động</span><span id="motion-room-label">60 / 100</span></div>
-              <meter id="motion-room" min="0" max="100" value="60">60 trên 100</meter>
-            </div>
-            <div class="diagnosis"><strong id="action-title">Bước thử tiếp theo</strong><p id="action-copy">Render một đoạn ngắn, quan sát frame chuyển góc; chỉ tăng strength từng nấc nhỏ nếu danh tính trôi.</p></div>
-            <div class="diagnosis" id="ab-result" hidden><strong>So sánh A/B mô phỏng</strong><p id="ab-copy"></p></div>
-          </output>
-        </div>
-        <p class="sr-status" id="lab-live" aria-live="polite" aria-atomic="true"></p>
-        <p class="lab-caption">Mô phỏng khái niệm — các điểm số không phải metric của InsightFace, ArcFace hay bất kỳ model cụ thể nào.</p>
-      </div>
-    </section>
-
-    <section class="lesson-section" id="production-brief" aria-labelledby="production-brief-heading">
-      <div class="shell">
-        <div class="section-head">
-          <p class="section-kicker">04 · Production brief</p>
-          <h2 id="production-brief-heading">Chọn strength bằng một test có kiểm soát</h2>
-          <p>Case dưới đây là kế hoạch thử nghiệm, không phải preset được bảo đảm cho mọi checkpoint, node hay workflow video.</p>
-        </div>
-        <article class="production-brief" aria-label="Production brief: lời chào nhân vật cho ứng dụng học ngôn ngữ">
-          <div class="brief-intro">
-            <p class="lab-label">Case study · mô phỏng</p>
-            <h3>Lời chào 4 giây cho ứng dụng học ngôn ngữ</h3>
-            <p>Mục tiêu đầu ra: một presenter nhìn gần chính diện, mỉm cười rồi quay đầu nhẹ; team cần nhận ra cùng một người trong 3 biến thể màu nền cho một UI preview.</p>
-          </div>
-          <div class="brief-details">
-            <div class="brief-item"><h4>Bối cảnh & input</h4><p>1 ảnh chân dung đã có consent, prompt cố định, 16 frame preview; FaceID checkpoint tương thích base model được chọn trong workflow nội bộ.</p></div>
-            <div class="brief-item"><h4>Giữ cố định</h4><p>Reference/crop, seed, prompt, negative prompt, base model, sampler, số bước, resolution và pose brief.</p></div>
-            <div class="brief-item"><h4>Biến thử nghiệm</h4><p>Chỉ thay identity strength: A = 45, B = 55. Không đồng thời đổi pose-control hay CFG vì sẽ không biết nguyên nhân chênh lệch.</p></div>
-            <div class="brief-item"><h4>Ràng buộc</h4><p>Ngân sách preview là 10 phút trên GPU đang dùng; dừng sau hai render nếu không còn đủ thời gian cho đánh giá. Không coi số VRAM này là yêu cầu chung.</p></div>
-            <div class="brief-item"><h4>Tiêu chí đánh giá</h4><p>Người duyệt nhận ra danh tính ở frame đầu/giữa/cuối; biểu cảm và quay đầu vẫn tự nhiên; không có flicker mặt rõ rệt.</p></div>
-            <div class="brief-item"><h4>Thất bại & bước kế</h4><p>Nếu A trôi: kiểm tra crop/reference rồi mới tăng B. Nếu B cứng hoặc biến dạng: quay lại A, giảm độ khó motion hoặc chia shot; log frame lỗi trước lần thử tiếp.</p></div>
-          </div>
-        </article>
-      </div>
-    </section>
-
-    <section class="lesson-section" id="chan-doan" aria-labelledby="chan-doan-heading">
-      <div class="shell">
-        <div class="section-head">
-          <p class="section-kicker">05 · Debug theo triệu chứng</p>
-          <h2 id="chan-doan-heading">Đừng chỉ kéo strength lên</h2>
-          <p>Một kết quả “không giống” có nhiều nguyên nhân. Tách lỗi đầu vào, lực conditioning và độ khó chuyển động trước khi chỉnh.</p>
-        </div>
-        <div class="debug-list">
-          <article class="debug-row"><h3>Danh tính trôi dần</h3><p>Kiểm tra ảnh reference và frame xảy ra drift; thử tăng strength nhẹ hoặc giảm độ cực đoan của motion trước khi đổi toàn bộ pipeline.</p></article>
-          <article class="debug-row"><h3>Mặt cứng, ít biểu cảm</h3><p>Identity conditioning có thể đang lấn át yêu cầu chuyển động. Hạ strength từng bước và dùng prompt chuyển động cụ thể hơn.</p></article>
-          <article class="debug-row"><h3>Giống sai người ngay từ đầu</h3><p>Ưu tiên kiểm tra phát hiện/crop mặt, độ rõ, che khuất và chất lượng reference. Tăng strength không sửa được embedding đầu vào kém.</p></article>
-          <article class="debug-row"><h3>Chỉ hỏng ở góc nghiêng</h3><p>Reference có thể thiếu thông tin về góc đó hoặc model khó suy diễn hình học khuôn mặt. Bổ sung reference phù hợp nếu workflow hỗ trợ, hoặc giảm biên độ shot.</p></article>
-        </div>
-      </div>
-    </section>
-
-    <section class="lesson-section" id="quyen-rieng-tu" aria-labelledby="quyen-rieng-tu-heading">
-      <div class="shell">
-        <aside class="ethics">
-          <span class="ethics-mark" aria-hidden="true">!</span>
+      <div class="node-body">
+        <p class="node-desc">
+          <strong>What it DOES:</strong> Khởi tạo và nạp trọng số Variational Autoencoder đặc thù cho WanVideo vào bộ nhớ GPU/RAM.<br>
+          <strong>WHY it connects (Connection Intent):</strong> Output VAE của node này cung cấp thuật toán dịch ngược (decode) từ không gian nén (latent space) về dạng pixel (IMAGE) ở cuối pipeline, hoặc mã hóa ảnh đầu vào (encode) trong quy trình I2V.
+        </p>
+        <div class="io-grid">
           <div>
-            <p class="section-kicker">06 · Consent, ethics & privacy</p>
-            <h2 id="quyen-rieng-tu-heading">Khuôn mặt là dữ liệu nhạy cảm</h2>
-            <p>Face embedding có thể được dùng để liên kết hoặc nhận diện một người. Hãy coi cả ảnh gốc lẫn embedding là dữ liệu cần bảo vệ, kể cả khi embedding không nhìn giống ảnh.</p>
-            <ul>
-              <li>Chỉ dùng khuôn mặt khi có sự đồng ý rõ ràng và đúng mục đích đã thống nhất.</li>
-              <li>Không mạo danh, gây hiểu nhầm, quấy rối hoặc tạo nội dung xâm hại.</li>
-              <li>Giới hạn quyền truy cập, thời gian lưu và nơi truyền ảnh/embedding; xóa khi không còn cần.</li>
-              <li>Gắn nhãn nội dung tổng hợp khi ngữ cảnh có thể khiến người xem nhầm là thật.</li>
+            <p class="io-group-label">Inputs</p>
+            <ul class="io-list">
+              <li class="io-item">
+                <span class="io-badge in">in</span>
+                <div>
+                  <div class="io-name">vae_name</div>
+                  <div class="io-desc">Tên file VAE trong thư mục models/vae/ (ví dụ: wan_2.1_vae.safetensors)</div>
+                </div>
+              </li>
             </ul>
           </div>
-        </aside>
-      </div>
-    </section>
-
-    <section class="lesson-section" id="related-lessons" aria-labelledby="related-heading">
-      <div class="shell">
-        <div class="section-head">
-          <p class="section-kicker">07 · Bài liên quan</p>
-          <h2 id="related-heading">Nối FaceID vào đúng lớp của workflow</h2>
-          <p>Mỗi link dẫn tới một bài thật và giải thích quan hệ kỹ thuật, thay vì chỉ nối theo từ khóa.</p>
+          <div>
+            <p class="io-group-label">Output</p>
+            <ul class="io-list">
+              <li class="io-item">
+                <span class="io-badge out">out</span>
+                <div>
+                  <div class="io-name">VAE</div>
+                  <div class="io-desc">Object VAE dùng cho image encode/decode; sampler main hiện tại không có cổng vae trực tiếp.</div>
+                </div>
+              </li>
+            </ul>
+          </div>
         </div>
-        <nav class="related-grid" aria-label="Các bài học liên quan đến FaceID">
-          <a class="related-card" href="video-generation-part-4-lesson-3.html"><p class="section-kicker">Cùng cơ chế</p><h3>IP-Adapter</h3><p>Hiểu nhánh image-conditioning trước khi phân biệt biến thể FaceID dùng embedding nhận dạng.</p></a>
-          <a class="related-card" href="video-generation-part-4-lesson-5.html"><p class="section-kicker">Ứng dụng tiếp theo</p><h3>InstantID</h3><p>So sánh một pipeline identity-preserving khác: thêm nhánh IdentityNet và landmark control, không đồng nhất với FaceID.</p></a>
-          <a class="related-card" href="video-generation-part-1-lesson-2.html"><p class="section-kicker">Kiến thức nền</p><h3>VAE</h3><p>Nhắc lại latent diffusion xử lý tín hiệu trong không gian nén; từ đó tránh hiểu conditioning như dán pixel reference vào output.</p></a>
-        </nav>
-        <p class="lab-caption">Nguồn phạm vi: <a href="https://github.com/tencent-ailab/IP-Adapter/wiki/IP%E2%80%90Adapter%E2%80%90Face" rel="noopener noreferrer">IP-Adapter Face wiki</a> nêu FaceID dùng ArcFace/InsightFace ID embedding; <a href="https://huggingface.co/docs/diffusers/using-diffusers/ip_adapter" rel="noopener noreferrer">Diffusers documentation</a> phân biệt FaceID embedding với CLIP image embedding. InstantID có IdentityNet/landmark branch theo <a href="https://instantid.github.io/" rel="noopener noreferrer">project page chính chủ</a>.</p>
+        <div class="note-panel">
+          <strong>Kiểm tra trước khi nối:</strong> mở tooltip/cổng của workflow đúng phiên bản và nối đúng kiểu dữ liệu. Không thay VAE theo tên gọi; mismatch có thể báo type error hoặc tạo output không hợp lệ, tùy implementation.
+        </div>
       </div>
-    </section>
-  </main>
-
-  <footer>
-    <div class="shell footer-inner">
-      <p>Video Generation Study · Part 4 / Lesson 4</p>
-      <nav class="hero-actions" aria-label="Điều hướng tuần tự">
-        <a class="button" href="video-generation-part-4-lesson-3.html">← Bài 3: IP-Adapter</a>
-        <a class="button" href="index.html">Mục lục</a>
-        <a class="button primary" href="video-generation-part-4-lesson-5.html">Bài 5: InstantID →</a>
-      </nav>
     </div>
-  </footer>
+  </section>
 
+  <!-- NODE 2: ClipVisionEncode -->
+  <section class="section shell" id="wanvideo-clip-vision-encode" aria-labelledby="clipHeading">
+    <p class="section-meta">02 — WanVideoImageClipEncode</p>
+    <h2 id="clipHeading">Encode ảnh tham chiếu cho I2V</h2>
+    <p class="section-lead">Một số workflow I2V của wrapper dùng encoder thị giác và VAE để tạo conditioning ảnh; workflow native của ComfyUI có thể dùng node và cổng khác.</p>
+
+    <div class="node-card">
+      <div class="node-header">
+        <div class="node-icon clip" aria-hidden="true">🖼</div>
+        <div>
+          <h3 class="node-title">WanVideoImageClipEncode</h3>
+          <p class="node-subtitle">Chỉ dùng trong pipeline I2V, bỏ qua khi T2V</p>
+        </div>
+      </div>
+      <div class="node-body">
+        <p class="node-desc">
+          <strong>What it DOES:</strong> Phân tích hình ảnh tham chiếu (IMAGE) bằng CLIP Vision model để rút trích các đặc trưng hình ảnh dưới dạng vector (WANVIDIMAGE_EMBEDS).<br>
+          <strong>WHY it connects (Connection Intent):</strong> Output của nó được nối thẳng vào Sampler để cung cấp "điều kiện hình ảnh" (image conditioning), nói cho bộ sinh video biết khung hình bắt đầu (hoặc khung hình tham chiếu) trông như thế nào trong workflow I2V.
+        </p>
+        <div class="io-grid">
+          <div>
+            <p class="io-group-label">Inputs</p>
+            <ul class="io-list">
+              <li class="io-item">
+                <span class="io-badge in">in</span>
+                <div>
+                  <div class="io-name">clip_vision</div>
+                  <div class="io-desc">CLIP Vision model (từ CLIPVisionLoader), phiên bản tương thích Wan I2V</div>
+                </div>
+              </li>
+              <li class="io-item">
+                <span class="io-badge in">in</span>
+                <div>
+                  <div class="io-name">image</div>
+                  <div class="io-desc">Ảnh tham chiếu dạng IMAGE tensor (load từ LoadImage node)</div>
+                </div>
+              </li>
+            </ul>
+          </div>
+          <div>
+            <p class="io-group-label">Output</p>
+            <ul class="io-list">
+              <li class="io-item">
+                <span class="io-badge out">out</span>
+                <div>
+                  <div class="io-name">WANVIDIMAGE_EMBEDS</div>
+                  <div class="io-desc">Embedding ảnh của wrapper, nối vào input image_embeds của sampler.</div>
+                </div>
+              </li>
+            </ul>
+          </div>
+        </div>
+        <div class="note-panel">
+          <strong>Phạm vi:</strong> đây là đường I2V của custom wrapper. Với T2V, bỏ nhánh ảnh nếu workflow không yêu cầu nó; với I2V, giữ model, VAE và node encoder khớp workflow đã xuất bản.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- NODE 3: LoraSelectMulti -->
+  <section class="section shell" id="wanvideo-lora-select-multi" aria-labelledby="loraHeading">
+    <p class="section-meta">03 — WanVideoLoraSelectMulti</p>
+    <h2 id="loraHeading">Chọn nhiều LoRA cùng lúc</h2>
+    <p class="section-lead">Thay vì chain từng LoraLoader thủ công, node này cho phép chọn tối đa nhiều LoRA trong một bước, mỗi LoRA có strength độc lập.</p>
+
+    <div class="node-card">
+      <div class="node-header">
+        <div class="node-icon lora" aria-hidden="true">🔗</div>
+        <div>
+          <h3 class="node-title">WanVideoLoraSelectMulti</h3>
+          <p class="node-subtitle">Stack LoRA để nối vào WanVideoSampler</p>
+        </div>
+      </div>
+      <div class="node-body">
+        <p class="node-desc">
+          <strong>What it DOES:</strong> Chọn và gom nhiều LoRA (phong cách, nhân vật, chi tiết) vào cùng một ngăn xếp (stack) với các mức độ ảnh hưởng (strength) riêng.<br>
+          <strong>WHY it connects (Connection Intent):</strong> Node này không thay đổi trực tiếp trọng số model, mà truyền danh sách cấu hình LoRA đã chọn vào Sampler để áp dụng hàng loạt ở khâu inference (denoising).
+        </p>
+        <div class="io-grid">
+          <div>
+            <p class="io-group-label">Inputs (mỗi slot)</p>
+            <ul class="io-list">
+              <li class="io-item">
+                <span class="io-badge in">in</span>
+                <div>
+                  <div class="io-name">lora_name_N</div>
+                  <div class="io-desc">Tên file LoRA (ví dụ: wan-motion-smooth.safetensors), chọn "None" để bỏ slot</div>
+                </div>
+              </li>
+              <li class="io-item">
+                <span class="io-badge in">in</span>
+                <div>
+                  <div class="io-name">strength_N</div>
+                  <div class="io-desc">Cường độ LoRA; bắt đầu theo model card tương thích, rồi A/B từng biến.</div>
+                </div>
+              </li>
+            </ul>
+          </div>
+          <div>
+            <p class="io-group-label">Output</p>
+            <ul class="io-list">
+              <li class="io-item">
+                <span class="io-badge out">out</span>
+                <div>
+                  <div class="io-name">WANVIDLORA</div>
+                  <div class="io-desc">Cấu hình adapter của wrapper; nối vào ModelLoader theo JSON workflow, không mặc định vào sampler.</div>
+                </div>
+              </li>
+            </ul>
+          </div>
+        </div>
+        <div class="note-panel">
+          <strong>Heuristic để A/B test, không phải preset:</strong> thử một LoRA trước ở strength ghi trong model card, khóa seed/prompt/steps; sau đó thêm LoRA thứ hai và so artifact, nhận diện và chuyển động. Không có ngưỡng tổng strength áp dụng cho mọi LoRA.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- NODE 4: Sampler -->
+  <section class="section shell" id="wanvideo-sampler" aria-labelledby="samplerHeading">
+    <p class="section-meta">04 — WanVideoSampler</p>
+    <h2 id="samplerHeading">Node chính sinh video</h2>
+    <p class="section-lead">WanVideoSampler là trung tâm của pipeline — nhận tất cả thông tin từ các node khác và chạy quá trình denoising để tạo ra latent video.</p>
+
+    <div class="node-card">
+      <div class="node-header">
+        <div class="node-icon sampler" aria-hidden="true">⚙</div>
+        <div>
+          <h3 class="node-title">WanVideoSampler</h3>
+          <p class="node-subtitle">Denoising loop — đầu ra LATENT, decode bằng WanVideoDecode của wrapper</p>
+        </div>
+      </div>
+      <div class="node-body">
+        <p class="node-desc">
+          <strong>What it DOES:</strong> Nhận toàn bộ tín hiệu (prompt, text embeds, image embeds, model, latent noise) và thực hiện quá trình lấy mẫu vòng lặp (denoising) qua số bước chỉ định để tạo ra latent video.<br>
+          <strong>WHY it connects (Connection Intent):</strong> Đây là "trái tim" của pipeline. Nó tổng hợp mọi điều kiện, tính toán và kết nối đầu ra LATENT vào node VAE Decode để hiển thị video cuối cùng trên màn hình.
+        </p>
+
+        <table class="param-table" aria-label="Các input chính của WanVideoSampler">
+          <thead>
+            <tr>
+              <th>Input</th>
+              <th>Kiểu</th>
+              <th>Mô tả</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="param-name">model</td>
+              <td class="param-type">MODEL</td>
+              <td class="param-desc">Wan diffusion model (từ WanVideoModelLoader)</td>
+            </tr>
+            <tr>
+              <td class="param-name">image_embeds</td>
+              <td class="param-type">WANVIDIMAGE_EMBEDS</td>
+              <td class="param-desc">Required ở schema main đã audit; nhận từ encoder ảnh tương thích.</td>
+            </tr>
+            <tr>
+              <td class="param-name">text_embeds</td>
+              <td class="param-type">WANVIDEOTEXTEMBEDS</td>
+              <td class="param-desc">Optional ở schema main đã audit.</td>
+            </tr>
+            <tr>
+              <td class="param-name">samples</td>
+              <td class="param-type">LATENT</td>
+              <td class="param-desc">Optional latent samples của workflow.</td>
+            </tr>
+            <tr>
+              <td class="param-name">shift</td>
+              <td class="param-type">FLOAT</td>
+              <td class="param-desc">Tham số sampler; giữ cố định khi A/B biến khác.</td>
+            </tr>
+            <tr>
+              <td class="param-name">cfg</td>
+              <td class="param-type">FLOAT</td>
+              <td class="param-desc">CFG của wrapper. Quét nhỏ quanh preset workflow; trade-off bám prompt/artifact phụ thuộc model, scheduler và version.</td>
+            </tr>
+            <tr>
+              <td class="param-name">steps</td>
+              <td class="param-type">INT</td>
+              <td class="param-desc">Số bước của wrapper. Giữ scheduler, seed, resolution và model cố định khi so chất lượng với thời gian.</td>
+            </tr>
+            <tr>
+              <td class="param-name">force_offload</td>
+              <td class="param-type">BOOLEAN</td>
+              <td class="param-desc">Offload sau sampling: trade-off VRAM/thời gian của wrapper.</td>
+            </tr>
+            <tr>
+              <td class="param-name">scheduler</td>
+              <td class="param-type">ENUM</td>
+              <td class="param-desc">Danh sách schedule là implementation-specific; đánh giá bằng clip A/B, không chỉ nhìn một frame.</td>
+            </tr>
+            <tr>
+              <td class="param-name">seed</td>
+              <td class="param-type">INT</td>
+              <td class="param-desc">Seed hỗ trợ tái lập; thường còn cần cùng model/node commit, runtime, GPU và thiết lập deterministic.</td>
+            </tr>
+            <tr>
+              <td class="param-name">Schema</td>
+              <td class="param-type">versioned</td>
+              <td class="param-desc">Kiểm tra INPUT_TYPES và JSON của commit thực tế trước khi chạy.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="io-grid io-grid-mt">
+          <div>
+            <p class="io-group-label">Output</p>
+            <ul class="io-list">
+              <li class="io-item">
+                <span class="io-badge out">out</span>
+                <div>
+                  <div class="io-name">LATENT</div>
+                  <div class="io-desc">Latent video tensor — nối vào WanVideoDecode của wrapper để lấy images/video.</div>
+                </div>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PIPELINE DIAGRAM -->
+  <section class="pipeline-section shell" id="pipeline" aria-labelledby="pipelineHeading">
+    <p class="section-meta">05 — Pipeline đầy đủ</p>
+    <h2 id="pipelineHeading">Kết nối 4 node trong workflow</h2>
+    <p class="section-lead">Chọn chế độ để xem cách các node kết nối. Nhấn vào từng node để xem chi tiết inputs/outputs.</p>
+
+    <div class="mode-switch" role="group" aria-label="Chọn chế độ pipeline">
+      <button class="mode-btn" id="btnT2V" type="button" aria-pressed="true" onclick="setPipelineMode('t2v')">T2V — Text to Video</button>
+      <button class="mode-btn" id="btnI2V" type="button" aria-pressed="false" onclick="setPipelineMode('i2v')">I2V — Image to Video</button>
+    </div>
+
+    <p class="scope-note">Kết nối này đã được kiểm tra với WanVideo [v1.0.0]. Với phiên bản khác, vào <a href="https://github.com/kijai/ComfyUI-WanVideoWrapper">ComfyUI-WanVideoWrapper</a> (official WanVideo repo) để xác nhận cách nối dây chính xác. Sơ đồ dưới biểu diễn <strong>Connection Intent</strong> (Mục đích kết nối): tại sao node này lại truyền dữ liệu cho node kia.</p>
+    <div class="diagram-wrapper" role="region" aria-label="Sơ đồ tương tác kết nối các node WanVideo">
+      <p id="pipelineStatus" class="scope-note" role="status" aria-live="polite">Đang xem sơ đồ khái niệm T2V; JSON commit thực tế quyết định nguồn image_embeds bắt buộc.</p>
+      <div class="diagram" id="diagram">
+
+        <!-- VAE Loader -->
+        <div class="d-col">
+          <div class="d-node-wrap">
+            <button
+              class="d-node"
+              id="dn-vae"
+              type="button"
+              aria-expanded="false"
+              aria-controls="dd-vae"
+              onclick="toggleDetail('vae')"
+            >
+              <p class="d-node-label vae">01 · VAE</p>
+              <p class="d-node-name">WanVideoVAELoader</p>
+              <p class="d-node-hint">vae_name →</p>
+            </button>
+            <div class="d-detail" id="dd-vae" role="region" aria-label="Chi tiết WanVideoVAELoader">
+              <strong>Output: VAE</strong>
+              Kết nối → image encode/decode; không phải cổng vae trực tiếp của sampler main hiện tại
+            </div>
+          </div>
+        </div>
+
+        <div class="d-arrow" aria-hidden="true">
+          <svg width="32" height="18" viewBox="0 0 32 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <line x1="0" y1="9" x2="24" y2="9" stroke="currentColor" stroke-width="1.5"/>
+            <polyline points="20,4 28,9 20,14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+          </svg>
+        </div>
+
+        <!-- Branching column: CLIP (I2V) on top, empty on T2V + Sampler below -->
+        <div class="d-col d-col-branch">
+          <!-- CLIP Vision (only visible in I2V) -->
+          <div id="clipBranch" class="clip-branch hidden">
+            <div class="d-node-wrap">
+              <button
+                class="d-node"
+                id="dn-clip"
+                type="button"
+                aria-expanded="false"
+                aria-controls="dd-clip"
+                onclick="toggleDetail('clip')"
+              >
+                <p class="d-node-label clip">02 · CLIP</p>
+                <p class="d-node-name">ImageClipEncode</p>
+                <p class="d-node-hint">image →</p>
+              </button>
+              <div class="d-detail" id="dd-clip" role="region" aria-label="Chi tiết ImageClipEncode">
+                <strong>Output: WANVIDIMAGE_EMBEDS</strong>
+                → image_embeds của sampler (schema main đã audit)
+              </div>
+            </div>
+            <div class="d-branch-arrow" aria-hidden="true">↓</div>
+          </div>
+
+          <!-- LoRA Select -->
+          <div class="d-node-wrap">
+            <button
+              class="d-node"
+              id="dn-lora"
+              type="button"
+              aria-expanded="false"
+              aria-controls="dd-lora"
+              onclick="toggleDetail('lora')"
+            >
+              <p class="d-node-label lora">03 · LoRA</p>
+              <p class="d-node-name">LoraSelect → ModelLoader</p>
+              <p class="d-node-hint">lora_name, strength →</p>
+            </button>
+            <div class="d-detail" id="dd-lora" role="region" aria-label="Chi tiết WanVideoLoraSelectMulti">
+              <strong>Output: WANVIDLORA</strong>
+              → ModelLoader → model của sampler
+            </div>
+          </div>
+        </div>
+
+        <div class="d-arrow" aria-hidden="true">
+          <svg width="32" height="18" viewBox="0 0 32 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <line x1="0" y1="9" x2="24" y2="9" stroke="currentColor" stroke-width="1.5"/>
+            <polyline points="20,4 28,9 20,14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+          </svg>
+        </div>
+
+        <!-- Sampler -->
+        <div class="d-col">
+          <div class="d-node-wrap">
+            <button
+              class="d-node"
+              id="dn-sampler"
+              type="button"
+              aria-expanded="false"
+              aria-controls="dd-sampler"
+              onclick="toggleDetail('sampler')"
+            >
+              <p class="d-node-label sampler">04 · Sampler</p>
+              <p class="d-node-name">WanVideoSampler</p>
+              <p class="d-node-hint">model, image_embeds, steps…</p>
+            </button>
+            <div class="d-detail" id="dd-sampler" role="region" aria-label="Chi tiết WanVideoSampler">
+              <strong>Output: LATENT</strong>
+              → WanVideoDecode → images/video export
+            </div>
+          </div>
+        </div>
+
+        <div class="d-arrow" aria-hidden="true">
+          <svg width="32" height="18" viewBox="0 0 32 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <line x1="0" y1="9" x2="24" y2="9" stroke="currentColor" stroke-width="1.5"/>
+            <polyline points="20,4 28,9 20,14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+          </svg>
+        </div>
+
+        <!-- Decode -->
+        <div class="d-col">
+          <div class="d-node-wrap">
+            <div class="d-node d-node-decode" aria-label="WanVideoDecode — decode latent thành images hoặc video export">
+              <p class="d-node-label d-node-label-dim">Decode</p>
+              <p class="d-node-name">WanVideoDecode</p>
+              <p class="d-node-hint">→ VIDEO</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="diagram-legend" aria-label="Chú thích màu sắc">
+        <div class="legend-item"><span class="legend-dot legend-dot-vae"></span>VAE Loader</div>
+        <div class="legend-item"><span class="legend-dot legend-dot-cyan"></span>CLIP Vision (I2V)</div>
+        <div class="legend-item"><span class="legend-dot legend-dot-acid"></span>LoRA Stack</div>
+        <div class="legend-item"><span class="legend-dot legend-dot-red"></span>Sampler</div>
+        <div class="legend-item legend-item-i2v" id="i2vLegend"><span aria-hidden="true">🖼</span><span class="legend-item-i2v-text">Nét đứt = chỉ I2V</span></div>
+      </div>
+    </div>
+
+    <details class="pipeline-details">
+      <summary>Tại sao I2V cần thêm ClipVisionEncode?</summary>
+      <div class="note-panel pipeline-note-panel">
+        Trong T2V, sampler chỉ biết mục tiêu qua text conditioning. Trong I2V, ta muốn video bắt đầu từ hoặc trung thành với một ảnh cụ thể. CLIP Vision encode ảnh đó thành embedding không gian đặc trưng mà sampler dùng như một "anchor" bổ sung — giúp giữ nhân vật, màu sắc, và bố cục từ ảnh tham chiếu trong suốt quá trình denoising.
+      </div>
+    </details>
+  </section>
+
+  <section class="section shell" id="production-brief" aria-labelledby="briefHeading">
+    <p class="section-meta">06 — Case study production</p>
+    <h2 id="briefHeading">Shot mở đầu cho quảng cáo đồ uống: A/B pipeline I2V</h2>
+    <div class="production-brief">
+      <p class="section-lead">Brief giả định để luyện chẩn đoán — không phải benchmark hay preset của Wan.</p>
+      <dl class="brief-grid">
+        <div><dt>Mục tiêu</dt><dd>Clip 5 giây: lon nước giữ logo và góc máy, mặt bàn có chuyển động ánh sáng nhẹ.</dd></div>
+        <div><dt>Bối cảnh</dt><dd>Previsualization trước ngày quay; chỉ dùng nội bộ agency.</dd></div>
+        <div><dt>Input / workflow</dt><dd>Một keyframe 16:9 đã duyệt + workflow I2V Wan wrapper đã pin commit.</dd></div>
+        <div><dt>Giữ cố định</dt><dd>Checkpoint, VAE, prompt, seed, resolution, số frame, scheduler và GPU.</dd></div>
+        <div><dt>Biến thử</dt><dd>A: không LoRA. B: một LoRA motion có strength theo model card; đổi đúng một biến/lần.</dd></div>
+        <div><dt>Giới hạn</dt><dd>Ngân sách 20 phút GPU; render preview ngắn trước, chỉ upscale candidate đạt yêu cầu.</dd></div>
+        <div><dt>Đánh giá</dt><dd>Logo đọc được ở frame đầu/cuối, bố cục giữ ổn định, chuyển động không giật.</dd></div>
+        <div><dt>Dấu hiệu thất bại</dt><dd>Logo biến dạng, drift màu lon, rung camera, hoặc motion lấn át sản phẩm.</dd></div>
+      </dl>
+      <p class="brief-next"><strong>Bước tiếp:</strong> nếu B làm logo drift, quay về A; xác nhận node/LoRA tương thích checkpoint, rồi chỉ quét strength trong phạm vi model card với seed cố định. Nếu cả A/B đều drift, kiểm tra image-conditioning và keyframe trước khi đổi sampler.</p>
+    </div>
+  </section>
+
+  <!-- TAKEAWAYS -->
+  <section class="section shell" aria-labelledby="takeawayHeading">
+    <p class="section-meta">Tổng kết</p>
+    <h2 id="takeawayHeading">4 điểm cần nhớ</h2>
+    <div class="takeaway-grid">
+      <div class="takeaway-card">
+        <p class="takeaway-num">01</p>
+        <p><strong>Giữ VAE khớp workflow.</strong> Dùng loader/kiểu mà JSON của commit yêu cầu; đừng thay theo tên gọi.</p>
+      </div>
+      <div class="takeaway-card">
+        <p class="takeaway-num">02</p>
+        <p><strong>Nhánh ảnh theo workflow.</strong> I2V của wrapper có thể dùng encoder ảnh, còn T2V có thể không dùng; đọc type cổng để chẩn đoán mismatch.</p>
+      </div>
+      <div class="takeaway-card">
+        <p class="takeaway-num">03</p>
+        <p><strong>LoRA cần A/B có kiểm soát.</strong> Pin model/commit, thử một adapter theo model card rồi ghi nhận artifact và motion.</p>
+      </div>
+      <div class="takeaway-card">
+        <p class="takeaway-num">04</p>
+        <p><strong>Sampler là hub của workflow đã pin version.</strong> Với wrapper main đã audit: output LATENT → WanVideoDecode → images/video export.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section shell" id="related-lessons" aria-labelledby="relatedHeading">
+    <p class="section-meta">Học tiếp theo quan hệ kiến thức</p>
+    <h2 id="relatedHeading">Bài liên quan</h2>
+    <div class="related-list">
+      <a href="video-generation-part-1-lesson-2.html"><strong>VAE &amp; Latent Space — Bài 1.2</strong><span>Nền tảng latent/encode/decode để đọc đúng vai trò VAE trong video workflow.</span></a>
+      <a href="video-generation-part-2-lesson-3.html"><strong>LoRA Mechanics — Bài 2.3</strong><span>Giải thích adapter weights trước khi A/B strength trong custom wrapper.</span></a>
+      <a href="video-generation-part-5-lesson-1.html"><strong>Chọn T2V, I2V hay FLF2V — Bài 5.1</strong><span>Chọn đúng nhánh input và tiêu chí kiểm tra tính trung thành ảnh tham chiếu.</span></a>
+    </div>
+
+    <div class="handoff-card">
+      <div class="handoff-card-icon" aria-hidden="true">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </div>
+      <div>
+        <p class="handoff-card-label">Bài tiếp theo</p>
+        <h2 class="handoff-card-title" id="handoff-heading">Cấu trúc Prompt cho Video</h2>
+        <p class="handoff-card-body">Sau khi pipeline nodes được thiết lập, hãy biến brief quay thành Subject → Motion → Style trước khi tách positive và negative prompt.</p>
+        <a class="button primary" href="video-generation-part-4-lesson-7.html" data-curriculum-next>Sang Bài 4.5 →</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="shell">
+    <p>Video Gen Lab &mdash; Phase 4, Bài 4.4 &mdash; Bộ node WanVideo</p>
+    <p><a href="video-generation-part-4-lesson-3.html">← Bài 4.3</a> · <a href="video-generation-part-4-lesson-7.html">Bài 4.5 →</a></p>
+  </div>
+</footer>
+
+<script src="video-generation-navigation.js"></script>
   <script>
-    (() => {
-      const form = document.querySelector('#tradeoff-form');
-      const strength = document.querySelector('#identity-strength');
-      const demand = document.querySelector('#motion-demand');
-      const strengthValue = document.querySelector('#strength-value');
-      const identityMeter = document.querySelector('#identity-score');
-      const motionMeter = document.querySelector('#motion-room');
-      const identityLabel = document.querySelector('#identity-score-label');
-      const motionLabel = document.querySelector('#motion-room-label');
-      const statusTitle = document.querySelector('#status-title');
-      const statusCopy = document.querySelector('#status-copy');
-      const actionCopy = document.querySelector('#action-copy');
-      const live = document.querySelector('#lab-live');
-      const abTest = document.querySelector('#ab-test');
-      const abResult = document.querySelector('#ab-result');
-      const abCopy = document.querySelector('#ab-copy');
-      const progress = document.querySelector('.progress-fill');
+  // Progress bar
+  (function() {
+    var fill = document.getElementById('progressFill');
+    if (!fill) return;
+    function update() {
+      var scrollTop = window.scrollY || document.documentElement.scrollTop;
+      var docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      var pct = docHeight > 0 ? Math.min(100, (scrollTop / docHeight) * 100) : 0;
+      fill.style.width = pct + '%';
+    }
+    window.addEventListener('scroll', update, { passive: true });
+    update();
+  })();
 
-      const clamp = (value) => Math.max(0, Math.min(100, Math.round(value)));
+  // Pipeline mode toggle
+  function setPipelineMode(mode) {
+    var isI2V = mode === 'i2v';
+    document.getElementById('btnT2V').setAttribute('aria-pressed', String(!isI2V));
+    document.getElementById('btnI2V').setAttribute('aria-pressed', String(isI2V));
 
-      const updateLab = () => {
-        const strengthNumber = Number(strength.value);
-        const demandNumber = Number(demand.value);
-        const identityScore = clamp(22 + strengthNumber * .72 - demandNumber * .2);
-        const motionRoom = clamp(100 - strengthNumber * .72);
-        const pressure = demandNumber - motionRoom;
+    var clipBranch = document.getElementById('clipBranch');
+    var i2vLegend = document.getElementById('i2vLegend');
+    if (clipBranch) clipBranch.classList.toggle('hidden', !isI2V);
+    if (i2vLegend) i2vLegend.classList.toggle('visible', isI2V);
+    var status = document.getElementById('pipelineStatus');
+    if (status) status.textContent = isI2V
+      ? 'Đang xem mô phỏng I2V: nhánh encoder ảnh được thêm vào sampler.'
+      : 'Đang xem sơ đồ khái niệm T2V; JSON commit thực tế quyết định nguồn image_embeds bắt buộc.';
+  }
 
-        strengthValue.textContent = String(strengthNumber);
-        identityMeter.value = identityScore;
-        identityMeter.textContent = `${identityScore} trên 100`;
-        motionMeter.value = motionRoom;
-        motionMeter.textContent = `${motionRoom} trên 100`;
-        identityLabel.textContent = `${identityScore} / 100`;
-        motionLabel.textContent = `${motionRoom} / 100`;
-        live.textContent = `Mô phỏng cập nhật: identity strength ${strengthNumber}; độ khó chuyển động ${demandNumber}; neo danh tính dự kiến ${identityScore} trên 100; dư địa chuyển động ${motionRoom} trên 100.`;
+  // Node detail expand/collapse in diagram
+  function toggleDetail(id) {
+    var btn = document.getElementById('dn-' + id);
+    var detail = document.getElementById('dd-' + id);
+    if (!btn || !detail) return;
+    var open = btn.getAttribute('aria-expanded') === 'true';
+    btn.setAttribute('aria-expanded', String(!open));
+    detail.classList.toggle('open', !open);
+  }
 
-        if (identityScore < 42) {
-          statusTitle.textContent = 'Nguy cơ trôi danh tính';
-          statusCopy.textContent = 'Tín hiệu danh tính tương đối yếu so với yêu cầu của shot. Các frame đổi góc hoặc biểu cảm có thể lệch khỏi reference.';
-          actionCopy.textContent = 'Kiểm tra chất lượng reference trước, sau đó tăng strength từng nấc nhỏ hoặc giảm độ khó chuyển động.';
-        } else if (pressure > 24) {
-          statusTitle.textContent = 'Xung đột identity–motion cao';
-          statusCopy.textContent = 'Shot đòi hỏi nhiều hơn dư địa chuyển động còn lại. Kết quả có thể giữ mặt nhưng cứng, hoặc chuyển động được nhưng biến dạng.';
-          actionCopy.textContent = 'Giảm strength nhẹ, chia shot thành đoạn ngắn hơn hoặc giảm góc quay/che khuất cực đoan.';
-        } else if (pressure > 0) {
-          statusTitle.textContent = 'Cân bằng nhưng cần theo dõi';
-          statusCopy.textContent = 'Identity signal ở mức vừa trong khi shot yêu cầu thay đổi đáng kể. Kiểm tra drift ở các frame chuyển góc hoặc đổi biểu cảm.';
-          actionCopy.textContent = 'Render một đoạn ngắn, quan sát frame chuyển góc; chỉ tăng strength từng nấc nhỏ nếu danh tính trôi.';
-        } else {
-          statusTitle.textContent = 'Vùng thử nghiệm hợp lý';
-          statusCopy.textContent = 'Mức conditioning chừa đủ dư địa cho yêu cầu chuyển động hiện tại. Đây là điểm xuất phát để render test, không phải bảo đảm kết quả.';
-          actionCopy.textContent = 'Giữ cấu hình, render seed thử và đánh giá theo chuỗi frame thay vì chỉ nhìn một ảnh đẹp nhất.';
-        }
-      };
-
-      const buildAbTest = () => {
-        const current = Number(strength.value);
-        const baseline = Math.max(Number(strength.min), current - 10);
-        abCopy.textContent = `A dùng strength ${baseline}; B dùng strength ${current}. Giữ seed, prompt, crop reference, base model, sampler, số bước và shot brief cố định; so sánh frame đầu/giữa/cuối, độ tự nhiên biểu cảm và flicker. Đây là kế hoạch A/B mô phỏng, không phải benchmark.`;
-        abResult.hidden = false;
-        live.textContent = `Đã tạo test A/B mô phỏng: A strength ${baseline}; B strength ${current}. Giữ các biến còn lại cố định.`;
-      };
-
-      const updateProgress = () => {
-        const scrollable = document.documentElement.scrollHeight - window.innerHeight;
-        const percent = scrollable > 0 ? Math.min(100, Math.max(0, window.scrollY / scrollable * 100)) : 0;
-        progress.style.width = `${percent}%`;
-      };
-
-      form.addEventListener('input', updateLab);
-      form.addEventListener('change', updateLab);
-      abTest.addEventListener('click', buildAbTest);
-      window.addEventListener('scroll', updateProgress, {passive: true});
-      updateLab();
-      updateProgress();
-    })();
-  </script>
+  // Initialize: hide clip branch (T2V default)
+  document.addEventListener('DOMContentLoaded', function() {
+    setPipelineMode('t2v');
+  });
+</script>
 </body>
 </html>

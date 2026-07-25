@@ -1,1544 +1,1945 @@
 <!DOCTYPE html>
-<html lang="vi" data-theme="dark">
+<html lang="vi" data-theme="dark" data-curriculum-id="dataset-captioning">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CFG — Điều khiển độ bám prompt | Phần 2 · Bài 4 | Video Gen Lab</title>
-  <meta name="description" content="Hiểu Classifier-Free Guidance (CFG): CFG Scale điều chỉnh mức độ bám prompt, CFG Schedule thay đổi guidance theo timestep trong quá trình sampling." />
-
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="video-generation-favicon.svg" type="image/svg+xml" />
+  <meta name="description" content="Cách thu thập, làm sạch và gán caption cho dataset khuôn mặt/nhân vật để huấn luyện LoRA, cùng kỹ thuật phát hiện và tránh overfitting." />
+  <title>Training Design · Bài 2.4 — Dataset & Captioning</title>
   <script src="video-generation-theme.js"></script>
   <link rel="stylesheet" href="video-generation-design-system.css" />
-
+  <script src="video-generation-curriculum.js"></script>
+  <script src="video-generation-navigation.js"></script>
   <style>
-    /* ── Layout helpers ── */
-    .hero {
-      padding: 80px 0 64px;
-      border-bottom: 1px solid var(--line);
-    }
+    main { overflow: hidden; }
+    section { scroll-margin-top: 86px; }
+
+    /* ── Hero ──────────────────────────────────────────────── */
+    .hero { padding: 80px 0 64px; border-bottom: 1px solid var(--line); }
     .hero-meta {
       font-family: var(--font-mono);
       font-size: .72rem;
-      font-weight: 700;
-      letter-spacing: .13em;
-      text-transform: uppercase;
+      letter-spacing: .14em;
       color: var(--dim);
-      margin: 0 0 18px;
-    }
-    .hero-meta .part-tag {
-      color: var(--cyan);
-    }
-    .hero h1 {
-      font-size: clamp(2.2rem, 5vw, 3.6rem);
-      font-weight: 900;
-      letter-spacing: -.03em;
-      line-height: 1.05;
+      text-transform: uppercase;
       margin: 0 0 20px;
-      max-width: 18ch;
     }
+    .hero-title {
+      max-width: 900px;
+      font-size: clamp(2.6rem, 7vw, 5.4rem);
+      font-weight: 900;
+      letter-spacing: -.05em;
+      line-height: .96;
+      margin: 0 0 24px;
+      color: var(--ink);
+    }
+    .hero-title span { color: var(--acid); }
     .hero-lead {
-      font-size: 1.1rem;
+      font-size: clamp(1.05rem, 1.8vw, 1.25rem);
       color: var(--muted);
-      max-width: 58ch;
-      margin: 0 0 36px;
+      max-width: 660px;
+      margin: 0 0 28px;
+      line-height: 1.6;
     }
-    .hero-cta { display: flex; flex-wrap: wrap; gap: 12px; }
-
-    /* ── Progress bar ── */
-    .lesson-progress-bar {
-      margin: 28px 0 0;
-      max-width: 340px;
-    }
-    .lesson-progress-label {
+    .hero-badges { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 30px; }
+    .hero-badge {
       font-family: var(--font-mono);
-      font-size: .68rem;
-      letter-spacing: .1em;
-      text-transform: uppercase;
-      color: var(--dim);
-      margin-bottom: 6px;
-    }
-    .lesson-progress-track {
-      height: 4px;
-      background: var(--line);
-      border-radius: 4px;
-      overflow: hidden;
-    }
-    .lesson-progress-fill {
-      height: 100%;
-      width: calc(4 / 6 * 100%);
-      background: linear-gradient(90deg, var(--acid), var(--cyan));
-      border-radius: 4px;
-    }
-
-    /* ── Keyword chips ── */
-    .keyword-chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-bottom: 36px;
-    }
-    .chip {
-      font-family: var(--font-mono);
-      font-size: .72rem;
-      font-weight: 700;
-      letter-spacing: .09em;
+      font-size: .65rem;
+      letter-spacing: .12em;
       text-transform: uppercase;
       padding: 5px 12px;
+      border-radius: 8px;
       border: 1px solid var(--line);
-      border-radius: 999px;
-      color: var(--acid);
-      background: transparent;
+      color: var(--dim);
     }
+    .hero-badge.acid { border-color: var(--acid); color: var(--acid); }
+    .hero-badge.cyan { border-color: var(--cyan); color: var(--cyan); }
+    .hero-badge.orange { border-color: var(--orange); color: var(--orange); }
+    .hero-cta-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
 
-    /* ── Section layout ── */
-    .section {
-      padding: 72px 0;
-      border-bottom: 1px solid var(--line);
-    }
-    .section:last-of-type { border-bottom: none; }
-    .section-index {
+    /* ── Section scaffolding ───────────────────────────────── */
+    .label {
+      color: var(--acid);
       font-family: var(--font-mono);
-      font-size: .68rem;
-      font-weight: 700;
+      font-size: .76rem;
+      font-weight: 800;
       letter-spacing: .14em;
       text-transform: uppercase;
-      color: var(--dim);
-      margin: 0 0 10px;
     }
-    .section h2 {
-      font-size: clamp(1.5rem, 3.5vw, 2.2rem);
-      font-weight: 900;
-      letter-spacing: -.025em;
-      line-height: 1.1;
-      margin: 0 0 20px;
-    }
-    .section-intro {
-      font-size: 1rem;
-      color: var(--muted);
-      max-width: 62ch;
-      margin: 0 0 40px;
-    }
+    h2, h3, p { margin-top: 0; }
+    .content-section { padding-block: 100px; border-top: 1px solid var(--line); }
+    .section-head { display: grid; grid-template-columns: 1fr 1.3fr; gap: 48px; margin-bottom: 54px; align-items: end; }
+    .section-index { color: var(--dim); font-family: var(--font-mono); font-size: .82rem; }
+    h2 { margin: 10px 0 0; font-size: clamp(2.2rem, 5vw, 4.2rem); line-height: 1; letter-spacing: -.055em; }
+    .section-intro { max-width: 670px; margin: 0; color: var(--muted); font-size: 1.08rem; }
 
-    /* ── Definition panel ── */
-    .def-panel {
-      border-left: 3px solid var(--cyan);
-      background: var(--panel);
-      border-radius: 0 var(--radius) var(--radius) 0;
-      padding: 24px 28px;
-      margin: 0 0 28px;
+    /* ── Definition panel ──────────────────────────────────── */
+    .definition {
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 24px;
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--acid);
+      border-radius: var(--radius);
+      padding: 30px;
+      background: linear-gradient(110deg, rgba(200,255,61,.055), transparent 55%), var(--panel);
     }
-    .def-panel strong {
-      display: block;
+    .definition strong {
+      color: var(--acid);
       font-family: var(--font-mono);
-      font-size: .8rem;
-      letter-spacing: .1em;
+      font-size: .78rem;
+      letter-spacing: .08em;
       text-transform: uppercase;
-      color: var(--cyan);
-      margin-bottom: 8px;
     }
-    .def-panel p { margin: 0; line-height: 1.7; }
+    .definition p { margin: 0; font-size: clamp(1.15rem, 2vw, 1.5rem); line-height: 1.45; }
 
-    /* ── Formula box ── */
-    .formula-box {
-      background: var(--panel);
+    /* ── Image grid (dataset requirements) ─────────────────── */
+    .image-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 16px;
+      margin-top: 32px;
+    }
+    .img-card {
       border: 1px solid var(--line);
       border-radius: 16px;
-      padding: 32px 36px;
-      margin: 0 0 32px;
+      padding: 20px 18px 16px;
+      background: var(--panel);
       display: flex;
       flex-direction: column;
-      gap: 18px;
+      gap: 10px;
     }
-    .formula-label {
-      font-family: var(--font-mono);
-      font-size: .7rem;
+    .img-card-icon { color: var(--cyan); font: 800 .65rem var(--font-mono); letter-spacing: .12em; line-height: 1; }
+    .img-card h3 { font-size: .92rem; font-weight: 800; margin: 0; color: var(--ink); }
+    .img-card p { font-size: .82rem; color: var(--muted); margin: 0; line-height: 1.5; }
+    .img-card.good { border-left: 3px solid var(--acid); }
+    .img-card.bad  { border-left: 3px solid var(--red); }
+
+    /* ── Dataset Director lab ─────────────────────────────── */
+    .director-lab {
+      margin-top: 34px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      overflow: hidden;
+    }
+    .director-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 24px;
+      align-items: start;
+      padding: 24px 28px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel-2);
+    }
+    .director-kicker {
+      margin: 0 0 5px;
+      color: var(--cyan);
+      font: 800 .68rem var(--font-mono);
       letter-spacing: .12em;
       text-transform: uppercase;
-      color: var(--dim);
     }
-    .formula-expr {
-      font-family: var(--font-mono);
-      font-size: clamp(1rem, 2.5vw, 1.35rem);
-      font-weight: 700;
-      color: var(--ink);
-      line-height: 1.5;
-      word-break: break-word;
-    }
-    .formula-expr .unc { color: var(--orange); }
-    .formula-expr .scale { color: var(--acid); }
-    .formula-expr .diff { color: var(--cyan); }
-    .formula-expr .op { color: var(--dim); }
-    .formula-legend {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px 24px;
-      padding-top: 8px;
-      border-top: 1px solid var(--line);
-    }
-    .legend-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: .82rem;
+    .director-title { margin: 0; font-size: 1.15rem; line-height: 1.35; }
+    .director-presets { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+    .director-preset {
+      min-height: 44px;
+      padding: 8px 13px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--night);
       color: var(--muted);
+      font: 800 .68rem var(--font-mono);
+      transition: border-color .2s ease, background .2s ease, color .2s ease;
     }
-    .legend-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      flex-shrink: 0;
+    .director-preset:hover { color: var(--ink); border-color: var(--dim); }
+    .director-preset[aria-pressed="true"] {
+      color: var(--ink);
+      border-color: var(--acid-fill);
+      background: color-mix(in srgb, var(--acid-fill) 12%, var(--night));
     }
-    .dot-unc { background: var(--orange); }
-    .dot-scale { background: var(--acid-fill); }
-    .dot-diff { background: var(--cyan); }
-
-    /* ── Two-pass diagram ── */
-    .two-pass {
+    .director-body {
       display: grid;
-      grid-template-columns: 1fr auto 1fr;
-      gap: 16px;
-      align-items: center;
-      margin: 32px 0;
+      grid-template-columns: minmax(250px, .78fr) 1.22fr;
+      gap: 28px;
+      padding: 28px;
     }
-    .pass-card {
-      background: var(--panel);
+    .director-controls { display: flex; flex-direction: column; gap: 18px; }
+    .director-control label,
+    .augmentation-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 8px;
+      color: var(--muted);
+      font: 700 .72rem var(--font-mono);
+      letter-spacing: .07em;
+      text-transform: uppercase;
+    }
+    .director-control output { color: var(--ink); }
+    .director-control input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--acid-fill); cursor: pointer; }
+    .augmentation-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--night);
+    }
+    .augmentation-row input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--acid-fill); cursor: pointer; }
+    .augmentation-row label { color: var(--muted); font-size: .84rem; line-height: 1.5; cursor: pointer; }
+    .augmentation-row strong { display: block; color: var(--ink); }
+    .director-stage { min-width: 0; }
+    .dataset-filmstrip {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 7px;
+      padding: 14px;
       border: 1px solid var(--line);
       border-radius: 16px;
-      padding: 22px 20px;
-      text-align: center;
+      background: var(--night);
+      overflow: hidden;
     }
-    .pass-card .pass-type {
-      font-family: var(--font-mono);
-      font-size: .68rem;
-      letter-spacing: .12em;
-      text-transform: uppercase;
-      margin-bottom: 8px;
+    .dataset-frame {
+      --turn: 0deg;
+      --light-x: 30%;
+      position: relative;
+      aspect-ratio: 4 / 5;
+      border-radius: 9px;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at var(--light-x) 24%, rgba(255,255,255,.65), transparent 28%),
+        linear-gradient(150deg, #375868, #15242c 62%);
+      transition: filter .28s ease, transform .28s ease, background .28s ease;
     }
-    .pass-card .pass-type.cond { color: var(--cyan); }
-    .pass-card .pass-type.uncond { color: var(--orange); }
-    .pass-card .pass-title {
-      font-weight: 800;
-      font-size: 1rem;
-      margin-bottom: 6px;
+    .dataset-frame::before {
+      content: '';
+      position: absolute;
+      width: 48%;
+      aspect-ratio: .8;
+      left: 26%;
+      top: 19%;
+      border-radius: 48% 48% 44% 44%;
+      background: #d9a77f;
+      box-shadow: inset 5px 0 0 rgba(74,39,30,.34);
+      transform: rotate(var(--turn));
+      transform-origin: 50% 85%;
     }
-    .pass-card .pass-desc {
-      font-size: .82rem;
-      color: var(--muted);
-      line-height: 1.5;
+    .dataset-frame::after {
+      content: '';
+      position: absolute;
+      width: 76%;
+      height: 45%;
+      left: 12%;
+      bottom: -20%;
+      border-radius: 50% 50% 0 0;
+      background: #243b49;
     }
-    .pass-arrow {
-      font-family: var(--font-mono);
-      font-size: 1.3rem;
-      color: var(--dim);
-      text-align: center;
+    .dataset-frame.is-augmented { filter: hue-rotate(8deg) saturate(1.08); }
+    .dataset-frame.is-risk { filter: contrast(1.55) saturate(.45); }
+    .dataset-caption {
+      position: absolute;
+      inset: auto 5px 5px;
+      z-index: 2;
+      overflow: hidden;
+      padding: 4px 5px;
+      border-radius: 5px;
+      background: rgba(7,12,15,.78);
+      color: #f6f3ea;
+      font: .52rem/1.25 var(--font-mono);
       white-space: nowrap;
+      text-overflow: ellipsis;
     }
-    .combine-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
+    .scan-line {
+      position: absolute;
+      z-index: 5;
+      inset: 0 auto 0 -10%;
+      width: 3px;
+      opacity: 0;
+      background: var(--acid-fill);
+      box-shadow: 0 0 18px var(--acid-fill);
+      pointer-events: none;
+    }
+    .dataset-filmstrip.is-scanning .scan-line { animation: dataset-scan .9s ease-out both; }
+    @keyframes dataset-scan {
+      0% { left: 0; opacity: 0; }
+      10%, 80% { opacity: 1; }
+      100% { left: 100%; opacity: 0; }
+    }
+    .director-results {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .director-metric {
+      padding: 11px 12px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: var(--panel-2);
+    }
+    .director-metric span { display: block; color: var(--dim); font: .6rem var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
+    .director-metric strong { display: block; margin-top: 4px; font-size: .94rem; }
+    .generalization-value { color: var(--acid); }
+    .risk-value { color: var(--orange); }
+    .director-feedback {
+      min-height: 3.2em;
+      margin: 12px 0 0;
+      color: var(--muted);
+      font-size: .86rem;
+    }
+    .director-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    /* ── Caption format panel ──────────────────────────────── */
+    .caption-block {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--panel);
+      margin-top: 28px;
+    }
+    .caption-header {
+      padding: 14px 24px;
+      background: var(--panel-2);
+      border-bottom: 1px solid var(--line);
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+    .caption-body { padding: 24px; }
+    .caption-formula {
+      font-family: var(--font-mono);
+      font-size: clamp(.9rem, 2vw, 1.1rem);
       background: var(--panel-2);
       border: 1px solid var(--line);
       border-radius: 12px;
       padding: 16px 20px;
-      margin-top: 4px;
-      font-family: var(--font-mono);
-      font-size: .82rem;
-      color: var(--muted);
+      color: var(--ink);
+      margin-bottom: 18px;
+      word-break: break-word;
     }
-    .combine-accent { color: var(--acid); font-weight: 700; }
+    .caption-formula .trigger { color: var(--acid); font-weight: 800; }
+    .caption-formula .desc { color: var(--cyan); }
+    .caption-note { color: var(--muted); font-size: .9rem; margin: 0; }
 
-    /* ── CFG Slider lab ── */
-    .lab-panel {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      padding: 36px;
-      margin: 0 0 32px;
+    /* ── Strategy comparison ────────────────────────────────── */
+    .strategy-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 28px;
     }
-    .lab-heading {
+    .strategy-card {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 24px;
+      background: var(--panel);
+    }
+    .strategy-card .stag {
       font-family: var(--font-mono);
-      font-size: .72rem;
+      font-size: .65rem;
       letter-spacing: .12em;
       text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--line);
       color: var(--dim);
-      margin: 0 0 24px;
+      margin-bottom: 14px;
+      display: inline-block;
     }
-    .slider-row {
+    .strategy-card h3 { font-size: 1.1rem; font-weight: 800; margin-bottom: 10px; }
+    .strategy-card p { font-size: .86rem; color: var(--muted); margin: 0; line-height: 1.55; }
+    .strategy-card .pro { margin-top: 14px; font-size: .8rem; color: var(--acid); font-family: var(--font-mono); }
+    .strategy-card .con { font-size: .8rem; color: var(--red); font-family: var(--font-mono); }
+    .strategy-card.recommended { border-color: var(--acid); }
+    .strategy-card.recommended .stag { border-color: var(--acid); color: var(--acid); }
+
+    /* ── Overfitting visualizer ─────────────────────────────── */
+    .overfit-panel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--panel);
+      box-shadow: 0 16px 60px rgba(0,0,0,.18);
+      margin-top: 32px;
+    }
+    .overfit-header {
+      padding: 16px 24px;
+      background: var(--panel-2);
+      border-bottom: 1px solid var(--line);
       display: flex;
       align-items: center;
-      gap: 16px;
-      margin-bottom: 20px;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
     }
-    .slider-row label {
-      font-weight: 800;
-      font-size: .9rem;
-      white-space: nowrap;
-      min-width: 9ch;
+    .overfit-title {
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--dim);
     }
-    .cfg-slider {
+    .overfit-controls { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+    .overfit-controls label { font-family: var(--font-mono); font-size: .72rem; color: var(--muted); }
+    .slider-wrap { display: flex; align-items: center; gap: 10px; }
+    .slider-wrap input[type=range] {
       -webkit-appearance: none;
       appearance: none;
-      flex: 1;
-      height: 44px;
-      border-radius: 0;
-      background: linear-gradient(
-        to bottom,
-        transparent 19px,
-        var(--line) 19px 25px,
-        transparent 25px
-      );
+      width: 140px;
+      height: 4px;
+      border-radius: 4px;
+      background: var(--line);
       outline: none;
       cursor: pointer;
     }
-    .cfg-slider:focus-visible {
-      outline: 3px solid var(--cyan);
-      outline-offset: 2px;
-      border-radius: 8px;
-    }
-    .cfg-slider::-webkit-slider-thumb {
+    .slider-wrap input[type=range]::-webkit-slider-thumb {
       -webkit-appearance: none;
       appearance: none;
-      width: 22px;
-      height: 22px;
+      width: 18px;
+      height: 18px;
       border-radius: 50%;
       background: var(--acid-fill);
-      border: 2px solid var(--night);
       cursor: pointer;
-      transition: transform .15s ease;
+      border: 2px solid var(--night);
     }
-    .cfg-slider::-webkit-slider-thumb:hover { transform: scale(1.15); }
-    .cfg-slider::-moz-range-thumb {
-      width: 22px;
-      height: 22px;
+    .slider-wrap input[type=range]::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
       border-radius: 50%;
       background: var(--acid-fill);
-      border: 2px solid var(--night);
       cursor: pointer;
+      border: 2px solid var(--night);
     }
-    .slider-value {
+    .slider-val {
       font-family: var(--font-mono);
-      font-size: 1.5rem;
-      font-weight: 900;
-      color: var(--acid);
-      min-width: 3.5ch;
+      font-size: .78rem;
+      color: var(--ink);
+      min-width: 44px;
       text-align: right;
     }
-
-    /* Spectrum bar */
-    .spectrum-bar {
-      position: relative;
-      height: 12px;
-      border-radius: 6px;
-      background: linear-gradient(90deg,
-        var(--orange) 0%,
-        var(--acid-fill) 40%,
-        var(--cyan) 75%,
-        var(--red) 100%
-      );
-      margin: 0 0 10px;
-    }
-    .spectrum-needle {
-      position: absolute;
-      top: 50%;
-      transform: translate(-50%, -50%);
-      width: 4px;
-      height: 24px;
-      background: var(--ink);
-      border-radius: 2px;
-      transition: left .15s ease;
-      box-shadow: 0 0 0 2px var(--night);
-    }
-    .spectrum-labels {
-      display: flex;
-      justify-content: space-between;
-      font-family: var(--font-mono);
-      font-size: .65rem;
-      letter-spacing: .05em;
-      text-transform: uppercase;
-      color: var(--dim);
-      margin-bottom: 28px;
-    }
-
-    /* CFG state card */
-    .cfg-state {
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 22px 24px;
-      background: var(--panel-2);
-      transition: border-color .2s ease;
-    }
-    .cfg-state-label {
-      font-family: var(--font-mono);
-      font-size: .7rem;
-      letter-spacing: .1em;
-      text-transform: uppercase;
-      color: var(--dim);
-      margin-bottom: 6px;
-    }
-    .cfg-state-title {
-      font-size: 1.1rem;
-      font-weight: 800;
-      margin-bottom: 8px;
-    }
-    .cfg-state-desc {
-      font-size: .9rem;
-      color: var(--muted);
-      line-height: 1.6;
-      margin: 0;
-    }
-
-    /* Live formula readout */
-    .formula-live {
-      font-family: var(--font-mono);
-      font-size: .9rem;
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      padding: 14px 18px;
-      margin-top: 16px;
-      color: var(--muted);
-      line-height: 1.8;
-    }
-    .formula-live .fv-scale { color: var(--acid); font-weight: 700; }
-    .formula-live .fv-unc { color: var(--orange); }
-    .formula-live .fv-cond { color: var(--cyan); }
-
-    /* ── Prompt studio ── */
-    .prompt-studio {
-      display: grid;
-      grid-template-columns: minmax(0, 1.35fr) minmax(240px, .65fr);
-      gap: 18px;
-      margin-bottom: 28px;
-    }
-    .scene-frame {
-      min-height: 300px;
-      position: relative;
-      overflow: hidden;
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      background: #071019;
-      color: #f8fbff;
-      isolation: isolate;
-    }
-    .scene-world {
-      position: absolute;
-      inset: 0;
-      filter: blur(var(--scene-blur, 0px)) saturate(var(--scene-saturation, 1)) contrast(var(--scene-contrast, 1));
-      transition: filter .35s ease, opacity .35s ease, transform .35s ease;
-    }
-    .scene-sky {
-      position: absolute;
-      inset: 0;
-      background:
-        linear-gradient(90deg, rgba(0, 225, 255, .2), transparent 30%, transparent 68%, rgba(255, 84, 47, .22)),
-        linear-gradient(180deg, #11182b 0 54%, #182f3d 55%, #061119 100%);
-    }
-    .scene-building { position: absolute; top: 0; bottom: 28%; width: 24%; background: #090d18; border-inline: 1px solid rgba(255,255,255,.1); }
-    .scene-building.left { left: 0; box-shadow: 24px 0 70px rgba(0, 226, 255, .2); }
-    .scene-building.right { right: 0; box-shadow: -24px 0 70px rgba(255, 80, 45, .2); }
-    .scene-sign { position: absolute; top: 20%; width: 5px; height: 66px; border-radius: 4px; box-shadow: 0 0 18px currentColor; }
-    .scene-sign.one { left: 18%; color: #62e7f5; background: currentColor; }
-    .scene-sign.two { right: 17%; top: 34%; color: #ff765b; background: currentColor; }
-    .scene-road { position: absolute; left: 16%; right: 16%; bottom: -12%; height: 53%; background: linear-gradient(180deg, #152936, #081118); clip-path: polygon(30% 0, 70% 0, 100% 100%, 0 100%); }
-    .scene-road::after { content: ""; position: absolute; left: 48%; top: 12%; width: 4%; height: 75%; background: linear-gradient(#f6d66e, transparent); opacity: .55; }
-    .paper-boat { position: absolute; left: 41%; bottom: 16%; width: 78px; height: 42px; animation: boat-glide 4.8s ease-in-out infinite alternate; }
-    .paper-boat::before { content: ""; position: absolute; inset: 0; background: #ff6b3f; clip-path: polygon(0 42%, 100% 42%, 78% 100%, 20% 88%); filter: drop-shadow(0 9px 8px rgba(0,0,0,.5)); }
-    .paper-boat::after { content: ""; position: absolute; left: 25%; top: 0; width: 48%; height: 50%; background: #ffd4a5; clip-path: polygon(0 100%, 50% 0, 100% 100%); }
-    .rain { position: absolute; inset: -20%; opacity: .35; background: repeating-linear-gradient(105deg, transparent 0 17px, rgba(180,239,255,.7) 18px 19px, transparent 20px 34px); animation: rain-shift 1.1s linear infinite; }
-    .artifact-watermark { position: absolute; right: 8%; bottom: 8%; font: 800 .75rem/1 var(--font-mono); letter-spacing: .15em; color: rgba(255,255,255,.64); transform: rotate(-4deg); }
-    .artifact-birds { position: absolute; left: 30%; top: 18%; font: 900 1.25rem/1 var(--font-mono); letter-spacing: .45em; color: #f7f5df; }
-    .motion-smear { position: absolute; left: 36%; bottom: 18%; width: 120px; height: 36px; background: linear-gradient(90deg, transparent, rgba(255,108,66,.42), transparent); filter: blur(8px); }
-    .artifact-watermark, .artifact-birds, .motion-smear { transition: opacity .25s ease; }
-    .overcook-lines { position: absolute; inset: 0; opacity: 0; background: repeating-linear-gradient(0deg, transparent 0 9px, rgba(255,255,255,.1) 10px); transition: opacity .25s ease; }
-    .scene-frame[data-zone="high"] .overcook-lines { opacity: 1; }
-    .scene-frame[data-zone="low"] .paper-boat { opacity: .55; transform: translateX(22px) rotate(-6deg); }
-    .scene-frame.remove-watermark .artifact-watermark,
-    .scene-frame.remove-birds .artifact-birds,
-    .scene-frame.remove-blur .motion-smear { opacity: 0; }
-    .scene-frame.is-switching .scene-world { animation: guidance-shift .42s ease-out; }
-    @keyframes guidance-shift { 0% { opacity: .48; transform: scale(1.025); } 100% { opacity: 1; transform: scale(1); } }
-    @keyframes boat-glide { from { translate: -5px 0; rotate: -1deg; } to { translate: 8px -2px; rotate: 1deg; } }
-    @keyframes rain-shift { to { transform: translate3d(-18px, 28px, 0); } }
-    .scene-hud { position: absolute; inset: 14px 14px auto; z-index: 3; display: flex; justify-content: space-between; gap: 10px; pointer-events: none; }
-    .scene-tag { padding: 5px 8px; border-radius: 6px; background: rgba(5, 11, 16, .78); color: #fff; font: 700 .65rem/1.2 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
-    .studio-controls { border: 1px solid var(--line); border-radius: 16px; background: var(--panel-2); padding: 20px; }
-    .prompt-label { display: block; margin-bottom: 8px; font: 700 .67rem/1.3 var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
-    .prompt-copy { margin: 0 0 20px; color: var(--ink); font-size: .88rem; line-height: 1.6; }
-    .negative-set { border: 0; padding: 0; margin: 0; }
-    .negative-set legend { padding: 0; margin-bottom: 10px; font: 700 .67rem/1.3 var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
-    .negative-chips { display: flex; flex-wrap: wrap; gap: 8px; }
-    .negative-chip { min-height: 44px; border: 1px solid var(--line); border-radius: 999px; padding: 8px 12px; background: var(--panel); color: var(--muted); font-size: .78rem; transition: color .2s ease, border-color .2s ease, background .2s ease; }
-    .negative-chip:hover { color: var(--ink); border-color: var(--dim); }
-    .negative-chip[aria-pressed="true"] { color: var(--ink); border-color: var(--orange); background: color-mix(in srgb, var(--orange) 10%, var(--panel)); }
-    .negative-live { min-height: 62px; margin: 16px 0 0; color: var(--muted); font-size: .8rem; line-height: 1.55; }
-    .negative-live strong { color: var(--ink); }
-
-    .checkpoint { margin-top: 28px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 26px; }
-    .checkpoint fieldset { border: 0; padding: 0; margin: 0; }
-    .checkpoint legend { padding: 0; font-weight: 800; }
-    .checkpoint p { color: var(--muted); }
-    .answer-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-    .answer-button { min-height: 64px; border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: var(--panel-2); color: var(--ink); text-align: left; font-weight: 700; transition: border-color .2s ease, background .2s ease; }
-    .answer-button:hover { border-color: var(--dim); }
-    .answer-button[data-state="correct"] { border-color: var(--acid); background: color-mix(in srgb, var(--acid-fill) 10%, var(--panel)); }
-    .answer-button[data-state="wrong"] { border-color: var(--red); }
-    .answer-feedback { min-height: 48px; margin-bottom: 0; }
-    .answer-feedback strong { color: var(--ink); }
-
-    /* ── CFG Schedule diagram ── */
-    .schedule-diagram {
+    .overfit-body {
+      padding: 28px 24px;
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin: 28px 0;
+      gap: 24px;
     }
-    .schedule-card {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 22px 20px;
+    .overfit-graph canvas {
+      width: 100%;
+      height: 200px;
+      display: block;
+      border-radius: 12px;
     }
-    .schedule-card h3 {
-      font-size: .9rem;
-      font-weight: 800;
-      margin: 0 0 8px;
-    }
-    .schedule-card p {
-      font-size: .84rem;
-      color: var(--muted);
-      margin: 0 0 16px;
-      line-height: 1.6;
-    }
-    .schedule-bar-group {
+    .overfit-legend {
       display: flex;
-      flex-direction: column;
-      gap: 6px;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-top: 10px;
     }
-    .schedule-bar-row {
+    .legend-item {
       display: flex;
       align-items: center;
-      gap: 8px;
-    }
-    .schedule-bar-label {
+      gap: 6px;
       font-family: var(--font-mono);
-      font-size: .65rem;
-      color: var(--dim);
-      min-width: 3.5ch;
-      text-align: right;
+      font-size: .7rem;
+      color: var(--muted);
     }
-    .schedule-bar-track {
-      flex: 1;
-      height: 8px;
-      background: var(--line);
-      border-radius: 4px;
-      overflow: hidden;
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
+    .overfit-status { display: flex; flex-direction: column; justify-content: center; gap: 14px; }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 999px;
+      font-family: var(--font-mono);
+      font-size: .78rem;
+      font-weight: 800;
+      border: 1px solid var(--line);
+      transition: background .3s, border-color .3s, color .3s;
     }
-    .schedule-bar-fill {
-      height: 100%;
-      border-radius: 4px;
-      background: var(--acid-fill);
-    }
+    .status-badge.ok   { border-color: var(--acid);   color: var(--acid);   background: rgba(200,255,61,.08); }
+    .status-badge.warn { border-color: var(--orange); color: var(--orange); background: rgba(255,138,76,.08); }
+    .status-badge.bad  { border-color: var(--red);    color: var(--red);    background: rgba(255,107,107,.08); }
+    .status-desc { font-size: .88rem; color: var(--muted); line-height: 1.55; margin: 0; }
 
-    /* ── Negative prompt panel ── */
-    .neg-grid {
+    /* ── Signs list ─────────────────────────────────────────── */
+    .sign-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin: 24px 0;
+      gap: 12px;
+      margin-top: 24px;
     }
-    .neg-card {
-      background: var(--panel);
+    .sign-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 16px;
       border: 1px solid var(--line);
       border-radius: 14px;
-      padding: 22px 20px;
+      background: var(--panel);
     }
-    .neg-card .neg-type {
-      font-family: var(--font-mono);
-      font-size: .68rem;
-      letter-spacing: .1em;
-      text-transform: uppercase;
-      color: var(--dim);
-      margin-bottom: 6px;
-    }
-    .neg-card h3 {
-      font-size: .95rem;
-      font-weight: 800;
-      margin: 0 0 8px;
-    }
-    .neg-card p {
-      font-size: .84rem;
-      color: var(--muted);
-      margin: 0;
-      line-height: 1.6;
-    }
-    .neg-card.has-neg { border-color: var(--orange); }
-    .neg-card.no-neg { border-color: var(--line); }
+    .sign-icon { color: var(--cyan); font: 800 .68rem var(--font-mono); flex: 0 0 auto; line-height: 1; margin-top: 5px; }
+    .sign-text h3 { font-size: .9rem; font-weight: 800; margin-bottom: 4px; }
+    .sign-text p { font-size: .82rem; color: var(--muted); margin: 0; }
 
-    /* ── Takeaways ── */
-    .takeaways {
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      margin-top: 32px;
-    }
-    .takeaway-item {
-      display: flex;
+    /* ── Anti-overfitting techniques ───────────────────────── */
+    .technique-list { display: flex; flex-direction: column; gap: 12px; margin-top: 28px; }
+    .technique-item {
+      display: grid;
+      grid-template-columns: 48px 1fr;
       gap: 16px;
-      align-items: flex-start;
+      align-items: start;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--panel);
     }
-    .takeaway-num {
-      font-family: var(--font-mono);
-      font-size: .75rem;
-      font-weight: 700;
-      color: var(--acid);
-      background: color-mix(in srgb, var(--acid-fill) 12%, transparent);
-      border: 1px solid color-mix(in srgb, var(--acid-fill) 30%, transparent);
+    .technique-num {
+      width: 44px;
+      height: 44px;
       border-radius: 50%;
-      width: 32px;
-      height: 32px;
+      border: 1px solid var(--line);
       display: flex;
       align-items: center;
       justify-content: center;
-      flex-shrink: 0;
-      margin-top: 2px;
+      font: 800 1rem var(--font-mono);
+      color: var(--acid);
+      flex: 0 0 auto;
     }
-    .takeaway-text {
-      font-size: .95rem;
-      color: var(--muted);
-      line-height: 1.7;
-    }
-    .takeaway-text strong { color: var(--ink); }
-
-    /* ── Nav between lessons ── */
-    .lesson-nav {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 40px 0 60px;
-      gap: 12px;
-      flex-wrap: wrap;
+    .technique-text h3 { font-size: .98rem; font-weight: 800; margin-bottom: 6px; }
+    .technique-text p { font-size: .86rem; color: var(--muted); margin: 0; line-height: 1.55; }
+    .technique-tag {
+      display: inline-block;
+      margin-top: 8px;
+      font: .7rem var(--font-mono);
+      color: var(--cyan);
+      background: rgba(98,231,245,.08);
+      border: 1px solid rgba(98,231,245,.25);
+      border-radius: 6px;
+      padding: 2px 8px;
     }
 
-    /* ── Footer ── */
-    footer {
-      border-top: 1px solid var(--line);
-      padding: 32px 0;
+    /* ── Caption quiz ───────────────────────────────────────── */
+    .quiz-container { display: flex; flex-direction: column; gap: 32px; margin-top: 32px; }
+    .quiz-item {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--panel);
     }
-    .footer-inner {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      flex-wrap: wrap;
-    }
-    .footer-brand {
+    .quiz-q-header {
+      padding: 16px 24px;
+      background: var(--panel-2);
+      border-bottom: 1px solid var(--line);
       font-family: var(--font-mono);
       font-size: .72rem;
-      font-weight: 700;
-      letter-spacing: .12em;
+      letter-spacing: .1em;
       text-transform: uppercase;
       color: var(--dim);
     }
-    .footer-copy {
-      font-size: .78rem;
-      color: var(--dim);
-    }
-
-    /* ── Table ── */
-    .cfg-table-wrap {
-      margin-top: 16px;
+    .quiz-body { padding: 24px; }
+    .quiz-context { font-size: .9rem; color: var(--muted); margin-bottom: 16px; }
+    .quiz-options { display: flex; flex-direction: column; gap: 10px; }
+    .quiz-option {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px 16px;
       border: 1px solid var(--line);
-      border-radius: 14px;
-      overflow: hidden;
-    }
-    .cfg-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
-    .cfg-table thead tr { background: var(--panel-2); }
-    .cfg-table th {
+      border-radius: 12px;
+      background: transparent;
+      cursor: pointer;
       text-align: left;
-      padding: 12px 16px;
+      color: var(--ink);
+      transition: border-color .2s, background .2s;
+      min-height: 44px;
+      width: 100%;
+      font: inherit;
+    }
+    .quiz-option:hover:not(:disabled) { border-color: var(--dim); background: var(--panel-2); }
+    .quiz-option .opt-letter {
+      flex: 0 0 auto;
+      width: 26px;
+      height: 26px;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font: 800 .75rem var(--font-mono);
+      color: var(--dim);
+      transition: background .2s, border-color .2s, color .2s;
+    }
+    .quiz-option .opt-text { font-size: .88rem; line-height: 1.5; margin-top: 2px; }
+    .quiz-option .opt-code { font-family: var(--font-mono); font-size: .82rem; color: var(--cyan); }
+    .quiz-option.correct { border-color: var(--acid); background: rgba(200,255,61,.07); }
+    .quiz-option.correct .opt-letter { border-color: var(--acid); background: var(--acid-fill); color: #111; }
+    .quiz-option.wrong { border-color: var(--red); background: rgba(255,107,107,.07); }
+    .quiz-option.wrong .opt-letter { border-color: var(--red); color: var(--red); }
+    .quiz-feedback {
+      margin-top: 16px;
+      padding: 14px 16px;
+      border-radius: 12px;
+      font-size: .88rem;
+      line-height: 1.6;
+      display: none;
+    }
+    .quiz-feedback.show { display: block; }
+    .quiz-feedback.ok  { background: rgba(200,255,61,.08);  border: 1px solid rgba(200,255,61,.3);  color: var(--ink); }
+    .quiz-feedback.bad { background: rgba(255,107,107,.08); border: 1px solid rgba(255,107,107,.3); color: var(--ink); }
+
+    /* ── Checklist panel ────────────────────────────────────── */
+    .checklist-panel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--panel);
+      margin-top: 32px;
+    }
+    .checklist-head {
+      padding: 16px 24px;
+      background: var(--panel-2);
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .checklist-title { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+    .checklist-progress-text { font-family: var(--font-mono); font-size: .78rem; color: var(--acid); }
+    .checklist-progress-bar { height: 3px; background: var(--line); }
+    .checklist-bar-fill { width: 0; height: 100%; background: linear-gradient(90deg, var(--acid), var(--cyan)); transition: width .3s ease; }
+    .checklist-body { padding: 24px; display: flex; flex-direction: column; gap: 4px; }
+    .check-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .check-item:hover { background: var(--panel-2); }
+    .check-item input[type=checkbox] {
+      width: 20px;
+      height: 20px;
+      flex: 0 0 auto;
+      margin-top: 2px;
+      accent-color: var(--acid-fill);
+      cursor: pointer;
+    }
+    .check-item label { font-size: .9rem; color: var(--muted); cursor: pointer; line-height: 1.5; }
+    .check-item input:checked + label { color: var(--ink); text-decoration: line-through; text-decoration-color: var(--dim); }
+    .checklist-reset {
+      display: block;
+      width: calc(100% - 48px);
+      margin: 0 24px 24px;
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-size: .84rem;
+      cursor: pointer;
+      transition: background .2s, border-color .2s;
+    }
+    .checklist-reset:hover { background: var(--panel-2); border-color: var(--dim); }
+
+    /* ── Checkpoint ─────────────────────────────────────────── */
+    .checkpoint-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-top: 32px; }
+    .checkpoint-card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--panel);
+    }
+    .checkpoint-q-head {
+      padding: 14px 20px;
+      background: var(--panel-2);
+      border-bottom: 1px solid var(--line);
       font-family: var(--font-mono);
       font-size: .68rem;
       letter-spacing: .1em;
       text-transform: uppercase;
       color: var(--dim);
-      font-weight: 700;
     }
-    .cfg-table td { padding: 12px 16px; }
-    .cfg-table tr + tr td { border-top: 1px solid var(--line); }
-    .cfg-table .scale-cell {
-      font-family: var(--font-mono);
-      font-weight: 700;
-    }
-    .cfg-table .td-muted { color: var(--muted); }
-    .cfg-table .scale-orange { color: var(--orange); }
-    .cfg-table .scale-acid  { color: var(--acid); }
-    .cfg-table .scale-cyan  { color: var(--cyan); }
-    .cfg-table .scale-red   { color: var(--red); }
-    .cfg-table .row-sweet   { background: color-mix(in srgb, var(--acid-fill) 5%, transparent); }
-
-    /* ── Details / disclosure ── */
-    .details-summary {
-      cursor: pointer;
-      font-weight: 800;
-      font-size: .9rem;
-      color: var(--muted);
-      padding: 10px 0;
-    }
-    .details-body {
-      margin-top: 12px;
-      padding: 20px;
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      font-size: .9rem;
-      color: var(--muted);
-      line-height: 1.7;
-    }
-    .details-body p { margin: 0 0 10px; }
-    .details-body p:last-child { margin-bottom: 0; }
-    .details-body strong { color: var(--ink); }
-
-    /* ── Schedule fill variants ── */
-    .sbf-cyan  { background: var(--cyan) !important; }
-    .sbf-acid  { background: var(--acid-fill) !important; }
-    .sbf-orange{ background: var(--orange) !important; }
-
-    /* ── Schedule bar widths ── */
-    .w-95 { width: 95%; }
-    .w-80 { width: 80%; }
-    .w-60 { width: 60%; }
-    .w-38 { width: 38%; }
-    .w-18 { width: 18%; }
-
-    /* ── neg-type orange variant ── */
-    .neg-type-orange { color: var(--orange); }
-
-    /* ── def-panel orange variant ── */
-    .def-panel-orange { border-left-color: var(--orange); }
-    .def-panel-orange strong { color: var(--orange); }
-
-    /* ── Lesson nav span ── */
-    .lesson-nav-label {
-      font-family: var(--font-mono);
-      font-size: .72rem;
-      color: var(--dim);
-    }
-
-    /* ── Guidance control room ── */
-    .hero {
-      position: relative;
-      overflow: hidden;
-      background:
-        radial-gradient(circle at 82% 22%, color-mix(in srgb, var(--cyan) 11%, transparent), transparent 28%),
-        linear-gradient(110deg, transparent 55%, color-mix(in srgb, var(--orange) 5%, transparent));
-    }
-    .hero::after {
-      content: "COND  +  w × Δ";
-      position: absolute;
-      right: max(4vw, 24px);
-      bottom: 30px;
-      z-index: -1;
-      color: color-mix(in srgb, var(--ink) 5%, transparent);
-      font: 900 clamp(2.3rem, 7vw, 6.6rem)/1 var(--font-mono);
-      letter-spacing: -.08em;
-      white-space: nowrap;
-    }
-    .production-strip {
-      display: grid;
-      grid-template-columns: 1.35fr repeat(3, minmax(110px, .55fr));
-      gap: 1px;
-      margin: 0 0 22px;
-      overflow: hidden;
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      background: var(--line);
-    }
-    .production-cell { padding: 15px 17px; background: var(--panel-2); }
-    .production-cell span {
-      display: block;
-      margin-bottom: 6px;
-      font: 700 .62rem/1.3 var(--font-mono);
-      letter-spacing: .1em;
-      text-transform: uppercase;
-      color: var(--dim);
-    }
-    .production-cell strong { display: block; font-size: .83rem; line-height: 1.5; }
-    .production-cell:first-child strong { color: var(--cyan); }
-    .preset-toolbar {
+    .checkpoint-body { padding: 20px; }
+    .checkpoint-body p { font-size: .94rem; color: var(--ink); margin-bottom: 16px; line-height: 1.55; }
+    .cp-options { display: flex; flex-direction: column; gap: 8px; }
+    .cp-option {
       display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-bottom: 20px;
-    }
-    .cfg-preset {
-      min-height: 44px;
-      padding: 9px 13px;
+      align-items: center;
+      gap: 10px;
+      padding: 11px 14px;
       border: 1px solid var(--line);
-      border-radius: 999px;
-      background: var(--panel-2);
-      color: var(--muted);
-      font-weight: 750;
+      border-radius: 10px;
+      background: transparent;
       cursor: pointer;
-      transition: border-color .2s ease, color .2s ease, background .2s ease;
-    }
-    .cfg-preset:hover { color: var(--ink); border-color: var(--cyan); }
-    .cfg-preset[aria-pressed="true"] {
+      text-align: left;
       color: var(--ink);
-      border-color: var(--acid-fill);
-      background: color-mix(in srgb, var(--acid-fill) 10%, var(--panel));
+      font: inherit;
+      font-size: .86rem;
+      min-height: 44px;
+      width: 100%;
+      transition: border-color .2s, background .2s;
     }
-    .cfg-preset:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
-    .model-caveat {
-      margin: 18px 0 0;
-      padding: 14px 16px;
-      border-left: 3px solid var(--orange);
-      background: color-mix(in srgb, var(--orange) 7%, var(--panel-2));
-      color: var(--muted);
-      font-size: .82rem;
-      line-height: 1.55;
-    }
-    .model-caveat strong { color: var(--ink); }
-    .related-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
-    }
-    .related-card {
-      min-height: 158px;
-      padding: 20px;
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      background: var(--panel);
-      color: inherit;
-      text-decoration: none;
-      transition: transform .22s ease, border-color .22s ease, background .22s ease;
-    }
-    .related-card:hover { transform: translateY(-3px); border-color: var(--orange); background: var(--panel-2); }
-    .related-card:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
-    .related-kicker {
-      display: block;
-      margin-bottom: 12px;
-      font: 700 .64rem/1.3 var(--font-mono);
-      letter-spacing: .1em;
-      text-transform: uppercase;
-      color: var(--orange);
-    }
-    .related-card strong { display: block; margin-bottom: 7px; }
-    .related-card small { color: var(--muted); line-height: 1.55; }
-    .reveal-item { opacity: 0; transform: translateY(18px); }
-    .reveal-item.is-visible {
-      opacity: 1;
-      transform: translateY(0);
-      transition: opacity .5s ease, transform .5s cubic-bezier(.2,.8,.2,1);
-    }
+    .cp-option:hover:not(:disabled) { border-color: var(--dim); background: var(--panel-2); }
+    .cp-option.correct { border-color: var(--acid); background: rgba(200,255,61,.07); color: var(--acid); }
+    .cp-option.wrong   { border-color: var(--red);  background: rgba(255,107,107,.07); color: var(--red); }
+    .cp-feedback { margin-top: 12px; font-size: .84rem; color: var(--muted); display: none; line-height: 1.5; }
+    .cp-feedback.show { display: block; }
 
-    /* ── Responsive ── */
-    @media (max-width: 900px) {
-      .production-strip { grid-template-columns: 1fr 1fr; }
-      .related-grid { grid-template-columns: 1fr; }
+    /* ── Caption body helpers ───────────────────────────────── */
+    .caption-note-gap { margin-bottom: 12px; }
+    .caption-formula-gap { margin-bottom: 10px; }
+    .caption-note-top { margin-top: 16px; }
+    .caption-note-strong { color: var(--ink); }
+
+    /* ── Details / disclosure ───────────────────────────────── */
+    .tool-details {
+      margin-top: 28px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
     }
-    @media (max-width: 720px) {
-      .two-pass { grid-template-columns: 1fr; }
-      .pass-arrow { transform: rotate(90deg); display: inline-block; }
-      .schedule-diagram { grid-template-columns: 1fr; }
-      .neg-grid { grid-template-columns: 1fr; }
-      .slider-row { flex-wrap: wrap; }
-      .cfg-slider { min-width: 100%; }
-      .lab-panel { padding: 24px 18px; }
-      .formula-box { padding: 22px 20px; }
-      .prompt-studio { grid-template-columns: 1fr; }
-      .scene-frame { min-height: 260px; }
-      .answer-row { grid-template-columns: 1fr; }
-      .production-strip { grid-template-columns: 1fr; }
+    .tool-details summary {
+      padding: 18px 24px;
+      cursor: pointer;
+      background: var(--panel);
+      font-weight: 700;
+      list-style: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      min-height: 44px;
+      color: var(--ink);
     }
-    @media (max-width: 480px) {
-      .hero { padding: 52px 0 44px; }
-      .section { padding: 52px 0; }
-      .hero h1 { max-width: none; }
+    .tool-details summary::-webkit-details-marker { display: none; }
+    .tool-details-caret {
+      font-family: var(--font-mono);
+      font-size: .8rem;
+      color: var(--dim);
     }
-    @media (prefers-reduced-motion: reduce) {
-      .paper-boat,
-      .rain,
-      .scene-frame.is-switching .scene-world { animation: none; }
-      .scene-world,
-      .spectrum-needle,
-      .related-card,
-      .reveal-item,
-      .reveal-item.is-visible {
-        opacity: 1;
-        transform: none;
-        transition: none;
-      }
+    .tool-details-body {
+      padding: 20px 24px;
+      background: var(--panel-2);
+      border-top: 1px solid var(--line);
+    }
+    .tool-list {
+      margin: 0;
+      padding-left: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .tool-list li { color: var(--muted); font-size: .9rem; }
+    .tool-list strong { color: var(--ink); }
+
+    /* ── Production brief + knowledge links ────────────────── */
+    .production-brief, .related-panel {
+      margin-top: 30px;
+      padding: 28px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+    }
+    .production-brief { border-left: 4px solid var(--cyan); }
+    .brief-kicker { margin: 0 0 8px; color: var(--cyan); font: 800 .7rem var(--font-mono); letter-spacing: .12em; text-transform: uppercase; }
+    .production-brief h3, .related-panel h2 { margin-bottom: 10px; font-size: 1.35rem; }
+    .brief-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 20px 0; }
+    .brief-cell { padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel-2); }
+    .brief-cell strong { display: block; margin-bottom: 4px; color: var(--cyan); font: 800 .66rem var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
+    .brief-cell span { color: var(--muted); font-size: .88rem; line-height: 1.5; }
+    .brief-next { margin: 0; padding: 14px 16px; border: 1px solid color-mix(in srgb, var(--acid) 45%, var(--line)); border-radius: 12px; color: var(--muted); }
+    .brief-next strong { color: var(--acid); }
+    .related-list { display: grid; gap: 10px; margin: 18px 0 0; padding: 0; list-style: none; }
+    .related-list a { display: block; min-height: 44px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; text-decoration: none; background: var(--panel-2); }
+    .related-list a:hover { border-color: var(--cyan); }
+    .related-list strong { display: block; color: var(--ink); font-size: .9rem; }
+    .related-list span { display: block; margin-top: 2px; color: var(--muted); font-size: .82rem; line-height: 1.45; }
+    .source-note { margin: 16px 0 0; color: var(--dim); font-size: .8rem; }
+    .source-note a { color: var(--cyan); }
+
+    /* ── Legend dots (specific colors) ─────────────────────── */
+    .legend-dot-acid { background: var(--acid); }
+    .legend-dot-red  { background: var(--red); }
+
+    /* ── Section h3 variants ────────────────────────────────── */
+    .subsection-h3 { margin-top: 48px; font-size: 1.3rem; }
+
+    /* ── Quiz trigger code ──────────────────────────────────── */
+    .trigger-code { font-family: var(--font-mono); color: var(--cyan); }
+
+    /* ── Checklist section headings ─────────────────────────── */
+    .checklist-h2 { margin-bottom: 12px; }
+    .checklist-lead { margin-bottom: 0; }
+    .checkpoint-lead { margin-bottom: 32px; }
+
+    /* ── Checklist bar (JS sets width via style, that's ok) ─── */
+
+    /* ── Footer back-to-top button ──────────────────────────── */
+    .back-to-top { font-size: .8rem; min-height: 40px; }
+
+    /* ── Lesson nav + footer ────────────────────────────────── */
+    .lesson-nav {
+      padding-block: 60px;
+      border-top: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .site-footer { padding: 40px 0; border-top: 1px solid var(--line); }
+    .footer-inner { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+    .footer-copy { font-family: var(--font-mono); font-size: .72rem; color: var(--dim); letter-spacing: .06em; margin: 0; }
+
+    /* ── Responsive ─────────────────────────────────────────── */
+    @media (max-width: 860px) {
+      .section-head { grid-template-columns: 1fr; gap: 16px; }
+      .strategy-grid { grid-template-columns: 1fr; }
+      .overfit-body { grid-template-columns: 1fr; }
+      .sign-grid { grid-template-columns: 1fr; }
+      .checkpoint-grid { grid-template-columns: 1fr; }
+      .definition { grid-template-columns: 1fr; }
+      .brief-grid { grid-template-columns: 1fr; }
+      .slider-wrap input[type=range] { width: 110px; }
+      .director-head, .director-body { grid-template-columns: 1fr; }
+      .director-presets { justify-content: flex-start; }
+    }
+    @media (max-width: 640px) {
+      .hero-title { letter-spacing: -.04em; }
+      .lesson-nav { justify-content: center; }
+      .image-grid { grid-template-columns: 1fr 1fr; }
+      .director-head, .director-body { padding: 20px; }
+      .dataset-filmstrip { grid-template-columns: repeat(2, 1fr); }
+      .director-results { grid-template-columns: 1fr; }
+      .director-actions .button { width: 100%; }
+      .topnav { display: none; }
+    }
+    @media (max-width: 420px) {
+      .image-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
-
 <body>
   <a class="skip-link" href="#main">Bỏ qua điều hướng</a>
 
-  <!-- ── Topbar ── -->
+  <!-- TOPBAR -->
   <header class="topbar" role="banner">
     <div class="topbar-inner">
-      <a href="index.html" class="brand" aria-label="Video Gen Lab — Trang chủ">
+      <a class="brand" href="index.html" data-curriculum-home aria-label="Trang chủ Video Generation">
         <span class="brand-mark" aria-hidden="true"></span>
-        VIDEO GEN LAB
+        Video Gen Lab
       </a>
-      <nav class="topnav" aria-label="Điều hướng trang">
-        <a href="index.html">Trang chủ</a>
-        <a href="video-generation-part-2-lesson-4.html" aria-current="page">Phần 2 · Bài 4</a>
+      <nav class="topnav" aria-label="Điều hướng bài học">
+        <a href="video-generation-part-2-lesson-3.html" data-curriculum-prev>← Bài 2.3</a>
+        <a href="index.html" data-curriculum-home>Trang chủ</a>
+        <a href="video-generation-part-3-lesson-1.html" data-curriculum-next>Bài 3.1 →</a>
       </nav>
+      <!-- theme toggle injected by video-generation-theme.js -->
     </div>
-    <div class="progress-track" role="progressbar" aria-label="Tiến trình đọc trang" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-      <div class="progress-fill" id="reading-progress"></div>
+    <div class="progress-track" aria-hidden="true">
+      <div class="progress-fill" id="progress-fill"></div>
     </div>
   </header>
 
   <main id="main">
 
-    <!-- ── Hero ── -->
+    <!-- HERO -->
     <section class="hero" aria-labelledby="hero-heading">
       <div class="shell">
-        <p class="hero-meta">
-          <span class="part-tag">PHẦN 2 — SAMPLING / INFERENCE</span>
-          &nbsp;·&nbsp; BÀI 4 / 6
-        </p>
-        <h1 id="hero-heading">CFG — Điều khiển độ bám prompt</h1>
+        <p class="hero-meta" data-curriculum-hero-label>TRAINING DESIGN · BÀI 2.4 · DATA</p>
+        <h1 class="hero-title" id="hero-heading">
+          Chuẩn bị<br><span>Dataset</span><br>&amp; Captioning
+        </h1>
         <p class="hero-lead">
-          Tìm hiểu Classifier-Free Guidance: cơ chế giúp model "nghe lời" prompt nhiều hay ít, và cách CFG Schedule cho phép điều chỉnh linh hoạt hơn theo từng bước sampling.
+          Thu thập đúng ảnh, gán caption chính xác, và biết khi nào model bị overfitting — ba kỹ năng cốt lõi để huấn luyện LoRA khuôn mặt/nhân vật thành công.
         </p>
-        <div class="keyword-chips" aria-label="Từ khóa bài học">
-          <span class="chip">CFG Scale</span>
-          <span class="chip">CFG Schedule</span>
-          <span class="chip">Classifier-Free Guidance</span>
-          <span class="chip">Negative Prompt</span>
+<!-- OUTPUT ARTIFACT BADGE -->
+<div class="output-artifact" role="note">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+  <span class="output-artifact-label">Đầu ra bài học:</span>
+  <span class="output-artifact-text">Dataset consented/owned với proper captioning, train/val split, video geometry buckets, và QA checklist sẵn sàng để đưa vào training run</span>
+</div>
+        <div class="hero-badges">
+          <span class="hero-badge acid">Dataset Captioning</span>
+          <span class="hero-badge cyan">LoRA Training</span>
+          <span class="hero-badge orange">Overfitting</span>
+          <span class="hero-badge">Trung cấp</span>
         </div>
-        <div class="hero-cta">
-          <a href="#cfg-intro" class="button primary">Bắt đầu học →</a>
-          <a href="#lab" class="button">Thử CFG slider</a>
-        </div>
-        <div class="lesson-progress-bar" aria-label="Bài 4 trên 6 trong phần 2">
-          <div class="lesson-progress-label">Tiến trình bài học — 4 / 6</div>
-          <div class="lesson-progress-track">
-            <div class="lesson-progress-fill"></div>
-          </div>
+        <div class="hero-cta-row">
+          <a class="button primary" href="#dataset-requirements">Bắt đầu học</a>
+          <a class="button" href="#checkpoint">Kiểm tra kiến thức</a>
         </div>
       </div>
     </section>
 
-    <!-- ── Section 1: CFG là gì ── -->
-    <section class="section" id="cfg-intro" aria-labelledby="s1-heading">
-      <div class="shell">
-        <p class="section-index">01 — KHÁI NIỆM CƠ BẢN</p>
-        <h2 id="s1-heading">Classifier-Free Guidance là gì?</h2>
-        <p class="section-intro">
-          CFG là kỹ thuật chạy model hai lần trong mỗi bước denoising — một lần có prompt, một lần không. Từ hai kết quả đó, ta "kéo" output về phía prompt.
-        </p>
+<!-- FLOW POSITION MINI-MAP -->
+<div class="shell">
+  <nav class="flow-minimap" aria-label="Vị trí trong lộ trình">
+    <span class="flow-minimap-label">LỘ TRÌNH</span>
+    <span class="flow-minimap-sep">›</span>
+    <a class="flow-minimap-item" href="video-generation-part-2-lesson-3.html">2.3: LoRA Mechanics</a>
+    <span class="flow-minimap-sep">›</span>
+    <strong class="flow-minimap-item current" aria-current="step">2.4: Dataset & Captioning</strong>
+    <span class="flow-minimap-sep">›</span>
+    <a class="flow-minimap-item" href="video-generation-part-3-lesson-1.html">3.1: Rank & Alpha</a>
+  </nav>
+</div>
 
-        <div class="def-panel">
-          <strong>Định nghĩa</strong>
-          <p>
-            Classifier-Free Guidance (CFG) là phương pháp điều khiển quá trình diffusion sampling mà không cần một model classifier riêng. Model chạy hai lần: một lần với prompt (<em>conditional</em>) và một lần không có prompt (<em>unconditional</em>). Kết quả cuối cùng được tính bằng cách tăng cường sự khác biệt giữa hai lần chạy.
+    <!-- SECTION 1: Dataset Requirements -->
+    <section class="content-section" id="dataset-requirements" aria-labelledby="s1-heading">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <p class="section-index label">01 / 05</p>
+            <h2 id="s1-heading">Yêu cầu<br>Dataset</h2>
+          </div>
+          <p class="section-intro">
+            Dataset là một biến của thí nghiệm LoRA, không phải một con số thần kỳ. Số ảnh, base model, resolution, optimizer và mục tiêu điều khiển cùng quyết định kết quả.
           </p>
         </div>
 
-        <!-- Two-pass diagram -->
-        <div class="two-pass" role="img" aria-label="Sơ đồ hai lần chạy model: conditional và unconditional">
-          <div class="pass-card">
-            <div class="pass-type cond">CONDITIONAL</div>
-            <div class="pass-title">Có prompt</div>
-            <div class="pass-desc">Model nhận prompt + noisy latent → tạo ra prediction theo hướng prompt</div>
+<!-- PREREQUISITE CALLOUT -->
+<div class="prereq-callout" role="note" aria-label="Yêu cầu trước bài học">
+  <div class="prereq-icon" aria-hidden="true">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 8v4m0 4h.01"/></svg>
+  </div>
+  <div>
+    <p class="prereq-title">Cần biết trước</p>
+    <p class="prereq-body">Bài này yêu cầu hiểu LoRA từ Bài 2.3 và trigger word từ Bài 2.2 — bạn cần biết mình đang train adapter nào và subject nào trước khi chuẩn bị data.</p>
+    <a class="prereq-link" href="video-generation-part-2-lesson-3.html">← Xem lại bài trước: LoRA Mechanics</a>
+  </div>
+</div>
+
+        <div class="definition">
+          <strong>Heuristic có điều kiện</strong>
+          <p>Với character LoRA nhỏ, 10–30 ảnh được chọn kỹ là một điểm xuất phát thực hành, không phải yêu cầu của DreamBooth hay LoRA. Hãy giữ danh tính nhất quán, loại ảnh lỗi và đo bằng prompt giữ-out thay vì suy luận từ số ảnh.</p>
+        </div>
+
+        <div class="director-lab" aria-labelledby="director-title">
+          <div class="director-head">
+            <div>
+              <p class="director-kicker">Dataset Director · Mô phỏng tương tác (đơn vị tương đối)</p>
+              <h3 class="director-title" id="director-title">Bạn đang chuẩn bị 24 ảnh cho character LoRA</h3>
+            </div>
+            <div class="director-presets" aria-label="Preset dataset">
+              <button class="director-preset" type="button" data-preset="repeat" aria-pressed="false">12 ảnh lặp</button>
+              <button class="director-preset" type="button" data-preset="balanced" aria-pressed="true">24 ảnh cân bằng</button>
+              <button class="director-preset" type="button" data-preset="augmented" aria-pressed="false">Augment quá tay</button>
+            </div>
           </div>
-          <div class="pass-arrow" aria-hidden="true">⟶<br/>⟶</div>
-          <div class="pass-card">
-            <div class="pass-type uncond">UNCONDITIONAL</div>
-            <div class="pass-title">Không có prompt</div>
-            <div class="pass-desc">Model chỉ nhận noisy latent → tạo ra prediction "trung bình", không định hướng</div>
+          <div class="director-body">
+            <div class="director-controls">
+              <div class="director-control">
+                <label for="diversity-slider">Diversity thật <output id="diversity-output" for="diversity-slider">4 / 5</output></label>
+                <input id="diversity-slider" type="range" min="1" max="5" value="4" step="1" aria-describedby="diversity-help" />
+                <p class="caption-note" id="diversity-help">Thay đổi góc, ánh sáng, biểu cảm và khoảng cách camera.</p>
+              </div>
+              <div class="director-control">
+                <label for="specificity-slider">Caption specificity <output id="specificity-output" for="specificity-slider">4 / 5</output></label>
+                <input id="specificity-slider" type="range" min="1" max="5" value="4" step="1" aria-describedby="specificity-help" />
+                <p class="caption-note" id="specificity-help">Mô tả phần có thể thay đổi; không gắn mọi chi tiết vào trigger.</p>
+              </div>
+              <div class="augmentation-row">
+                <input id="augmentation-toggle" type="checkbox" checked />
+                <label for="augmentation-toggle"><strong>Augmentation nhẹ</strong>Flip/crop nhỏ và color jitter vừa đủ; không thay thế góc chụp thật.</label>
+              </div>
+              <div class="director-actions">
+                <button class="button primary" id="test-generalization" type="button">Test prompt mới</button>
+                <button class="button" id="reset-director" type="button">Đặt lại</button>
+              </div>
+            </div>
+            <div class="director-stage">
+              <div class="dataset-filmstrip" id="dataset-filmstrip" role="img" aria-describedby="director-feedback">
+                <span class="scan-line" aria-hidden="true"></span>
+              </div>
+              <div class="director-results">
+                <div class="director-metric"><span>Generalization (mô phỏng)</span><strong class="generalization-value" id="generalization-value">86%</strong></div>
+                <div class="director-metric"><span>Overfit risk</span><strong class="risk-value" id="overfit-risk-value">Thấp</strong></div>
+                <div class="director-metric"><span>Caption signal</span><strong id="caption-signal-value">Rõ</strong></div>
+              </div>
+              <p class="director-feedback" id="director-feedback" role="status" aria-live="polite">Bộ ảnh có nhiều góc và caption đủ cụ thể. Augmentation nhẹ bổ sung biến thể mà không làm lệch danh tính.</p>
+            </div>
           </div>
         </div>
 
-        <div class="combine-row" role="note">
-          <span aria-hidden="true">✦</span>
-          <span>Kết quả cuối: <span class="combine-accent">unconditional + scale × (conditional − unconditional)</span></span>
+        <div class="image-grid" role="list">
+          <div class="img-card good" role="listitem">
+            <div class="img-card-icon" aria-hidden="true">LUX</div>
+            <h3>Ánh sáng đa dạng</h3>
+            <p>Natural, studio, indoor, outdoor. Tránh chỉ dùng ảnh chụp trong một điều kiện ánh sáng.</p>
+          </div>
+          <div class="img-card good" role="listitem">
+            <div class="img-card-icon" aria-hidden="true">ANG</div>
+            <h3>Góc chụp đa dạng</h3>
+            <p>Thẳng mặt, 3/4, nghiêng. Ảnh cận mặt kết hợp với toàn thân.</p>
+          </div>
+          <div class="img-card good" role="listitem">
+            <div class="img-card-icon" aria-hidden="true">EXP</div>
+            <h3>Biểu cảm đa dạng</h3>
+            <p>Nghiêm túc, cười, trung tính. Giúp model học cách giữ bản sắc qua nhiều trạng thái cảm xúc.</p>
+          </div>
+          <div class="img-card good" role="listitem">
+            <div class="img-card-icon" aria-hidden="true">BG</div>
+            <h3>Nền sạch (khuyến nghị)</h3>
+            <p>Nền đơn giản có thể giảm tương quan không mong muốn khi mục tiêu là identity; nếu sản phẩm cần cảnh cụ thể, giữ cảnh đó và caption nhất quán.</p>
+          </div>
+          <div class="img-card bad" role="listitem">
+            <div class="img-card-icon" aria-hidden="true">RISK</div>
+            <h3>Tránh: Makeup thay đổi nhiều</h3>
+            <p>Chỉ là rủi ro khi makeup không phải biến cần điều khiển mà lại tương quan với identity; giữ nó nếu đó là phần chủ đích của concept.</p>
+          </div>
+          <div class="img-card bad" role="listitem">
+            <div class="img-card-icon" aria-hidden="true">RISK</div>
+            <h3>Tránh: Phụ kiện thay đổi</h3>
+            <p>Đừng để phụ kiện vô tình xuất hiện gần như mọi ảnh. Nếu cần điều khiển phụ kiện, caption rõ sự hiện diện/vắng mặt và test prompt A/B.</p>
+          </div>
         </div>
 
-        <!-- Formula -->
-        <div class="formula-box" aria-label="Công thức CFG">
-          <div class="formula-label">CÔNG THỨC CFG</div>
-          <div class="formula-expr">
-            ε̂ = <span class="unc">ε<sub>unc</sub></span>
-            <span class="op"> + </span>
-            <span class="scale">w</span>
-            <span class="op"> × (</span><span class="diff">ε<sub>cond</sub> − ε<sub>unc</sub></span><span class="op">)</span>
+        <div class="strategy-grid" style="margin-top: 24px;">
+          <div class="strategy-card recommended">
+            <span class="stag">BẮT BUỘC</span>
+            <h3>Bản quyền & Consent</h3>
+            <p>Dữ liệu mẫu (exemplar data) phải thuộc sở hữu hoặc được cấp phép với sự đồng ý rõ ràng. Tuyệt đối không dùng ảnh/video cào (scraped) không có consent.</p>
           </div>
-          <div class="formula-legend">
-            <div class="legend-item">
-              <span class="legend-dot dot-unc" aria-hidden="true"></span>
-              <span><strong>ε<sub>unc</sub></strong> — noise prediction không có prompt</span>
-            </div>
-            <div class="legend-item">
-              <span class="legend-dot dot-scale" aria-hidden="true"></span>
-              <span><strong>w</strong> — CFG Scale (hệ số khuếch đại)</span>
-            </div>
-            <div class="legend-item">
-              <span class="legend-dot dot-diff" aria-hidden="true"></span>
-              <span><strong>ε<sub>cond</sub></strong> — noise prediction có prompt</span>
-            </div>
+          <div class="strategy-card">
+            <span class="stag">QUAN TRỌNG</span>
+            <h3>Train/Validation Split</h3>
+            <p>Phải giữ lại một tập validation không tham gia training. Nếu không có tập held-out này, bạn không thể phát hiện model đang học vẹt (overfit) hay thực sự tổng quát hóa.</p>
+          </div>
+          <div class="strategy-card">
+            <span class="stag">WAN2.2</span>
+            <h3>Video Geometry & Buckets</h3>
+            <p>Video/ảnh cần được resize và crop theo các resolution buckets chuẩn của SimpleTuner (ví dụ cho Wan2.2) để đảm bảo không bị méo và quá trình train ổn định.</p>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- ── Section 2: CFG Scale + Lab ── -->
-    <section class="section" id="lab" aria-labelledby="s2-heading">
+    <!-- SECTION 2: Image Captioning -->
+    <section class="content-section" id="captioning" aria-labelledby="s2-heading">
       <div class="shell">
-        <p class="section-index">02 — CFG SCALE</p>
-        <h2 id="s2-heading">CFG Scale — Hệ số điều khiển</h2>
-        <p class="section-intro">
-          CFG Scale (<strong>w</strong>) quyết định model "nghe" prompt nhiều đến đâu. Giá trị thấp cho phép sáng tạo; giá trị cao buộc model bám sát prompt nhưng có thể sinh artifact.
-        </p>
+        <div class="section-head">
+          <div>
+            <p class="section-index label">02 / 05</p>
+            <h2 id="s2-heading">Image<br>Captioning</h2>
+          </div>
+          <p class="section-intro">
+            Caption là supervision văn bản mà trainer/model thực sự đọc. Cách tokenizer, text encoder và trainer dùng caption thay đổi theo checkpoint và phiên bản pipeline; trigger ở đầu là convention kiểm tra dữ liệu, không phải định luật của model.
+          </p>
+        </div>
 
-        <div class="production-strip" aria-label="Bối cảnh sản xuất của thí nghiệm CFG">
-          <div class="production-cell">
-            <span>Shot đang duyệt</span>
-            <strong>Thuyền giấy cam trôi qua hẻm neon mưa đêm · camera tracking thấp</strong>
+        <div class="caption-block" aria-label="Công thức caption DreamBooth">
+          <div class="caption-header">Một convention caption cho workflow LoRA có file .txt</div>
+          <div class="caption-body">
+            <div class="caption-formula" aria-label="Cú pháp: trigger_word, mô tả ảnh">
+              <span class="trigger">[trigger_word]</span>, <span class="desc">[mô tả ảnh]</span>
+            </div>
+            <p class="caption-note caption-note-gap">Ví dụ cụ thể:</p>
+            <div class="caption-formula caption-formula-gap">
+              <span class="trigger">john_doe_v1</span>, <span class="desc">a photo of a man smiling, outdoor, warm lighting, casual shirt</span>
+            </div>
+            <div class="caption-formula">
+              <span class="trigger">john_doe_v1</span>, <span class="desc">portrait of a man, serious expression, studio background, frontal view</span>
+            </div>
+            <p class="caption-note caption-note-top">
+              <strong class="caption-note-strong">Tại sao thường đặt trigger word ở đầu?</strong><br>
+              Đây là quy ước dễ quét và dễ kiểm tra hàng loạt trong workflow caption-file. Trigger luôn nhất quán, phần sau mô tả những gì có thể thay đổi. Nó không chứng minh rằng mọi checkpoint, tokenizer hay trainer đều ưu tiên token đầu câu.
+            </p>
           </div>
-          <div class="production-cell">
-            <span>Output</span>
-            <strong>5 giây · 24 fps</strong>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 3: Captioning Strategies -->
+    <section class="content-section" id="strategies" aria-labelledby="s3-heading">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <p class="section-index label">03 / 05</p>
+            <h2 id="s3-heading">Chiến lược<br>Captioning</h2>
           </div>
-          <div class="production-cell">
-            <span>Khóa kiểm soát</span>
-            <strong>Cùng prompt + seed</strong>
+          <p class="section-intro">
+            Ba cách tiếp cận phổ biến — mỗi cách có sự đánh đổi khác nhau về độ chính xác và thời gian.
+          </p>
+        </div>
+
+        <div class="strategy-grid" role="list">
+          <div class="strategy-card" role="listitem">
+            <span class="stag">Thủ công</span>
+            <h3>Manual Captioning</h3>
+            <p>Tự viết hoặc duyệt từng caption. Có quyền kiểm soát cao, nhưng chất lượng phụ thuộc taxonomy và review của người viết.</p>
+            <p class="pro">✓ Kiểm soát signal cao</p>
+            <p class="con">✗ Tốn thời gian với dataset lớn</p>
           </div>
-          <div class="production-cell">
-            <span>Biến đang thử</span>
-            <strong>Chỉ CFG Scale</strong>
+          <div class="strategy-card" role="listitem">
+            <span class="stag">Tự động</span>
+            <h3>Auto-captioning</h3>
+            <p>Dùng captioner để tạo bản nháp. Khả năng nhận ra identity, chi tiết nhỏ, văn bản, style hoặc thuộc tính nhạy cảm phụ thuộc model/checkpoint và ảnh; đừng giả định nó tự thêm trigger đúng.</p>
+            <p class="pro">✓ Nhanh cho dataset lớn</p>
+            <p class="con">✗ Caption generic, cần kiểm tra</p>
+          </div>
+          <div class="strategy-card recommended" role="listitem">
+            <span class="stag">Workflow hay dùng</span>
+            <h3>Hybrid Approach</h3>
+            <p>Auto-caption trước, sau đó duyệt mẫu lỗi và chỉnh những thuộc tính cần điều khiển. Chỉ thêm trigger nếu trainer của bạn dùng caption-file và bạn đã chọn convention đó.</p>
+            <p class="pro">✓ Dễ chạy A/B và audit</p>
+            <p class="con">✗ Cần review từng caption</p>
           </div>
         </div>
 
-        <!-- Interactive slider lab -->
-        <div class="lab-panel">
-          <p class="lab-heading" id="lab-heading">— THÍ NGHIỆM: ĐIỀU CHỈNH CFG SCALE</p>
-
-          <div class="prompt-studio">
-            <div class="scene-frame" id="cfg-scene" data-zone="balanced" role="img" aria-describedby="scene-description">
-              <div class="scene-world" aria-hidden="true">
-                <div class="scene-sky"></div>
-                <div class="scene-building left"></div>
-                <div class="scene-building right"></div>
-                <div class="scene-sign one"></div>
-                <div class="scene-sign two"></div>
-                <div class="scene-road"></div>
-                <div class="rain"></div>
-                <div class="motion-smear"></div>
-                <div class="paper-boat"></div>
-                <div class="artifact-birds">⌁⌁</div>
-                <div class="artifact-watermark">STOCK 04</div>
-                <div class="overcook-lines"></div>
-              </div>
-              <div class="scene-hud" aria-hidden="true">
-                <span class="scene-tag">Output mô phỏng</span>
-                <span class="scene-tag" id="scene-cfg-tag">CFG 7 · cân bằng</span>
-              </div>
-            </div>
-
-            <div class="studio-controls">
-              <span class="prompt-label">Positive prompt</span>
-              <p class="prompt-copy">“Orange paper boat drifting through a rain-soaked neon alley, low tracking shot, wet reflections, restrained cyan and amber palette”</p>
-              <fieldset class="negative-set">
-                <legend>Negative prompt · chọn hướng cần tránh</legend>
-                <div class="negative-chips">
-                  <button class="negative-chip" type="button" data-negative="blur" aria-pressed="false">motion blur</button>
-                  <button class="negative-chip" type="button" data-negative="watermark" aria-pressed="false">watermark</button>
-                  <button class="negative-chip" type="button" data-negative="birds" aria-pressed="false">extra objects</button>
-                </div>
-              </fieldset>
-              <p class="negative-live" id="negative-live" aria-live="polite"><strong>Negative đang trống.</strong> Ba lỗi mô phỏng vẫn xuất hiện trong output.</p>
-            </div>
-          </div>
-          <p class="section-intro" id="scene-description">Kéo CFG để so sánh độ tự do và độ bám prompt. CFG thấp làm chủ thể kém ổn định; vùng cân bằng giữ cảnh tự nhiên; CFG quá cao làm màu và cạnh bị xử lý quá mức. Sau đó bật từng negative token để thấy nó thay đổi hướng unconditional.</p>
-
-          <div class="preset-toolbar" aria-label="Preset theo giai đoạn sản xuất">
-            <button class="cfg-preset" type="button" data-cfg="4" aria-pressed="false">Khám phá style · CFG 4</button>
-            <button class="cfg-preset" type="button" data-cfg="7" aria-pressed="true">Duyệt shot · CFG 7</button>
-            <button class="cfg-preset" type="button" data-cfg="10" aria-pressed="false">Bám brief · CFG 10</button>
-          </div>
-
-          <div class="slider-row">
-            <label for="cfg-scale-input">CFG Scale</label>
-            <input
-              type="range"
-              id="cfg-scale-input"
-              class="cfg-slider"
-              min="1"
-              max="20"
-              value="7"
-              step="0.5"
-              aria-describedby="cfg-state-desc cfg-live-formula"
-              aria-valuetext="7 — Cân bằng tốt"
-            />
-            <output class="slider-value" for="cfg-scale-input" id="cfg-scale-output" aria-live="polite">7</output>
-          </div>
-
-          <!-- Spectrum bar -->
-          <div class="spectrum-bar" role="img" aria-label="Dải từ sáng tạo (trái) đến cứng nhắc (phải)">
-            <div class="spectrum-needle" id="spectrum-needle" aria-hidden="true"></div>
-          </div>
-          <div class="spectrum-labels" aria-hidden="true">
-            <span>Quá sáng tạo / random</span>
-            <span>Vùng tốt nhất (6–8)</span>
-            <span>Oversaturated / artifact</span>
-          </div>
-
-          <!-- State card -->
-          <div class="cfg-state" id="cfg-state" role="region" aria-labelledby="cfg-state-title" aria-describedby="cfg-state-desc">
-            <div class="cfg-state-label" id="cfg-state-label">TRẠNG THÁI</div>
-            <div class="cfg-state-title" id="cfg-state-title">Cân bằng tốt</div>
-            <p class="cfg-state-desc" id="cfg-state-desc">Scale 6–8 thường cho chất lượng tốt nhất: bám prompt đủ mạnh mà không gây ra artifact hay màu quá bão hoà.</p>
-          </div>
-
-          <!-- Live formula -->
-          <div class="formula-live" id="cfg-live-formula" aria-live="polite" aria-label="Công thức CFG với giá trị hiện tại">
-            ε̂ = <span class="fv-unc">ε<sub>unc</sub></span> + <span class="fv-scale" id="fv-scale-val">7.0</span> × (<span class="fv-cond">ε<sub>cond</sub></span> − <span class="fv-unc">ε<sub>unc</sub></span>)
-          </div>
-          <p class="model-caveat"><strong>Kiểm tra model card trước khi dùng con số này.</strong> Các vùng CFG trong Lab minh họa workflow CFG truyền thống; model distilled hoặc guidance-embedded có thể dùng scale rất thấp, thậm chí gần 1.</p>
-        </div>
-
-        <!-- Static comparison table -->
-        <details>
-          <summary class="details-summary">Xem bảng tham khảo CFG Scale theo use-case ↓</summary>
-          <div class="cfg-table-wrap">
-            <table class="cfg-table">
-              <thead>
-                <tr>
-                  <th>Scale</th>
-                  <th>Đặc điểm</th>
-                  <th>Dùng khi</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td class="scale-cell scale-orange">1–3</td>
-                  <td class="td-muted">Rất sáng tạo, ít bám prompt</td>
-                  <td class="td-muted">Khám phá ý tưởng mới, style tự do</td>
-                </tr>
-                <tr>
-                  <td class="scale-cell scale-acid">4–5</td>
-                  <td class="td-muted">Cân bằng, vẫn còn linh hoạt</td>
-                  <td class="td-muted">Khi muốn prompt có tác động nhưng không cứng</td>
-                </tr>
-                <tr class="row-sweet">
-                  <td class="scale-cell scale-acid">6–8 ✦</td>
-                  <td class="td-muted">Điểm ngọt — chất lượng tốt nhất</td>
-                  <td class="td-muted">Hầu hết các trường hợp thông thường</td>
-                </tr>
-                <tr>
-                  <td class="scale-cell scale-cyan">9–12</td>
-                  <td class="td-muted">Bám prompt chặt, ít sáng tạo</td>
-                  <td class="td-muted">Khi prompt cần được thực hiện chính xác</td>
-                </tr>
-                <tr>
-                  <td class="scale-cell scale-red">13–20</td>
-                  <td class="td-muted">Oversaturated, artifact, mất tự nhiên</td>
-                  <td class="td-muted">Tránh trừ khi cố ý tạo hiệu ứng cực đoan</td>
-                </tr>
-              </tbody>
-            </table>
+        <details class="tool-details">
+          <summary>
+            <span>Công cụ auto-captioning phổ biến</span>
+            <span class="tool-details-caret" aria-hidden="true">▾</span>
+          </summary>
+          <div class="tool-details-body">
+            <ul class="tool-list">
+              <li><strong>BLIP-2</strong> — vision-language model để sinh mô tả có điều kiện; paper không đặt nó thành captioner chuẩn cho LoRA.</li>
+              <li><strong>JoyCaption</strong> — chọn đúng checkpoint/prompt theo model card và kiểm tra output thực tế trên dữ liệu của bạn.</li>
+              <li><strong>LLaVA / InternVL</strong> — VLM đa dụng; VRAM, tốc độ và độ chi tiết thay đổi theo phiên bản, quantization và độ phân giải input.</li>
+              <li><strong>Florence-2</strong> — model đa tác vụ; dùng output như bản nháp và xác thực các thuộc tính có ảnh hưởng đến training.</li>
+            </ul>
           </div>
         </details>
+
+        <article class="production-brief" aria-labelledby="production-brief-heading">
+          <p class="brief-kicker">Production brief · ví dụ giả định, không phải benchmark</p>
+          <h3 id="production-brief-heading">Social cutdown: nhân vật “Aria” trong ba bối cảnh mới</h3>
+          <p class="section-intro">Đội hậu kỳ cần một LoRA identity để tạo storyboard 9:16 trước khi quay. Mục tiêu là nhận ra nhân vật khi đổi bối cảnh, không phải tái tạo ảnh train.</p>
+          <div class="brief-grid">
+            <div class="brief-cell"><strong>Đầu ra &amp; bối cảnh</strong><span>12 keyframe storyboard cho quảng cáo dọc: ga tàu mưa, studio trắng, quán cà phê; dùng để duyệt art direction.</span></div>
+            <div class="brief-cell"><strong>Input / workflow</strong><span>24 ảnh đã có quyền sử dụng; base checkpoint SDXL đã chốt bởi đội; caption .txt theo convention nội bộ; trainer/version phải ghi trong run log.</span></div>
+            <div class="brief-cell"><strong>Giữ cố định</strong><span>Checkpoint, seed set, resolution, prompt template, sampler và evaluator. Không đổi nhiều biến trong cùng một lượt A/B.</span></div>
+            <div class="brief-cell"><strong>Đang thử nghiệm</strong><span>A: caption VLM nguyên bản. B: VLM + review thủ công các pose/ánh sáng/phụ kiện. C: B + tập ảnh có góc nghiêng thật.</span></div>
+            <div class="brief-cell"><strong>Giới hạn</strong><span>GPU 24 GB và một buổi 90 phút: ưu tiên checkpoint sớm có thể so sánh, không tuyên bố “best config” từ một run.</span></div>
+            <div class="brief-cell"><strong>Tiêu chí đánh giá</strong><span>Ba reviewer ẩn biến thể chấm identity, prompt-following và artifact trên cùng prompt giữ-out; ghi cả seed, model hash và resolution.</span></div>
+            <div class="brief-cell"><strong>Dấu hiệu thất bại</strong><span>Ảnh mưa bị kéo về ánh sáng studio, kính xuất hiện khi prompt không yêu cầu, hoặc identity chỉ đúng ở góc chính diện.</span></div>
+            <div class="brief-cell"><strong>Bước tiếp theo</strong><span>Khoanh vùng caption/ảnh gây tương quan, thêm góc thật thiếu, rồi train lại một biến. Nếu val/prompt set xấu đi, quay về checkpoint trước.</span></div>
+          </div>
+          <p class="brief-next"><strong>Cách A/B:</strong> giữ prompt set và seed set cố định; chỉ đổi một biến dataset/caption; lưu grid đầu ra cùng run log. “Generalization” trong lab trên trang là điểm mô phỏng tương đối, không phải điểm benchmark.</p>
+        </article>
       </div>
     </section>
 
-    <!-- ── Section 3: CFG Schedule ── -->
-    <section class="section" id="cfg-schedule" aria-labelledby="s3-heading">
+    <!-- SECTION 4: Overfitting -->
+    <section class="content-section" id="overfitting" aria-labelledby="s4-heading">
       <div class="shell">
-        <p class="section-index">03 — CFG SCHEDULE</p>
-        <h2 id="s3-heading">CFG Schedule — Thay đổi guidance theo thời gian</h2>
-        <p class="section-intro">
-          Thay vì dùng một CFG Scale cố định cho toàn bộ quá trình, CFG Schedule cho phép thay đổi giá trị này theo từng timestep — kiểm soát tinh tế hơn giữa hình dáng tổng thể và chi tiết.
-        </p>
-
-        <div class="def-panel">
-          <strong>Nguyên lý</strong>
-          <p>
-            Các bước đầu trong diffusion sampling xây dựng cấu trúc tổng thể (composition, shape). Các bước cuối tinh chỉnh chi tiết và texture. CFG Schedule khai thác điều này: CFG cao ở bước đầu để bám prompt chặt về nội dung, rồi giảm dần để chi tiết tự nhiên hơn.
+        <div class="section-head">
+          <div>
+            <p class="section-index label">04 / 05</p>
+            <h2 id="s4-heading">Overfitting<br>&amp; Cách tránh</h2>
+          </div>
+          <p class="section-intro">
+            Overfitting là giả thuyết cần kiểm tra trên prompt/ảnh giữ-out. Loss có thể hữu ích khi trainer có validation split tương ứng, nhưng một curve mô phỏng hoặc train loss đơn lẻ không đủ kết luận chất lượng sinh ảnh.
           </p>
         </div>
 
-        <div class="schedule-diagram" role="img" aria-label="So sánh CFG không đổi với CFG giảm dần theo timestep">
-          <div class="schedule-card">
-            <h3>CFG Scale cố định</h3>
-            <p>Cùng một giá trị cho toàn bộ quá trình sampling.</p>
-            <div class="schedule-bar-group" aria-label="Tất cả các bước đều ở CFG = 7">
-              <div class="schedule-bar-row">
-                <span class="schedule-bar-label">T=1</span>
-                <div class="schedule-bar-track"><div class="schedule-bar-fill w-60"></div></div>
+        <!-- Interactive loss visualizer -->
+        <div class="overfit-panel" aria-label="Mô phỏng training vs validation loss">
+          <div class="overfit-header">
+            <span class="overfit-title">Mô phỏng minh hoạ: training vs validation loss (đơn vị tương đối)</span>
+            <div class="overfit-controls">
+              <div class="slider-wrap">
+                <label for="steps-slider">Steps:</label>
+                <input type="range" id="steps-slider" min="100" max="2000" step="100" value="500"
+                  aria-valuemin="100" aria-valuemax="2000" aria-valuenow="500" />
+                <span class="slider-val" id="steps-val" aria-live="polite" aria-atomic="true">500</span>
               </div>
-              <div class="schedule-bar-row">
-                <span class="schedule-bar-label">T=5</span>
-                <div class="schedule-bar-track"><div class="schedule-bar-fill w-60"></div></div>
-              </div>
-              <div class="schedule-bar-row">
-                <span class="schedule-bar-label">T=10</span>
-                <div class="schedule-bar-track"><div class="schedule-bar-fill w-60"></div></div>
-              </div>
-              <div class="schedule-bar-row">
-                <span class="schedule-bar-label">T=15</span>
-                <div class="schedule-bar-track"><div class="schedule-bar-fill w-60"></div></div>
-              </div>
-              <div class="schedule-bar-row">
-                <span class="schedule-bar-label">T=20</span>
-                <div class="schedule-bar-track"><div class="schedule-bar-fill w-60"></div></div>
+              <div class="slider-wrap">
+                <label for="lr-slider">LR:</label>
+                <input type="range" id="lr-slider" min="1" max="10" step="1" value="4"
+                  aria-valuemin="1" aria-valuemax="10" aria-valuenow="4" />
+                <span class="slider-val" id="lr-val" aria-live="polite" aria-atomic="true">1e-4</span>
               </div>
             </div>
           </div>
-
-          <div class="schedule-card">
-            <h3>CFG Schedule giảm dần</h3>
-            <p>CFG cao đầu → bám prompt tổng thể; giảm dần → chi tiết tự nhiên.</p>
-            <div class="schedule-bar-group" aria-label="CFG giảm dần từ cao đến thấp theo timestep">
-              <div class="schedule-bar-row">
-                <span class="schedule-bar-label">T=1</span>
-                <div class="schedule-bar-track"><div class="schedule-bar-fill w-95 sbf-cyan"></div></div>
+          <div class="overfit-body">
+            <div class="overfit-graph">
+              <canvas id="loss-canvas" width="500" height="200"
+                aria-label="Biểu đồ training loss (xanh) và validation loss (đỏ) theo số bước huấn luyện. Khu vực đỏ là vùng overfitting."></canvas>
+              <div class="overfit-legend" aria-hidden="true">
+                <span class="legend-item"><span class="legend-dot legend-dot-acid"></span>Train Loss</span>
+                <span class="legend-item"><span class="legend-dot legend-dot-red"></span>Val Loss</span>
               </div>
-              <div class="schedule-bar-row">
-                <span class="schedule-bar-label">T=5</span>
-                <div class="schedule-bar-track"><div class="schedule-bar-fill w-80 sbf-cyan"></div></div>
+            </div>
+            <div class="overfit-status">
+              <div id="status-badge" class="status-badge ok" role="status" aria-live="polite" aria-atomic="true">
+                <span id="status-label">Đang học tốt</span>
               </div>
-              <div class="schedule-bar-row">
-                <span class="schedule-bar-label">T=10</span>
-                <div class="schedule-bar-track"><div class="schedule-bar-fill w-60 sbf-acid"></div></div>
-              </div>
-              <div class="schedule-bar-row">
-                <span class="schedule-bar-label">T=15</span>
-                <div class="schedule-bar-track"><div class="schedule-bar-fill w-38 sbf-acid"></div></div>
-              </div>
-              <div class="schedule-bar-row">
-                <span class="schedule-bar-label">T=20</span>
-                <div class="schedule-bar-track"><div class="schedule-bar-fill w-18 sbf-orange"></div></div>
-              </div>
+              <p class="status-desc" id="status-desc">
+                Steps và learning rate hợp lý. Train loss và validation loss giảm song song — model đang học đặc điểm tổng quát.
+              </p>
             </div>
           </div>
         </div>
 
-        <details>
-          <summary class="details-summary">Tại sao CFG Schedule hữu ích trong video generation? ↓</summary>
-          <div class="details-body">
-            <p>Trong video generation, các frame cần nhất quán về nội dung và motion. CFG cao ở bước đầu giúp tất cả frame đều bắt đầu từ cùng một "hướng" theo prompt. Khi CFG giảm dần, model có không gian tạo ra chuyển động và chi tiết tự nhiên hơn mà không bị "kẹt" bởi guidance quá mạnh.</p>
-            <p>Một số schedule phổ biến: <strong>tuyến tính</strong> (giảm đều), <strong>cosine</strong> (giảm chậm đầu rồi nhanh), <strong>stepped</strong> (giảm theo bước nhảy).</p>
+        <!-- Signs of overfitting -->
+        <h3 class="subsection-h3">Dấu hiệu nhận biết Overfitting</h3>
+        <div class="sign-grid" role="list">
+          <div class="sign-item" role="listitem">
+            <span class="sign-icon" aria-hidden="true">01</span>
+            <div class="sign-text">
+              <h3>Output giống hệt ảnh training</h3>
+              <p>Kết quả luôn trông như copy-paste từ dataset, không có variation.</p>
+            </div>
           </div>
-        </details>
+          <div class="sign-item" role="listitem">
+            <span class="sign-icon" aria-hidden="true">02</span>
+            <div class="sign-text">
+              <h3>Thất bại với pose/ánh sáng mới</h3>
+              <p>Prompt yêu cầu góc chụp hoặc ánh sáng không có trong training → output méo hoặc mất nhận dạng.</p>
+            </div>
+          </div>
+          <div class="sign-item" role="listitem">
+            <span class="sign-icon" aria-hidden="true">03</span>
+            <div class="sign-text">
+              <h3>Mất coherence với prompt</h3>
+              <p>Thêm chi tiết vào prompt (trang phục, bối cảnh) nhưng model bỏ qua, chỉ tái tạo khuôn mặt từ training.</p>
+            </div>
+          </div>
+          <div class="sign-item" role="listitem">
+            <span class="sign-icon" aria-hidden="true">04</span>
+            <div class="sign-text">
+              <h3>Val loss tăng khi train loss giảm</h3>
+              <p>Training loss tiếp tục giảm nhưng validation loss bắt đầu tăng — model đang ghi nhớ thay vì học.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Anti-overfitting techniques -->
+        <h3 class="subsection-h3">Kỹ thuật chống Overfitting</h3>
+        <div class="technique-list" role="list">
+          <div class="technique-item" role="listitem">
+            <div class="technique-num" aria-hidden="true">1</div>
+            <div class="technique-text">
+              <h3>Giảm số Training Steps</h3>
+              <p>Đặt checkpoint cadence rồi so sánh prompt giữ-out. Số steps phụ thuộc base model, batch/repeats, optimizer, rank, resolution và trainer; đừng chuyển con số từ workflow khác thành preset chung.</p>
+              <span class="technique-tag">Heuristic workflow · đo bằng checkpoint</span>
+            </div>
+          </div>
+          <div class="technique-item" role="listitem">
+            <div class="technique-num" aria-hidden="true">2</div>
+            <div class="technique-text">
+              <h3>Hạ Learning Rate</h3>
+              <p>Learning rate cao có thể làm run bất ổn; ngưỡng phụ thuộc optimizer, parameter groups và implementation trainer. Thay đổi LR một mình, giữ các biến còn lại, rồi đọc lại output/checkpoint.</p>
+              <span class="technique-tag">Không có LR phổ quát</span>
+            </div>
+          </div>
+          <div class="technique-item" role="listitem">
+            <div class="technique-num" aria-hidden="true">3</div>
+            <div class="technique-text">
+              <h3>Class-preservation Loss (DreamBooth)</h3>
+              <p>DreamBooth paper giới thiệu prior-preservation loss để giữ prior class. Trainer LoRA có thể không triển khai hoặc đặt tên khác; chỉ bật khi documentation của trainer/checkpoint xác nhận cách tính loss.</p>
+              <span class="technique-tag">Paper mechanism ≠ mọi trainer LoRA</span>
+            </div>
+          </div>
+          <div class="technique-item" role="listitem">
+            <div class="technique-num" aria-hidden="true">4</div>
+            <div class="technique-text">
+              <h3>Validate trên Held-out Images</h3>
+              <p>Giữ một prompt/ảnh evaluation set và seed set riêng. “Held-out image” không trực tiếp là validation loss cho diffusion training; hãy mô tả rõ cách evaluator dùng nó.</p>
+              <span class="technique-tag">Evaluation protocol trước, checkpoint sau</span>
+            </div>
+          </div>
+          <div class="technique-item" role="listitem">
+            <div class="technique-num" aria-hidden="true">5</div>
+            <div class="technique-text">
+              <h3>Tăng kích thước Dataset</h3>
+              <p>Thêm ảnh chỉ hữu ích khi chúng thêm coverage hoặc sửa bias. Flip/crop/jitter là augmentation của workflow; chúng không tạo view 3D mới và có thể làm hỏng tín hiệu nếu không phù hợp domain.</p>
+              <span class="technique-tag">Coverage thật trước augmentation</span>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
-    <!-- ── Section 4: Negative Prompt ── -->
-    <section class="section" id="negative-prompt" aria-labelledby="s4-heading">
+    <!-- SECTION 5: Caption Quiz -->
+    <section class="content-section" id="caption-quiz" aria-labelledby="s5-heading">
       <div class="shell">
-        <p class="section-index">04 — NEGATIVE PROMPT</p>
-        <h2 id="s4-heading">Negative Prompt — Hướng output ra xa điều không muốn</h2>
-        <p class="section-intro">
-          Phần "unconditional" trong công thức CFG không nhất thiết phải để trống. Ta có thể thay bằng một negative prompt để đẩy output ra xa những nội dung không mong muốn.
-        </p>
-
-        <div class="neg-grid">
-          <div class="neg-card no-neg">
-            <div class="neg-type">KHÔNG CÓ NEGATIVE PROMPT</div>
-            <h3>Unconditional rỗng</h3>
-            <p>ε<sub>unc</sub> được tính với empty string. Model tránh xa "không có gì" — ít định hướng hơn về những gì cần loại bỏ.</p>
+        <div class="section-head">
+          <div>
+            <p class="section-index label">05 / 05</p>
+            <h2 id="s5-heading">Quiz:<br>Caption nào tốt?</h2>
           </div>
-          <div class="neg-card has-neg">
-            <div class="neg-type neg-type-orange">CÓ NEGATIVE PROMPT</div>
-            <h3>Unconditional = negative text</h3>
-            <p>ε<sub>unc</sub> được tính với negative prompt (VD: "blurry, low quality, distorted"). Model tránh xa hướng đó — output rõ hơn, ít artifact hơn.</p>
-          </div>
-        </div>
-
-        <div class="def-panel def-panel-orange">
-          <strong>Công thức khi có Negative Prompt</strong>
-          <p>
-            ε̂ = ε<sub><em>neg</em></sub> + w × (ε<sub>cond</sub> − ε<sub><em>neg</em></sub>)<br/>
-            Thay vì dùng ε<sub>unc</sub>, model dùng noise prediction từ negative prompt làm điểm "đẩy ra xa".
+          <p class="section-intro">
+            Xác định caption tốt nhất cho mỗi tình huống. Chú ý vị trí trigger word, độ chi tiết, và tính nhất quán.
           </p>
         </div>
 
-        <div class="checkpoint">
-          <fieldset>
-            <legend>Checkpoint: Output bám đúng nội dung nhưng màu gắt, cạnh cứng và motion thiếu tự nhiên. Bạn thử gì trước?</legend>
-            <p>Chọn thay đổi trực tiếp xử lý nguyên nhân, không chỉ che triệu chứng.</p>
-            <div class="answer-row">
-              <button class="answer-button" type="button" data-answer="raise" aria-pressed="false">Tăng CFG lên nữa</button>
-              <button class="answer-button" type="button" data-answer="lower" aria-pressed="false">Giảm CFG hoặc dùng schedule giảm dần</button>
-              <button class="answer-button" type="button" data-answer="negative" aria-pressed="false">Thêm “cinematic” vào negative prompt</button>
+        <div class="quiz-container" id="caption-quiz-container">
+
+          <!-- Quiz 1 -->
+          <div class="quiz-item" aria-labelledby="quiz1-head">
+            <div class="quiz-q-header" id="quiz1-head">Câu 1 / 3 — Chọn caption phù hợp nhất cho ảnh chân dung nghiêm túc</div>
+            <div class="quiz-body">
+              <p class="quiz-context">Context: ảnh chân dung, nhân vật nhìn thẳng vào ống kính, ánh sáng studio, nền trắng.</p>
+              <div class="quiz-options" role="group" aria-labelledby="quiz1-head">
+                <button class="quiz-option" type="button" data-q="1" data-v="A" data-correct="false" aria-describedby="q1-feedback">
+                  <span class="opt-letter" aria-hidden="true">A</span>
+                  <span class="opt-text"><span class="opt-code">a person looking at camera, white background</span></span>
+                </button>
+                <button class="quiz-option" type="button" data-q="1" data-v="B" data-correct="true" aria-describedby="q1-feedback">
+                  <span class="opt-letter" aria-hidden="true">B</span>
+                  <span class="opt-text"><span class="opt-code">jane_smith_v1, portrait of a woman, serious expression, studio lighting, white background, frontal view</span></span>
+                </button>
+                <button class="quiz-option" type="button" data-q="1" data-v="C" data-correct="false" aria-describedby="q1-feedback">
+                  <span class="opt-letter" aria-hidden="true">C</span>
+                  <span class="opt-text"><span class="opt-code">portrait of jane_smith_v1, beautiful woman, professional headshot</span></span>
+                </button>
+              </div>
+              <div class="quiz-feedback" id="q1-feedback" role="status" aria-live="polite"></div>
             </div>
-            <p class="answer-feedback" id="answer-feedback" aria-live="polite">Chọn một phương án để xem giải thích.</p>
-          </fieldset>
+          </div>
+
+          <!-- Quiz 2 -->
+          <div class="quiz-item" aria-labelledby="quiz2-head">
+            <div class="quiz-q-header" id="quiz2-head">Câu 2 / 3 — Caption nào gây nhầm lẫn cho model nhất?</div>
+            <div class="quiz-body">
+              <p class="quiz-context">Context: tất cả các caption dưới đây dùng cho cùng một dataset. Caption nào sẽ dạy model SAI nhất?</p>
+              <div class="quiz-options" role="group" aria-labelledby="quiz2-head">
+                <button class="quiz-option" type="button" data-q="2" data-v="A" data-correct="false" aria-describedby="q2-feedback">
+                  <span class="opt-letter" aria-hidden="true">A</span>
+                  <span class="opt-text"><span class="opt-code">mike_lora, man in blue shirt, outdoor park, sunny</span></span>
+                </button>
+                <button class="quiz-option" type="button" data-q="2" data-v="B" data-correct="false" aria-describedby="q2-feedback">
+                  <span class="opt-letter" aria-hidden="true">B</span>
+                  <span class="opt-text"><span class="opt-code">mike_lora, man smiling, indoor cafe, warm light</span></span>
+                </button>
+                <button class="quiz-option" type="button" data-q="2" data-v="C" data-correct="true" aria-describedby="q2-feedback">
+                  <span class="opt-letter" aria-hidden="true">C</span>
+                  <span class="opt-text"><span class="opt-code">a handsome young man with blue eyes and brown hair wearing glasses</span></span>
+                </button>
+              </div>
+              <div class="quiz-feedback" id="q2-feedback" role="status" aria-live="polite"></div>
+            </div>
+          </div>
+
+          <!-- Quiz 3 -->
+          <div class="quiz-item" aria-labelledby="quiz3-head">
+            <div class="quiz-q-header" id="quiz3-head">Câu 3 / 3 — Format nào nhất quán và dễ kiểm tra hàng loạt nhất?</div>
+            <div class="quiz-body">
+              <p class="quiz-context">Context: training face LoRA với trigger word <code class="trigger-code">lenaV2</code>. Ảnh: chân dung ngoài trời, ánh sáng vàng.</p>
+              <div class="quiz-options" role="group" aria-labelledby="quiz3-head">
+                <button class="quiz-option" type="button" data-q="3" data-v="A" data-correct="true" aria-describedby="q3-feedback">
+                  <span class="opt-letter" aria-hidden="true">A</span>
+                  <span class="opt-text"><span class="opt-code">lenaV2, outdoor portrait, golden hour lighting, natural smile</span></span>
+                </button>
+                <button class="quiz-option" type="button" data-q="3" data-v="B" data-correct="false" aria-describedby="q3-feedback">
+                  <span class="opt-letter" aria-hidden="true">B</span>
+                  <span class="opt-text"><span class="opt-code">outdoor portrait, golden hour lighting, natural smile, lenaV2</span></span>
+                </button>
+                <button class="quiz-option" type="button" data-q="3" data-v="C" data-correct="false" aria-describedby="q3-feedback">
+                  <span class="opt-letter" aria-hidden="true">C</span>
+                  <span class="opt-text"><span class="opt-code">outdoor portrait of lenaV2, golden hour lighting, natural smile</span></span>
+                </button>
+              </div>
+              <div class="quiz-feedback" id="q3-feedback" role="status" aria-live="polite"></div>
+            </div>
+          </div>
+
         </div>
       </div>
     </section>
 
-    <!-- ── Section 5: Tổng kết ── -->
-    <section class="section" id="takeaways" aria-labelledby="s5-heading">
+    <!-- CHECKLIST -->
+    <section class="content-section" id="checklist" aria-labelledby="checklist-heading">
       <div class="shell">
-        <p class="section-index">05 — TỔNG KẾT</p>
-        <h2 id="s5-heading">Những điều cần nhớ</h2>
-        <div class="takeaways">
-          <div class="takeaway-item">
-            <div class="takeaway-num" aria-hidden="true">1</div>
-            <p class="takeaway-text"><strong>CFG chạy model hai lần</strong> mỗi bước: một lần có prompt (conditional), một lần không (unconditional). Kết quả = unconditional + scale × (conditional − unconditional).</p>
+        <p class="label">Công cụ</p>
+        <h2 id="checklist-heading" class="checklist-h2">Checklist<br>Dataset</h2>
+        <p class="section-intro checklist-lead">
+          Dùng checklist này để ghi coverage và giả định của run trước khi bắt đầu training. Các con số chỉ là điểm xuất phát để A/B, không phải điều kiện pass cho mọi model/trainer.
+        </p>
+        <div class="checklist-panel" aria-label="Dataset quality checklist">
+          <div class="checklist-head">
+            <span class="checklist-title">Dataset Quality Checklist</span>
+            <span class="checklist-progress-text" id="checklist-count" aria-live="polite" aria-atomic="true">0 / 12</span>
           </div>
-          <div class="takeaway-item">
-            <div class="takeaway-num" aria-hidden="true">2</div>
-            <p class="takeaway-text"><strong>CFG Scale 6–8 thường là điểm tốt nhất</strong> cho hầu hết trường hợp. Thấp hơn cho phép sáng tạo; cao hơn buộc bám prompt nhưng dễ sinh artifact và màu bão hoà.</p>
+          <div class="checklist-progress-bar" aria-hidden="true">
+            <div class="checklist-bar-fill" id="checklist-bar"></div>
           </div>
-          <div class="takeaway-item">
-            <div class="takeaway-num" aria-hidden="true">3</div>
-            <p class="takeaway-text"><strong>CFG Schedule</strong> cho phép thay đổi scale theo timestep — CFG cao ở bước đầu giúp định hình nội dung, giảm dần để chi tiết và chuyển động tự nhiên hơn.</p>
+          <div class="checklist-body" id="checklist-items">
+            <div class="check-item">
+              <input type="checkbox" id="ck1" />
+              <label for="ck1">Ghi số ảnh và coverage thực; nếu dùng 10–30 ảnh làm điểm xuất phát, đánh giá lại theo subject, repeats/batch và held-out prompts</label>
+            </div>
+            <div class="check-item">
+              <input type="checkbox" id="ck2" />
+              <label for="ck2">Ghi native/bucket resolution, crop policy và model/trainer/version mục tiêu; đối chiếu yêu cầu của pipeline trước khi chuẩn hóa ảnh</label>
+            </div>
+            <div class="check-item">
+              <input type="checkbox" id="ck3" />
+              <label for="ck3">Đa dạng ánh sáng (tự nhiên, studio, trong nhà, ngoài trời)</label>
+            </div>
+            <div class="check-item">
+              <input type="checkbox" id="ck4" />
+              <label for="ck4">Đa dạng góc chụp (thẳng mặt, 3/4, nghiêng, cận cảnh)</label>
+            </div>
+            <div class="check-item">
+              <input type="checkbox" id="ck5" />
+              <label for="ck5">Đa dạng biểu cảm khuôn mặt (nghiêm, cười, trung tính)</label>
+            </div>
+            <div class="check-item">
+              <input type="checkbox" id="ck6" />
+              <label for="ck6">Nhận dạng nhân vật nhất quán qua tất cả ảnh</label>
+            </div>
+            <div class="check-item">
+              <input type="checkbox" id="ck7" />
+              <label for="ck7">Không có ảnh blur, thiếu sáng nặng, hoặc khuôn mặt bị che khuất</label>
+            </div>
+            <div class="check-item">
+              <input type="checkbox" id="ck8" />
+              <label for="ck8">Mỗi ảnh có file caption (.txt) kèm theo cùng tên file</label>
+            </div>
+            <div class="check-item">
+              <input type="checkbox" id="ck9" />
+              <label for="ck9">Caption bắt đầu bằng trigger word nhất quán</label>
+            </div>
+            <div class="check-item">
+              <input type="checkbox" id="ck10" />
+              <label for="ck10">Caption mô tả đủ bối cảnh (ánh sáng, góc, biểu cảm)</label>
+            </div>
+            <div class="check-item">
+              <input type="checkbox" id="ck11" />
+              <label for="ck11">Đã giữ lại 2–3 ảnh held-out để validate sau training</label>
+            </div>
+            <div class="check-item">
+              <input type="checkbox" id="ck12" />
+              <label for="ck12">Đã xác định số steps và learning rate phù hợp với dataset size</label>
+            </div>
           </div>
-          <div class="takeaway-item">
-            <div class="takeaway-num" aria-hidden="true">4</div>
-            <p class="takeaway-text"><strong>Negative prompt</strong> thay thế phần unconditional, đẩy output ra xa những nội dung không mong muốn thay vì chỉ "không có định hướng".</p>
-          </div>
+          <button class="checklist-reset" id="checklist-reset" type="button">Đặt lại checklist</button>
         </div>
       </div>
     </section>
 
-    <section class="section" id="related-lessons" aria-labelledby="related-heading">
+    <!-- CHECKPOINT -->
+    <section class="content-section" id="checkpoint" aria-labelledby="checkpoint-heading">
       <div class="shell">
-        <p class="section-index">06 — ĐI TIẾP THEO KIẾN THỨC</p>
-        <h2 id="related-heading">Bài liên quan</h2>
-        <p class="section-intro">CFG nối trực tiếp text encoder với đường sampling. Ba bài này giúp bạn biết prompt được mã hóa ra sao và guidance tác động ở đâu.</p>
-        <nav class="related-grid" aria-label="Các bài học liên quan đến CFG">
-          <a class="related-card" href="video-generation-part-1-lesson-3.html">
-            <span class="related-kicker">CLIP · Text embedding</span>
-            <strong>Prompt trở thành vector điều kiện thế nào?</strong>
-            <small>Hiểu đầu vào conditional trước khi CFG khuếch đại chênh lệch.</small>
-          </a>
-          <a class="related-card" href="video-generation-part-1-lesson-5.html">
-            <span class="related-kicker">Cross-Attention</span>
-            <strong>Vị trí text tác động lên latent</strong>
-            <small>Theo dấu token khi chúng điều hướng chủ thể, bố cục và texture.</small>
-          </a>
-          <a class="related-card" href="video-generation-part-7-lesson-1.html">
-            <span class="related-kicker">Positive · Negative Prompt</span>
-            <strong>Viết hai hướng guidance có chủ đích</strong>
-            <small>Chuyển hiểu biết CFG thành prompt thực hành, tránh danh sách negative vô tội vạ.</small>
-          </a>
-        </nav>
+        <p class="label">Kiểm tra</p>
+        <h2 id="checkpoint-heading" class="checklist-h2">Checkpoint</h2>
+        <p class="section-intro checkpoint-lead">
+          Ba tình huống để xác nhận bạn phân biệt được overfitting, class preservation và giới hạn của augmentation.
+        </p>
+        <div class="checkpoint-grid" id="checkpoint-grid">
+
+          <div class="checkpoint-card" aria-labelledby="cp1-head">
+            <div class="checkpoint-q-head" id="cp1-head">Câu hỏi 1</div>
+            <div class="checkpoint-body">
+              <p>Bạn training face LoRA với 8 ảnh, chạy 3000 steps. Model output luôn giống hệt ảnh training và không respond với prompt. Nguyên nhân khả năng cao nhất là gì?</p>
+              <div class="cp-options" role="group" aria-labelledby="cp1-head">
+                <button class="cp-option" type="button" data-cpq="1" data-cpv="A" data-correct="false" aria-describedby="cp1-fb">
+                  Caption thiếu chi tiết về ánh sáng
+                </button>
+                <button class="cp-option" type="button" data-cpq="1" data-cpv="B" data-correct="true" aria-describedby="cp1-fb">
+                  Dataset nhỏ + quá nhiều steps → overfitting
+                </button>
+                <button class="cp-option" type="button" data-cpq="1" data-cpv="C" data-correct="false" aria-describedby="cp1-fb">
+                  Trigger word đặt ở cuối caption
+                </button>
+              </div>
+              <p class="cp-feedback" id="cp1-fb" aria-live="polite"></p>
+            </div>
+          </div>
+
+          <div class="checkpoint-card" aria-labelledby="cp2-head">
+            <div class="checkpoint-q-head" id="cp2-head">Câu hỏi 2</div>
+            <div class="checkpoint-body">
+              <p>Trong DreamBooth-style LoRA, mục đích của "regularization images" (class preservation) là gì?</p>
+              <div class="cp-options" role="group" aria-labelledby="cp2-head">
+                <button class="cp-option" type="button" data-cpq="2" data-cpv="A" data-correct="false" aria-describedby="cp2-fb">
+                  Tăng tốc độ training
+                </button>
+                <button class="cp-option" type="button" data-cpq="2" data-cpv="B" data-correct="false" aria-describedby="cp2-fb">
+                  Cải thiện chất lượng caption tự động
+                </button>
+                <button class="cp-option" type="button" data-cpq="2" data-cpv="C" data-correct="true" aria-describedby="cp2-fb">
+                  Giúp model giữ khái niệm class chung, tránh quên cách vẽ "người nói chung" khi học subject cụ thể
+                </button>
+              </div>
+              <p class="cp-feedback" id="cp2-fb" aria-live="polite"></p>
+            </div>
+          </div>
+
+          <div class="checkpoint-card" aria-labelledby="cp3-head">
+            <div class="checkpoint-q-head" id="cp3-head">Câu hỏi 3</div>
+            <div class="checkpoint-body">
+              <p>Bạn có 12 ảnh đều chụp thẳng mặt trong studio. Flip và color jitter có đủ để biến chúng thành dataset đa dạng góc chụp không?</p>
+              <div class="cp-options" role="group" aria-labelledby="cp3-head">
+                <button class="cp-option" type="button" data-cpq="3" data-cpv="A" data-correct="false" aria-describedby="cp3-fb">Có — augmentation có thể tạo mọi góc còn thiếu</button>
+                <button class="cp-option" type="button" data-cpq="3" data-cpv="B" data-correct="true" aria-describedby="cp3-fb">Không — augmentation nhẹ chỉ bổ sung biến thể, không tạo thông tin góc nhìn mới thật sự</button>
+                <button class="cp-option" type="button" data-cpq="3" data-cpv="C" data-correct="false" aria-describedby="cp3-fb">Có, miễn tăng training steps lên gấp đôi</button>
+              </div>
+              <p class="cp-feedback" id="cp3-fb" aria-live="polite"></p>
+            </div>
+          </div>
+
+        </div>
       </div>
     </section>
 
-    <!-- ── Lesson navigation ── -->
-    <div class="shell">
-      <nav class="lesson-nav" aria-label="Điều hướng bài học">
-        <a href="video-generation-part-2-lesson-3.html" class="button">← Bài 3: Sampler</a>
-        <span class="lesson-nav-label">BÀI 4 / 6</span>
-        <a href="video-generation-part-2-lesson-5.html" class="button primary">Bài 5: Context Window →</a>
-      </nav>
-    </div>
+    <section class="content-section" id="related-lessons" aria-labelledby="related-heading">
+      <div class="shell">
+        <div class="related-panel">
+          <p class="label">Điều hướng theo kiến thức</p>
+          <h2 id="related-heading">Bài liên quan</h2>
+          <p class="section-intro">Đi tiếp theo cơ chế và workflow, không phải chỉ vì tên bài giống nhau.</p>
+          <ul class="related-list">
+            <li><a href="video-generation-part-2-lesson-3.html"><strong>Phần 3 · Bài 1 — LoRA fundamentals</strong><span>Nền tảng: xác định phần adapter học gì trước khi quy lỗi output cho dataset hay caption.</span></a></li>
+            <li><a href="video-generation-part-2-lesson-2.html"><strong>Phần 3 · Bài 4 — DreamBooth &amp; Trigger Word</strong><span>Cùng cơ chế: unique identifier, prior preservation và phạm vi DreamBooth-style workflow.</span></a></li>
+            <li><a href="video-generation-part-3-lesson-3.html"><strong>Phần 3 · Bài 6 — Train với kohya_ss &amp; SimpleTuner</strong><span>Bước kế tiếp: ghi trainer/version và chuyển dataset experiment thành run có checkpoint để chẩn đoán.</span></a></li>
+            <li><a href="video-generation-part-5-lesson-1.html"><strong>Phần 4 · Bài 1 — I2V, T2V, FLF2V</strong><span>Ứng dụng tiếp theo: phân biệt input mode trước khi suy rộng kết quả image personalization sang video workflow.</span></a></li>
+          </ul>
+          <p class="source-note">Nguồn kỹ thuật: <a href="https://arxiv.org/abs/2208.12242">DreamBooth paper</a> (unique identifier và prior preservation), <a href="https://arxiv.org/abs/2106.09685">LoRA paper</a> (adapter method), <a href="https://arxiv.org/abs/2301.12597">BLIP-2 paper</a> (VLM caption draft) và model card/repository của captioner bạn thực sự dùng. Kiểm tra documentation trainer trước khi áp dụng tham số.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- HANDOFF CARD -->
+    <section class="content-section" id="handoff" aria-labelledby="handoff-heading">
+      <div class="shell">
+        <div class="handoff-card">
+          <div class="handoff-card-icon" aria-hidden="true">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </div>
+          <div>
+            <p class="handoff-card-label">Bài tiếp theo</p>
+            <h2 class="handoff-card-title" id="handoff-heading">Rank &amp; Alpha</h2>
+            <p class="handoff-card-body">Với dataset đã chuẩn, bài tiếp theo bắt đầu cấu hình LoRA: rank và alpha — hai siêu tham số quyết định capacity và learning signal của adapter.</p>
+            <a class="button primary" href="video-generation-part-3-lesson-1.html" data-curriculum-next>Sang Bài 3.1 →</a>
+          </div>
+        </div>
+      </div>
+    </section>
 
   </main>
 
-  <!-- ── Footer ── -->
-  <footer role="contentinfo">
-    <div class="shell">
-      <div class="footer-inner">
-        <span class="footer-brand">VIDEO GEN LAB</span>
-        <span class="footer-copy">Phần 2 · Bài 4 — CFG & Prompt Adherence</span>
+  <footer class="site-footer" role="contentinfo">
+    <div class="shell page-footer">
+      <span class="footer-copy" data-curriculum-completion-label>VIDEO GEN LAB · TRAINING DESIGN · BÀI 2.4 / DATASET &amp; CAPTIONING</span>
+      <div style="display:flex;gap:12px">
+        <a class="button" href="video-generation-part-2-lesson-3.html" data-curriculum-prev data-curriculum-title-fallback>← Bài 2.3: LoRA Mechanics</a>
+        <a class="button primary" href="video-generation-part-3-lesson-1.html" data-curriculum-next data-curriculum-title-fallback>Bài 3.1: Rank &amp; Alpha →</a>
       </div>
     </div>
   </footer>
 
   <script>
-    /* ── Reading progress ── */
-    (() => {
-      const fill = document.getElementById('reading-progress');
-      const bar = fill?.closest('[role="progressbar"]');
+    // ── Scroll progress ─────────────────────────────────────────
+    (function () {
+      var fill = document.getElementById('progress-fill');
       if (!fill) return;
-      const update = () => {
-        const scrollable = document.documentElement.scrollHeight - window.innerHeight;
-        const pct = scrollable > 0 ? Math.round((window.scrollY / scrollable) * 100) : 0;
-        fill.style.width = pct + '%';
-        if (bar) bar.setAttribute('aria-valuenow', pct);
-      };
+      function update() {
+        var total = document.documentElement.scrollHeight - window.innerHeight;
+        fill.style.width = (total > 0 ? (window.scrollY / total) * 100 : 0) + '%';
+      }
       window.addEventListener('scroll', update, { passive: true });
       update();
     })();
 
-    /* ── CFG Slider ── */
-    (() => {
-      const slider = document.getElementById('cfg-scale-input');
-      const output = document.getElementById('cfg-scale-output');
-      const needle = document.getElementById('spectrum-needle');
-      const stateTitle = document.getElementById('cfg-state-title');
-      const stateDesc = document.getElementById('cfg-state-desc');
-      const stateBox = document.getElementById('cfg-state');
-      const fvScale = document.getElementById('fv-scale-val');
-      const scene = document.getElementById('cfg-scene');
-      const sceneTag = document.getElementById('scene-cfg-tag');
-      const presetButtons = [...document.querySelectorAll('.cfg-preset')];
-      let previousZone = '';
-      if (!slider) return;
+    // ── Dataset Director ─────────────────────────────────────────
+    (function () {
+      var filmstrip = document.getElementById('dataset-filmstrip');
+      var diversitySlider = document.getElementById('diversity-slider');
+      var specificitySlider = document.getElementById('specificity-slider');
+      var augmentationToggle = document.getElementById('augmentation-toggle');
+      var diversityOutput = document.getElementById('diversity-output');
+      var specificityOutput = document.getElementById('specificity-output');
+      var scoreValue = document.getElementById('generalization-value');
+      var riskValue = document.getElementById('overfit-risk-value');
+      var signalValue = document.getElementById('caption-signal-value');
+      var feedback = document.getElementById('director-feedback');
+      var testButton = document.getElementById('test-generalization');
+      var resetButton = document.getElementById('reset-director');
+      var presetButtons = Array.from(document.querySelectorAll('.director-preset'));
+      var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+      var augmentationMode = 'light';
+      var testTimer = 0;
+      var turns = ['-12deg', '-6deg', '0deg', '7deg', '12deg'];
+      var lights = ['18%', '32%', '50%', '68%', '82%'];
 
-      const states = [
-        {
-          min: 1, max: 3,
-          title: 'Quá sáng tạo / Random',
-          desc: 'Model gần như bỏ qua prompt. Output đa dạng nhưng khó kiểm soát nội dung. Thích hợp để khám phá hoặc tạo variation tự do.',
-          borderColor: 'var(--orange)'
-        },
-        {
-          min: 4, max: 5,
-          title: 'Linh hoạt, vẫn có định hướng',
-          desc: 'Prompt có tác động rõ nhưng model còn nhiều tự do. Tốt khi muốn kết quả mang tính nghệ thuật và không quá cứng nhắc.',
-          borderColor: 'var(--acid)'
-        },
-        {
-          min: 6, max: 8,
-          title: 'Vùng tốt nhất (Sweet Spot)',
-          desc: 'Scale 6–8 thường cho chất lượng tốt nhất: bám prompt đủ mạnh mà không gây ra artifact hay màu quá bão hoà. Dùng cho hầu hết trường hợp.',
-          borderColor: 'var(--acid)'
-        },
-        {
-          min: 9, max: 12,
-          title: 'Bám prompt chặt',
-          desc: 'Model theo sát prompt, ít sáng tạo hơn. Chi tiết bắt đầu cứng và "overprocessed". Dùng khi cần thực hiện prompt chính xác.',
-          borderColor: 'var(--cyan)'
-        },
-        {
-          min: 13, max: 20,
-          title: 'Oversaturated / Artifact',
-          desc: 'CFG quá cao gây bão hoà màu, artifact, mất chi tiết tự nhiên. Chỉ dùng cố ý cho hiệu ứng cực đoan hoặc thử nghiệm.',
-          borderColor: 'var(--red)'
+      function captionFor(level, index) {
+        var parts = ['ariaV4'];
+        if (level >= 2) parts.push('portrait');
+        if (level >= 3) parts.push(index % 2 ? 'three-quarter view' : 'frontal view');
+        if (level >= 4) parts.push(index % 3 ? 'soft studio light' : 'outdoor shade');
+        if (level >= 5) parts.push(index % 2 ? 'green jacket' : 'blurred station background');
+        return parts.join(', ');
+      }
+
+      function scoreDataset(diversity, specificity) {
+        var score = 38 + diversity * 9 + specificity * 5;
+        if (specificity === 5) score -= 4;
+        if (augmentationMode === 'light') score += diversity >= 3 ? 5 : 2;
+        if (augmentationMode === 'heavy') score -= 15;
+        return Math.max(24, Math.min(96, score));
+      }
+
+      function presetName() {
+        if (Number(diversitySlider.value) === 1 && Number(specificitySlider.value) === 1 && augmentationMode === 'off') return 'repeat';
+        if (Number(diversitySlider.value) === 4 && Number(specificitySlider.value) === 4 && augmentationMode === 'light') return 'balanced';
+        if (Number(diversitySlider.value) === 2 && Number(specificitySlider.value) === 3 && augmentationMode === 'heavy') return 'augmented';
+        return '';
+      }
+
+      function render() {
+        var diversity = Number(diversitySlider.value);
+        var specificity = Number(specificitySlider.value);
+        var score = scoreDataset(diversity, specificity);
+        diversityOutput.textContent = diversity + ' / 5';
+        specificityOutput.textContent = specificity + ' / 5';
+        diversitySlider.setAttribute('aria-valuetext', diversity + ' trên 5 mức đa dạng thật');
+        specificitySlider.setAttribute('aria-valuetext', specificity + ' trên 5 mức chi tiết caption');
+        scoreValue.textContent = score + '%';
+        riskValue.textContent = score >= 80 ? 'Thấp' : score >= 62 ? 'Vừa' : 'Cao';
+        signalValue.textContent = specificity <= 1 ? 'Mơ hồ' : specificity >= 5 ? 'Dễ dính chi tiết' : specificity >= 3 ? 'Rõ' : 'Còn thiếu';
+        riskValue.style.color = score >= 80 ? 'var(--acid)' : score >= 62 ? 'var(--orange)' : 'var(--red)';
+
+        Array.from(filmstrip.querySelectorAll('.dataset-frame')).forEach(function (frame) { frame.remove(); });
+        for (var i = 0; i < 8; i += 1) {
+          var frame = document.createElement('span');
+          frame.className = 'dataset-frame';
+          if (augmentationMode !== 'off' && i % 3 === 1) frame.classList.add('is-augmented');
+          if (augmentationMode === 'heavy' && i % 2 === 0) frame.classList.add('is-risk');
+          var variation = i % diversity;
+          frame.style.setProperty('--turn', turns[variation]);
+          frame.style.setProperty('--light-x', lights[(variation * 2 + i) % lights.length]);
+          var caption = document.createElement('span');
+          caption.className = 'dataset-caption';
+          caption.textContent = captionFor(specificity, i);
+          frame.appendChild(caption);
+          filmstrip.appendChild(frame);
         }
-      ];
-
-      const getState = (val) => states.find(s => val >= s.min && val <= s.max) || states[2];
-
-      const update = () => {
-        const val = parseFloat(slider.value);
-        const min = parseFloat(slider.min);
-        const max = parseFloat(slider.max);
-        const pct = (val - min) / (max - min);
-
-        output.textContent = val % 1 === 0 ? val : val.toFixed(1);
-        fvScale.textContent = val % 1 === 0 ? val + '.0' : val.toFixed(1);
-
-        // Needle position (with padding for thumb edges)
-        if (needle) needle.style.left = `calc(${pct * 100}% - ${(pct - 0.5) * 20}px)`;
-
-        const state = getState(val);
-        stateTitle.textContent = state.title;
-        stateDesc.textContent = state.desc;
-        stateBox.style.borderColor = state.borderColor;
-
-        slider.setAttribute('aria-valuetext', `${val} — ${state.title}`);
-
-        let zone = 'balanced';
-        let blur = 0;
-        let saturation = 1;
-        let contrast = 1;
-        if (val <= 3) {
-          zone = 'low'; blur = 1.6; saturation = .72; contrast = .88;
-        } else if (val <= 5) {
-          zone = 'flexible'; blur = .55; saturation = .9; contrast = .96;
-        } else if (val <= 8) {
-          zone = 'balanced';
-        } else if (val <= 12) {
-          zone = 'guided'; saturation = 1.18; contrast = 1.08;
-        } else {
-          zone = 'high'; saturation = 1.62; contrast = 1.3;
-        }
-        scene.dataset.zone = zone;
-        scene.style.setProperty('--scene-blur', `${blur}px`);
-        scene.style.setProperty('--scene-saturation', saturation);
-        scene.style.setProperty('--scene-contrast', contrast);
-        sceneTag.textContent = `CFG ${val} · ${state.title.replace(' (Sweet Spot)', '').toLowerCase()}`;
-        if (previousZone && previousZone !== zone) {
-          scene.classList.remove('is-switching');
-          void scene.offsetWidth;
-          scene.classList.add('is-switching');
-        }
-        previousZone = zone;
-        presetButtons.forEach((button) => {
-          button.setAttribute('aria-pressed', String(Number(button.dataset.cfg) === val));
+        var activePreset = presetName();
+        presetButtons.forEach(function (button) {
+          button.setAttribute('aria-pressed', String(button.dataset.preset === activePreset));
         });
+        filmstrip.setAttribute('aria-label', 'Tám ảnh dataset mô phỏng với diversity ' + diversity + ' trên 5, caption specificity ' + specificity + ' trên 5 và augmentation ' + (augmentationMode === 'off' ? 'tắt' : augmentationMode === 'heavy' ? 'quá mạnh' : 'nhẹ'));
+
+        if (augmentationMode === 'heavy') {
+          feedback.textContent = 'Augmentation quá mạnh đang đổi màu và tương phản đến mức làm lệch danh tính. Biến đổi nhân tạo không thể thay thế góc chụp và ánh sáng thật.';
+        } else if (diversity <= 2) {
+          feedback.textContent = 'Nhiều frame vẫn gần như bản sao. Model có thể nhớ pose và ánh sáng này; augmentation chỉ giảm trùng lặp bề mặt, không tạo góc nhìn mới thật sự.';
+        } else if (specificity <= 2) {
+          feedback.textContent = 'Caption quá chung khiến model khó tách danh tính khỏi pose, ánh sáng và background. Hãy gọi tên những phần có thể thay đổi.';
+        } else if (specificity === 5) {
+          feedback.textContent = 'Caption rất chi tiết nhưng dễ gắn cả trang phục hoặc background ngẫu nhiên vào subject. Chỉ mô tả chi tiết hiện diện và có ích cho điều khiển.';
+        } else {
+          feedback.textContent = 'Bộ ảnh có nhiều góc và caption đủ cụ thể. Augmentation nhẹ bổ sung biến thể mà không làm lệch danh tính.';
+        }
+      }
+
+      function applyPreset(name) {
+        if (name === 'repeat') {
+          diversitySlider.value = '1'; specificitySlider.value = '1'; augmentationToggle.checked = false; augmentationMode = 'off';
+        } else if (name === 'augmented') {
+          diversitySlider.value = '2'; specificitySlider.value = '3'; augmentationToggle.checked = true; augmentationMode = 'heavy';
+        } else {
+          diversitySlider.value = '4'; specificitySlider.value = '4'; augmentationToggle.checked = true; augmentationMode = 'light';
+        }
+        render();
+      }
+
+      diversitySlider.addEventListener('input', render);
+      specificitySlider.addEventListener('input', render);
+      augmentationToggle.addEventListener('change', function () {
+        augmentationMode = augmentationToggle.checked ? 'light' : 'off';
+        render();
+      });
+      presetButtons.forEach(function (button) {
+        button.addEventListener('click', function () { applyPreset(button.dataset.preset); });
+      });
+      resetButton.addEventListener('click', function () { applyPreset('balanced'); });
+      testButton.addEventListener('click', function () {
+        window.clearTimeout(testTimer);
+        filmstrip.classList.remove('is-scanning');
+        void filmstrip.offsetWidth;
+        if (!reduceMotion.matches) filmstrip.classList.add('is-scanning');
+        testButton.disabled = true;
+        testButton.textContent = 'Đang test prompt mới…';
+        feedback.textContent = 'Held-out prompt: “ariaV4, profile view, rainy night, blue coat”. Đang kiểm tra xem model có rời khỏi pose training được không…';
+        var finish = function () {
+          var score = scoreDataset(Number(diversitySlider.value), Number(specificitySlider.value));
+          feedback.textContent = score >= 80
+            ? 'Mô phỏng: pass held-out test. Subject vẫn nhận ra ở góc nghiêng và ánh sáng mưa mới — tín hiệu để kiểm tra bằng grid thật.'
+            : score >= 62
+              ? 'Mô phỏng: pass một phần. Danh tính còn nhận ra nhưng pose hoặc màu bị kéo về dataset; nên thêm diversity thật trước khi tăng steps.'
+              : 'Mô phỏng: fail held-out test. Output quay về pose/ánh sáng training — một giả thuyết cần xác nhận bằng grid thật.';
+          testButton.disabled = false;
+          testButton.textContent = 'Test lại prompt mới';
+          filmstrip.classList.remove('is-scanning');
+        };
+        if (reduceMotion.matches) finish();
+        else testTimer = window.setTimeout(finish, 950);
+      });
+      render();
+    })();
+
+    // ── Loss visualizer canvas ──────────────────────────────────
+    (function () {
+      var canvas = document.getElementById('loss-canvas');
+      if (!canvas || !canvas.getContext) return;
+      var ctx = canvas.getContext('2d');
+      var stepsSlider = document.getElementById('steps-slider');
+      var lrSlider = document.getElementById('lr-slider');
+      var stepsVal = document.getElementById('steps-val');
+      var lrVal = document.getElementById('lr-val');
+      var statusBadge = document.getElementById('status-badge');
+      var statusLabel = document.getElementById('status-label');
+      var statusDesc = document.getElementById('status-desc');
+
+      var LR_LABELS = ['1e-5','2e-5','5e-5','1e-4','2e-4','5e-4','1e-3','2e-3','5e-3','1e-2'];
+
+      function css(prop) {
+        return getComputedStyle(document.documentElement).getPropertyValue(prop).trim();
+      }
+
+      function draw() {
+        var steps = parseInt(stepsSlider.value, 10);
+        var lr = parseInt(lrSlider.value, 10);
+        stepsVal.textContent = steps;
+        stepsSlider.setAttribute('aria-valuenow', steps);
+        lrVal.textContent = LR_LABELS[lr - 1] || lr;
+        lrSlider.setAttribute('aria-valuenow', lr);
+
+        // Resize canvas to actual rendered size
+        var rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width || 500;
+        canvas.height = 200;
+        var W = canvas.width;
+        var H = canvas.height;
+
+        ctx.clearRect(0, 0, W, H);
+
+        var acid = css('--acid') || '#c8ff3d';
+        var red  = css('--red')  || '#ff6b6b';
+        var dim  = css('--dim')  || '#777d80';
+        var line = css('--line') || '#2a3237';
+
+        // Grid lines
+        ctx.strokeStyle = line;
+        ctx.lineWidth = 1;
+        for (var gi = 1; gi < 4; gi++) {
+          ctx.beginPath();
+          ctx.moveTo(0, H * gi / 4);
+          ctx.lineTo(W, H * gi / 4);
+          ctx.stroke();
+        }
+
+        // Overfitting factor: high steps + high lr = more overfit
+        var ovFactor = (steps / 2000) * 0.55 + (lr / 10) * 0.45;
+        // Overfitting onset: fraction of x-axis
+        var ovStart = Math.max(0.28, 1.05 - ovFactor * 1.0);
+
+        var N = 80;
+        var trainPts = [];
+        var valPts = [];
+        var PAD = 12;
+
+        for (var i = 0; i <= N; i++) {
+          var t = i / N;
+          var noise1 = Math.sin(i * 6.7) * 0.03 + Math.cos(i * 3.1) * 0.02;
+          var noise2 = Math.sin(i * 5.3) * 0.025 + Math.cos(i * 8.9) * 0.02;
+
+          // Train loss: monotonically decreasing with noise
+          var trainL = 0.88 * Math.exp(-t * (2.2 + lr * 0.35)) + 0.06 + noise1 * (1 - t * 0.6);
+
+          // Val loss: decreases to min then increases after ovStart
+          var valL;
+          if (t <= ovStart) {
+            valL = 0.84 * Math.exp(-t * 1.9) + 0.13 + noise2;
+          } else {
+            var ex = t - ovStart;
+            var base = 0.84 * Math.exp(-ovStart * 1.9) + 0.13;
+            valL = base + ex * ex * (1.4 + lr * 0.18) + noise2;
+          }
+          valL = Math.min(valL, 1.05);
+
+          var px = PAD + (i / N) * (W - PAD * 2);
+          trainPts.push([px, H - PAD - trainL * (H - PAD * 2) * 0.85]);
+          valPts.push([px, H - PAD - valL * (H - PAD * 2) * 0.85]);
+        }
+
+        // Overfitting zone shading
+        var ovX = PAD + ovStart * (W - PAD * 2);
+        if (ovStart < 0.98) {
+          ctx.fillStyle = 'rgba(255,107,107,0.06)';
+          ctx.fillRect(ovX, 0, W - ovX, H);
+          ctx.setLineDash([5, 4]);
+          ctx.strokeStyle = dim;
+          ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(ovX, 4); ctx.lineTo(ovX, H - 4); ctx.stroke();
+          ctx.setLineDash([]);
+        }
+
+        function curve(pts, color) {
+          ctx.beginPath();
+          ctx.moveTo(pts[0][0], pts[0][1]);
+          for (var j = 1; j < pts.length - 1; j++) {
+            var mx = (pts[j][0] + pts[j+1][0]) / 2;
+            var my = (pts[j][1] + pts[j+1][1]) / 2;
+            ctx.quadraticCurveTo(pts[j][0], pts[j][1], mx, my);
+          }
+          ctx.lineTo(pts[pts.length-1][0], pts[pts.length-1][1]);
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 2.5;
+          ctx.lineJoin = 'round';
+          ctx.stroke();
+        }
+
+        curve(trainPts, acid);
+        curve(valPts, red);
+
+        // Status update
+        if (ovFactor > 0.65) {
+          statusBadge.className = 'status-badge bad';
+          statusLabel.textContent = 'Mô phỏng: rủi ro overfit cao';
+          statusDesc.textContent = 'Trong mô phỏng, steps/LR cao làm validation curve tách khỏi train curve. Trainer thực tế cần validation protocol và output grid riêng để kết luận.';
+        } else if (ovFactor > 0.33) {
+          statusBadge.className = 'status-badge warn';
+          statusLabel.textContent = 'Mô phỏng: cần kiểm tra';
+          statusDesc.textContent = 'Trong mô phỏng, validation curve bắt đầu tách. Hãy so sánh checkpoint/prompt set trước khi chỉ đổi steps hoặc learning rate.';
+        } else {
+          statusBadge.className = 'status-badge ok';
+          statusLabel.textContent = 'Mô phỏng: curve ổn định';
+          statusDesc.textContent = 'Hai curve giảm song song trong minh hoạ; đây không thay thế đánh giá identity, prompt-following và artifact trên output thật.';
+        }
+      }
+
+      stepsSlider.addEventListener('input', draw);
+      lrSlider.addEventListener('input', draw);
+      window.addEventListener('themechange', draw);
+
+      if (typeof ResizeObserver !== 'undefined') {
+        new ResizeObserver(draw).observe(canvas.parentElement);
+      }
+
+      draw();
+    })();
+
+    // ── Caption quiz ─────────────────────────────────────────────
+    (function () {
+      var ANSWERS = {
+        '1': {
+          correct: 'B',
+          ok: '✓ Đúng! Caption B tốt nhất vì: (1) trigger word đứng đầu, (2) mô tả chi tiết ánh sáng và góc chụp, (3) không dùng từ chủ quan. Model học được đặc điểm trung lập và có thể tái tạo đa dạng.',
+          wrong: {
+            A: '✗ Caption A không có trigger word — model không thể liên kết đặc điểm nhận dạng với bất kỳ từ khóa nào. Caption B là đáp án đúng.',
+            C: '✗ Caption C đặt trigger word vào giữa câu và dùng từ chủ quan "beautiful" — model có thể học nhầm tính chủ quan thay vì đặc điểm nhận dạng. Caption B là đáp án đúng.'
+          }
+        },
+        '2': {
+          correct: 'C',
+          ok: '✓ Đúng! Caption C không có trigger word và mô tả đặc điểm cụ thể (blue eyes, brown hair, glasses) như thể chúng là cố định. Nếu những đặc điểm này thay đổi giữa các ảnh, model sẽ bị nhầm lẫn và học sai.',
+          wrong: {
+            A: '✗ Caption A đúng format — trigger word đầu, bối cảnh thay đổi được. Caption C là đáp án gây nhầm lẫn nhất.',
+            B: '✗ Caption B cũng đúng format — trigger word đầu, mô tả bối cảnh. Caption C mới là đáp án gây nhầm lẫn nhất.'
+          }
+        },
+        '3': {
+          correct: 'A',
+          ok: 'Đúng. Đặt trigger ở đầu là quy ước nhất quán, dễ quét và dễ kiểm tra bằng script; phần sau dành cho các thuộc tính có thể thay đổi.',
+          wrong: {
+            B: 'Trigger ở cuối vẫn có thể hoạt động, nhưng khó duy trì format nhất quán khi review hàng trăm caption. Đáp án A dễ kiểm tra hơn.',
+            C: 'Cấu trúc này có thể hoạt động, nhưng trigger bị trộn vào câu tự nhiên nên khó xác thực hàng loạt hơn format A.'
+          }
+        }
       };
 
-      slider.addEventListener('input', update);
-      presetButtons.forEach((button) => {
-        button.addEventListener('click', () => {
-          slider.value = button.dataset.cfg;
-          update();
-          slider.focus();
+      document.getElementById('caption-quiz-container').addEventListener('click', function (e) {
+        var btn = e.target.closest('.quiz-option');
+        if (!btn || btn.disabled) return;
+        var q = btn.dataset.q;
+        var v = btn.dataset.v;
+        var isCorrect = btn.dataset.correct === 'true';
+        var ans = ANSWERS[q];
+        if (!ans) return;
+
+        document.querySelectorAll('.quiz-option[data-q="' + q + '"]').forEach(function (opt) {
+          opt.disabled = true;
+          if (opt.dataset.v === ans.correct) opt.classList.add('correct');
+          else if (opt.dataset.v === v && !isCorrect) opt.classList.add('wrong');
         });
+
+        var fb = document.getElementById('q' + q + '-feedback');
+        if (isCorrect) {
+          fb.textContent = ans.ok;
+          fb.className = 'quiz-feedback show ok';
+        } else {
+          fb.textContent = (ans.wrong[v] || '✗ Chưa đúng. ') + ' — ' + ans.ok;
+          fb.className = 'quiz-feedback show bad';
+        }
       });
+    })();
+
+    // ── Checklist ────────────────────────────────────────────────
+    (function () {
+      var items = document.querySelectorAll('#checklist-items input[type=checkbox]');
+      var countEl = document.getElementById('checklist-count');
+      var barEl = document.getElementById('checklist-bar');
+      var total = items.length;
+
+      function update() {
+        var checked = Array.from(items).filter(function (cb) { return cb.checked; }).length;
+        countEl.textContent = checked + ' / ' + total;
+        barEl.style.width = (checked / total * 100) + '%';
+      }
+
+      items.forEach(function (cb) { cb.addEventListener('change', update); });
+      document.getElementById('checklist-reset').addEventListener('click', function () {
+        items.forEach(function (cb) { cb.checked = false; });
+        update();
+      });
+
       update();
     })();
 
-    /* ── Negative prompt simulator ── */
-    (() => {
-      const scene = document.getElementById('cfg-scene');
-      const buttons = [...document.querySelectorAll('.negative-chip')];
-      const live = document.getElementById('negative-live');
-      const labels = { blur: 'motion blur', watermark: 'watermark', birds: 'extra objects' };
-      if (!scene || !live) return;
-
-      const sync = () => {
-        const selected = buttons.filter(button => button.getAttribute('aria-pressed') === 'true').map(button => button.dataset.negative);
-        scene.classList.toggle('remove-blur', selected.includes('blur'));
-        scene.classList.toggle('remove-watermark', selected.includes('watermark'));
-        scene.classList.toggle('remove-birds', selected.includes('birds'));
-        live.innerHTML = selected.length
-          ? `<strong>Đang đẩy ra xa:</strong> ${selected.map(key => labels[key]).join(', ')}. Đây là mô phỏng xu hướng; negative prompt giảm xác suất, không cam kết xóa tuyệt đối.`
-          : '<strong>Negative đang trống.</strong> Ba lỗi mô phỏng vẫn xuất hiện trong output.';
+    // ── Checkpoint ───────────────────────────────────────────────
+    (function () {
+      var CP = {
+        '1': {
+          correct: 'B',
+          ok: '✓ Chính xác. 8 ảnh và 3000 updates là một giả thuyết hợp lý cần điều tra, không đủ để suy ra preset giảm steps. Khóa model/trainer/version, repeats, batch, rank, resolution và prompt/seed; so sánh checkpoint theo held-out rubric trước khi đổi một biến.',
+          wrong: '✗ Chưa đúng. Dataset nhỏ kết hợp exposure cao có thể gây memorization, nhưng không thể kết luận chỉ từ hai số. Ghi run context và A/B checkpoint với held-out prompt/seed để phân biệt data coverage, caption, steps hay các biến khác.'
+        },
+        '2': {
+          correct: 'C',
+          ok: '✓ Đúng. Regularization images giữ cho base model nhớ cách vẽ "người nói chung" — không chỉ subject cụ thể. Điều này ngăn "language drift" và cho phép prompt bình thường vẫn hoạt động ngoài trigger word.',
+          wrong: '✗ Chưa đúng. Regularization images giải quyết vấn đề "language drift" — khi model quá tập trung vào subject cụ thể đến mức quên cách vẽ class chung. Chúng không ảnh hưởng đến tốc độ training hay captioning.'
+        },
+        '3': {
+          correct: 'B',
+          ok: 'Đúng. Flip, crop và color jitter hữu ích cho độ bền, nhưng không thể phát minh cấu trúc khuôn mặt ở góc nghiêng chưa từng xuất hiện.',
+          wrong: 'Chưa đúng. Augmentation chỉ biến đổi dữ liệu đang có. Muốn model học góc nghiêng, bạn vẫn cần ảnh góc nghiêng thật hoặc dữ liệu tổng hợp được kiểm soát kỹ.'
+        }
       };
 
-      buttons.forEach(button => {
-        button.addEventListener('click', () => {
-          button.setAttribute('aria-pressed', String(button.getAttribute('aria-pressed') !== 'true'));
-          sync();
-        });
-      });
-      sync();
-    })();
+      document.getElementById('checkpoint-grid').addEventListener('click', function (e) {
+        var btn = e.target.closest('.cp-option');
+        if (!btn || btn.disabled) return;
+        var q = btn.dataset.cpq;
+        var v = btn.dataset.cpv;
+        var isCorrect = btn.dataset.correct === 'true';
+        var cp = CP[q];
+        if (!cp) return;
 
-    /* ── Learning checkpoint ── */
-    (() => {
-      const buttons = [...document.querySelectorAll('.answer-button')];
-      const feedback = document.getElementById('answer-feedback');
-      if (!feedback) return;
-      buttons.forEach(button => {
-        button.addEventListener('click', () => {
-          const correct = button.dataset.answer === 'lower';
-          buttons.forEach(item => {
-            item.dataset.state = item === button ? (correct ? 'correct' : 'wrong') : '';
-            item.setAttribute('aria-pressed', String(item === button));
-          });
-          feedback.innerHTML = correct
-            ? '<strong>Đúng.</strong> Đây là dấu hiệu guidance quá mạnh. Giảm CFG hoặc giảm dần ở các bước cuối trả lại không gian cho texture và motion tự nhiên.'
-            : '<strong>Chưa đúng nguyên nhân.</strong> Tăng CFG sẽ khuếch đại lỗi; còn negative prompt không phải nút sửa chung cho hiện tượng over-guidance.';
+        document.querySelectorAll('.cp-option[data-cpq="' + q + '"]').forEach(function (opt) {
+          opt.disabled = true;
+          if (opt.dataset.cpv === cp.correct) opt.classList.add('correct');
+          else if (opt.dataset.cpv === v && !isCorrect) opt.classList.add('wrong');
         });
-      });
-    })();
 
-    /* ── Focused entrance motion ── */
-    (() => {
-      const items = [...document.querySelectorAll('.two-pass, .production-strip, .prompt-studio, .schedule-diagram, .related-card')];
-      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      if (reduceMotion || !('IntersectionObserver' in window)) {
-        items.forEach((item) => item.classList.add('is-visible'));
-        return;
-      }
-      const observer = new IntersectionObserver((entries) => {
-        entries.forEach((entry) => {
-          if (!entry.isIntersecting) return;
-          entry.target.classList.add('is-visible');
-          observer.unobserve(entry.target);
-        });
-      }, { threshold: .14 });
-      items.forEach((item) => {
-        item.classList.add('reveal-item');
-        observer.observe(item);
+        var fb = document.getElementById('cp' + q + '-fb');
+        fb.textContent = isCorrect ? cp.ok : cp.wrong;
+        fb.className = 'cp-feedback show';
       });
     })();
   </script>

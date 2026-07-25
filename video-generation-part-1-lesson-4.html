@@ -1,13 +1,15 @@
 <!DOCTYPE html>
-<html lang="vi" data-theme="dark">
+<html lang="vi" data-theme="dark" data-curriculum-id="umt5">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" href="video-generation-favicon.svg">
   <meta name="description" content="Tìm hiểu T5, mT5 và UMT5-XXL: mục tiêu huấn luyện, tokenizer, context và vai trò text encoder trong Wan2.2.">
-  <title>UMT5-XXL Text Encoder — Video Gen Lab · Bài 4</title>
+  <title>Model Architecture · Bài 1.3 — UMT5/T5 Text Encoder</title>
   <script src="video-generation-theme.js"></script>
   <link rel="stylesheet" href="video-generation-design-system.css">
+  <script src="video-generation-curriculum.js"></script>
+  <script src="video-generation-navigation.js"></script>
   <style>
     /* ── Animations ───────────────────────────────────────────── */
     @keyframes fadeUp {
@@ -909,6 +911,111 @@
       .fade-up { opacity: 1 !important; transform: none !important; }
     }
     @media (max-width: 900px) { .topnav { display: none; } }
+    /* ── Curriculum standard blocks ───────────────────────── */
+    .flow-minimap {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 14px 0;
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      color: var(--dim);
+      border-bottom: 1px solid var(--line);
+    }
+    .flow-minimap-label {
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-right: 4px;
+    }
+    .flow-minimap-sep { color: var(--line); }
+    .flow-minimap-item {
+      color: var(--muted);
+      text-decoration: none;
+      padding: 2px 6px;
+      border-radius: 4px;
+      transition: color .15s;
+    }
+    .flow-minimap-item:hover { color: var(--cyan); }
+    .flow-minimap-item.current {
+      color: var(--acid);
+      background: rgba(200,255,61,.1);
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .prereq-callout {
+      display: flex;
+      gap: 16px;
+      padding: 18px 24px;
+      border: 1px solid rgba(98,231,245,.3);
+      border-left: 4px solid var(--cyan);
+      border-radius: var(--radius);
+      background: rgba(98,231,245,.05);
+      margin-bottom: 32px;
+      align-items: flex-start;
+    }
+    .prereq-icon { color: var(--cyan); flex-shrink: 0; margin-top: 2px; }
+    .prereq-title { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--cyan); margin: 0 0 6px; }
+    .prereq-body { color: var(--muted); font-size: .9rem; line-height: 1.55; margin: 0 0 10px; }
+    .prereq-link { color: var(--cyan); font-size: .85rem; text-decoration: none; }
+    .prereq-link:hover { text-decoration: underline; }
+    .output-artifact {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      background: rgba(200,255,61,.08);
+      border: 1px solid rgba(200,255,61,.25);
+      border-radius: 10px;
+      margin-bottom: 20px;
+      font-size: .85rem;
+      flex-wrap: wrap;
+    }
+    .output-artifact svg { color: var(--acid); flex-shrink: 0; }
+    .output-artifact-label { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--acid); }
+    .output-artifact-text { color: var(--muted); }
+    .handoff-card {
+      display: grid;
+      grid-template-columns: 60px 1fr;
+      gap: 24px;
+      align-items: start;
+      padding: 40px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      position: relative;
+      overflow: hidden;
+    }
+    .handoff-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(200,255,61,.05) 0%, transparent 60%);
+      pointer-events: none;
+    }
+    .handoff-card-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: rgba(200,255,61,.1);
+      color: var(--acid);
+      flex-shrink: 0;
+    }
+    .handoff-card-label { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin: 0 0 8px; }
+    .handoff-card-title { font-size: clamp(1.6rem, 3vw, 2.4rem); font-weight: 900; letter-spacing: -.04em; margin: 0 0 16px; color: var(--ink); }
+    .handoff-card-body { color: var(--muted); font-size: .95rem; line-height: 1.6; margin: 0 0 24px; }
+    .phase-contract { margin: 26px 0 0; padding: 18px; border: 1px solid var(--line); border-left: 4px solid var(--cyan); border-radius: 16px; background: color-mix(in srgb, var(--panel) 88%, transparent); }
+    .phase-contract h2 { margin: 0; font: 800 .78rem/1.35 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--cyan); }
+    .phase-contract > p { margin: 8px 0 14px; color: var(--muted); font-size: .92rem; }
+    .phase-contract-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .phase-contract-item { padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--panel-2); }
+    .phase-contract-item strong { display: block; margin-bottom: 4px; font: 800 .68rem/1.3 var(--font-mono); letter-spacing: .07em; text-transform: uppercase; color: var(--ink); }
+    .phase-contract-item span { display: block; color: var(--muted); font-size: .82rem; line-height: 1.45; }
+    @media (max-width: 700px) { .phase-contract-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -918,18 +1025,14 @@
 <!-- ── Topbar ──────────────────────────────────────────────── -->
 <header class="topbar" role="banner">
   <div class="topbar-inner">
-    <a href="index.html" class="brand" aria-label="Về trang chủ Video Generation">
+    <a href="index.html" class="brand" data-curriculum-home aria-label="Về trang chủ Video Generation">
       <span class="brand-mark" aria-hidden="true"></span>
       VIDEO GEN LAB
     </a>
-    <nav class="topnav" aria-label="Bài học">
-      <a href="video-generation-part-1-lesson-1.html">Bài 1</a>
-      <a href="video-generation-part-1-lesson-2.html">Bài 2</a>
-      <a href="video-generation-part-1-lesson-3.html">Bài 3</a>
-      <a href="video-generation-part-1-lesson-4.html" aria-current="page">Bài 4</a>
-      <a href="video-generation-part-1-lesson-5.html">Bài 5</a>
-      <a href="video-generation-part-1-lesson-6.html">Bài 6</a>
-      <a href="index.html">Trang chủ</a>
+    <nav class="topnav" aria-label="Điều hướng bài học">
+      <a href="video-generation-part-1-lesson-2.html" data-curriculum-prev>← Bài 1.2</a>
+      <a href="index.html" data-curriculum-home>Trang chủ</a>
+      <a href="video-generation-part-1-lesson-3.html" data-curriculum-next>Bài 1.4 →</a>
     </nav>
     <!-- theme toggle injected by video-generation-theme.js -->
   </div>
@@ -946,12 +1049,26 @@
     <div class="hero-bg" aria-hidden="true"></div>
     <div class="hero-dot-grid" aria-hidden="true"></div>
     <div class="shell">
-      <p class="hero-meta">Part 1 · Bài 4 · Model Architecture</p>
+      <p class="hero-meta" data-curriculum-hero-label>MODEL ARCHITECTURE · BÀI 1.3 · TEXT CONDITIONING</p>
       <h1 class="hero-title" id="hero-heading">T5 → mT5 → UMT5</h1>
       <p class="hero-lead">
-        Wan2.2 dùng <strong>UMT5-XXL</strong>, không phải T5 tiếng Anh nguyên bản. Bài này phân biệt
-        ba nhánh model và so sánh với CLIP bằng đúng objective, tokenizer và context của từng hệ.
+        Đây là đường prompt chính cho T2V: Wan2.2 dùng <strong>UMT5-XXL</strong> để biến văn bản thành token embeddings cho denoiser. Bạn học khối này trước CLIP Vision để không trộn text conditioning với image conditioning.
       </p>
+      <aside class="phase-contract" aria-label="Vị trí của bài trong lộ trình">
+        <h2>Bạn đang ở đâu?</h2>
+        <p>UMT5 là khối conditioning dùng chung: nó không phải mục tiêu bạn sẽ train trong phần LoRA cơ bản.</p>
+        <div class="phase-contract-grid">
+          <div class="phase-contract-item"><strong>Base pretraining</strong><span>UMT5 học biểu diễn text; đây là bối cảnh để hiểu checkpoint, không phải thao tác thực hành.</span></div>
+          <div class="phase-contract-item"><strong>LoRA training</strong><span>Caption được UMT5 encode để tạo conditioning; recipe thông thường giữ text encoder cố định.</span></div>
+          <div class="phase-contract-item"><strong>Inference</strong><span>Prompt của bạn được encode thành token embeddings trước khi DiT denoise ở mỗi lần render T2V.</span></div>
+        </div>
+      </aside>
+      <!-- OUTPUT ARTIFACT BADGE -->
+      <div class="output-artifact" role="note">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+        <span class="output-artifact-label">Đầu ra bài học:</span>
+        <span class="output-artifact-text">Hiểu cách UMT5 mã hóa text prompt dài thành token embeddings, cách chúng được inject qua cross-attention vào DiT backbone của Wan2.2, và tại sao prompt dài hoạt động tốt hơn với UMT5 so với CLIP</span>
+      </div>
       <div class="hero-cta-row">
         <a href="#architecture" class="button primary">Bắt đầu học</a>
         <a href="#prompt-demo" class="button">Demo so sánh</a>
@@ -960,11 +1077,37 @@
     </div>
   </div>
 
+  <!-- FLOW POSITION MINI-MAP -->
+  <div class="shell">
+    <nav class="flow-minimap" aria-label="Vị trí trong lộ trình">
+      <span class="flow-minimap-label">LỘ TRÌNH</span>
+      <span class="flow-minimap-sep">›</span>
+      <a class="flow-minimap-item" href="video-generation-part-1-lesson-2.html" data-curriculum-prev>1.2: VAE</a>
+      <span class="flow-minimap-sep">›</span>
+      <strong class="flow-minimap-item current" aria-current="step">1.3: UMT5 (Text Conditioning)</strong>
+      <span class="flow-minimap-sep">›</span>
+      <a class="flow-minimap-item" href="video-generation-part-1-lesson-3.html" data-curriculum-next>1.4: CLIP Image Conditioning</a>
+    </nav>
+  </div>
+
   <!-- 1. Definition -->
   <div class="shell">
     <section aria-labelledby="def-heading" class="fade-up">
       <p class="sec-label">01 — Định nghĩa</p>
       <h2 class="sec-title" id="def-heading">T5 là một họ model, Wan2.2 dùng UMT5-XXL</h2>
+
+      <!-- PREREQUISITE CALLOUT -->
+      <div class="prereq-callout" role="note" aria-label="Yêu cầu trước bài học">
+        <div class="prereq-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 8v4m0 4h.01"/></svg>
+        </div>
+        <div>
+          <p class="prereq-title">Cần biết trước</p>
+          <p class="prereq-body">Bài này xây dựng trên VAE từ Bài 1.2: latent cần một nguồn conditioning bằng văn bản trước khi denoiser có thể tạo video theo prompt.</p>
+          <a class="prereq-link" href="video-generation-part-1-lesson-2.html" data-curriculum-prev>← Xem lại bài trước: VAE</a>
+        </div>
+      </div>
+
       <div class="def-panel" role="note">
         <p>
           <strong>T5</strong> đặt nhiều bài toán NLP vào cùng định dạng text-to-text và pretrain bằng
@@ -1239,7 +1382,7 @@
       <p class="sec-label">04 — Demo tương tác</p>
       <h2 class="sec-title" id="demo-heading">Context budget — Thử với prompt của bạn</h2>
       <p class="sec-body">
-        Bạn đang setup Wan2.2 trong ComfyUI. Nhập prompt để xem liệu nó có vượt budget 77 token của
+        Nhập prompt để xem liệu nó có vượt budget 77 token của
         CLIP hay không, và so sánh với giới hạn 512 của UMT5 trong Wan2.2. Đây là <strong>ước tính ký tự</strong>,
         không phải tokenizer thật.
       </p>
@@ -1529,9 +1672,9 @@
       <h2 class="section-h2" id="related-heading" style="margin-bottom:1.5rem">Bài liên quan</h2>
       <div class="related-grid">
         <a class="related-card" href="video-generation-part-1-lesson-3.html">
-          <span class="related-badge">PHAN 1 · BAI 3</span>
-          <strong class="related-title">CLIP Text Encoder</strong>
-          <p class="related-desc">Hiểu rõ encoder mà UMT5 được so sánh trực tiếp — contrastive learning và context 77 token.</p>
+          <span class="related-badge">PHAN 1 · BAI 4</span>
+          <strong class="related-title">CLIP Image Representation &amp; Conditioning</strong>
+          <p class="related-desc">Nhánh ảnh tham chiếu đặt sau UMT5: CLIP có lịch sử contrastive learning và được dùng cho image conditioning tùy pipeline.</p>
           <span class="related-arrow">→</span>
         </a>
         <a class="related-card" href="video-generation-part-1-lesson-2.html">
@@ -1540,13 +1683,13 @@
           <p class="related-desc">UMT5 conditioning chạy song song với VAE latent space — bài này hoàn thiện bức tranh kiến trúc.</p>
           <span class="related-arrow">→</span>
         </a>
-        <a class="related-card" href="video-generation-part-4-lesson-4.html">
+        <a class="related-card" href="video-generation-part-5-lesson-5.html">
           <span class="related-badge">PHAN 4 · BAI 4</span>
           <strong class="related-title">FaceID — Face Consistency</strong>
           <p class="related-desc">Text conditioning từ UMT5 kết hợp với FaceID để giữ nhất quán nhân vật qua các frame.</p>
           <span class="related-arrow">→</span>
         </a>
-        <a class="related-card" href="video-generation-part-7-lesson-2.html">
+        <a class="related-card" href="video-generation-part-4-lesson-8.html">
           <span class="related-badge">PHAN 7 · BAI 2</span>
           <strong class="related-title">Prompt Weighting & Token Limit</strong>
           <p class="related-desc">Kỹ thuật nâng cao để tận dụng tối đa context 512 token của UMT5 trong Wan2.2.</p>
@@ -1643,13 +1786,30 @@
     </section>
   </div>
 
+  <!-- HANDOFF CARD -->
+  <section class="content-section" id="handoff" aria-labelledby="handoff-heading">
+    <div class="shell">
+      <div class="handoff-card">
+        <div class="handoff-card-icon" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </div>
+        <div>
+          <p class="handoff-card-label">Bài tiếp theo</p>
+          <h2 class="handoff-card-title" id="handoff-heading">CLIP Image Representation &amp; Conditioning</h2>
+          <p class="handoff-card-body">Bạn đã xong đường prompt T2V. Bài tiếp theo tách riêng đường ảnh tham chiếu: CLIP tạo embedding ảnh để pipeline I2V/conditioning dùng ở inference.</p>
+          <a class="button primary" href="video-generation-part-1-lesson-3.html" data-curriculum-next>Sang Bài 1.4 →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- Footer -->
   <div class="shell">
     <footer>
-      <p class="footer-copy">VIDEO GEN LAB · Part 1 · Bài 4 — T5 Text Encoder</p>
+      <p class="footer-copy" data-curriculum-completion-label>VIDEO GEN LAB · MODEL ARCHITECTURE · BÀI 1.3 / UMT5/T5 TEXT ENCODER</p>
       <div class="footer-actions">
-        <a href="video-generation-part-1-lesson-3.html" class="button">← Bài 3</a>
-        <a href="video-generation-part-1-lesson-5.html" class="button primary">Bài 5 →</a>
+        <a href="video-generation-part-1-lesson-2.html" class="button" data-curriculum-prev data-curriculum-title-fallback>← Bài 1.2: VAE &amp; Latent Space</a>
+        <a href="video-generation-part-1-lesson-3.html" class="button primary" data-curriculum-next data-curriculum-title-fallback>Bài 1.4: CLIP Image Representation &amp; Conditioning →</a>
       </div>
     </footer>
   </div>

@@ -1,493 +1,1530 @@
-<!doctype html>
-<html lang="vi">
+<!DOCTYPE html>
+<html lang="vi" data-theme="dark" data-curriculum-id="custom-node-manager">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Hiểu cách CLIP Vision biến ảnh tham chiếu thành embedding điều kiện hóa và vì sao đây là hướng dẫn ngữ nghĩa, không phải sao chép pixel.">
-  <title>CLIP Vision Encode — Điều kiện hóa bằng ảnh</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Học cách cài đặt và quản lý Custom Node trong ComfyUI thông qua ComfyUI Manager để mở rộng chức năng tạo video AI.">
+  <title>Generation Setup · Bài 4.2 — Custom Node & Manager</title>
   <link rel="icon" href="video-generation-favicon.svg" type="image/svg+xml">
   <script src="video-generation-theme.js"></script>
   <link rel="stylesheet" href="video-generation-design-system.css">
+  <script src="video-generation-curriculum.js"></script>
+  <script src="video-generation-navigation.js"></script>
   <style>
-    .lesson-hero { padding: 86px 0 64px; border-bottom: 1px solid var(--line); }
-    .eyebrow, .section-index, .meta, .node-label, .lab-label {
-      font-family: var(--font-mono); text-transform: uppercase; letter-spacing: .12em;
+    /* ── Hero ── */
+    .hero {
+      padding: 80px 0 72px;
     }
-    .eyebrow { margin: 0 0 18px; color: var(--cyan); font-size: .76rem; font-weight: 800; }
-    h1 { max-width: 900px; margin: 0; font-size: clamp(2.8rem, 8vw, 6.7rem); line-height: .9; letter-spacing: -.065em; }
-    .hero-lead { max-width: 720px; margin: 28px 0 0; color: var(--muted); font-size: clamp(1.08rem, 2vw, 1.32rem); }
-    .hero-meta { display: flex; flex-wrap: wrap; gap: 10px; margin: 32px 0 0; }
-    .meta { border: 1px solid var(--line); border-radius: 999px; padding: 7px 11px; color: var(--muted); font-size: .68rem; }
-    .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
-    .lesson-section { padding: 78px 0; border-bottom: 1px solid var(--line); }
-    .section-index { margin: 0 0 12px; color: var(--acid); font-size: .72rem; font-weight: 800; }
-    .lesson-section h2 { max-width: 800px; margin: 0; font-size: clamp(2rem, 5vw, 4.1rem); line-height: .98; letter-spacing: -.045em; }
-    .section-intro { max-width: 720px; margin: 20px 0 36px; color: var(--muted); font-size: 1.08rem; }
-    .definition { max-width: 900px; border-left: 4px solid var(--acid); background: var(--panel); padding: clamp(22px, 4vw, 38px); font-size: clamp(1.15rem, 2.5vw, 1.62rem); }
-    .definition strong { color: var(--acid); }
-    .process { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--panel); }
-    .process-node { position: relative; min-height: 220px; padding: 26px; border-right: 1px solid var(--line); }
-    .process-node:last-child { border-right: 0; }
-    .process-node:not(:last-child)::after { content: "→"; position: absolute; z-index: 2; right: -15px; top: 28px; width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; background: var(--night); color: var(--cyan); font-weight: 900; }
-    .node-label { color: var(--dim); font-size: .68rem; }
-    .process-node h3 { margin: 28px 0 9px; font-size: 1.18rem; }
-    .process-node p { margin: 0; color: var(--muted); font-size: .92rem; }
-    .tokens { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 22px; }
-    .token { border: 1px solid var(--line); border-radius: 999px; padding: 4px 8px; color: var(--cyan); font: 700 .68rem var(--font-mono); }
-    .compare { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
-    .compare article { padding: clamp(24px, 4vw, 42px); background: var(--panel); }
-    .compare article + article { border-left: 1px solid var(--line); }
-    .compare h3 { margin: 0 0 20px; font-size: 1.45rem; }
-    .compare ul { margin: 0; padding-left: 20px; color: var(--muted); }
-    .compare li + li { margin-top: 10px; }
-    .yes h3 { color: var(--acid); }
-    .no h3 { color: var(--orange); }
-    .lab { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--panel); box-shadow: 0 24px 70px color-mix(in srgb, var(--night) 72%, transparent); }
-    .lab-head { display: flex; justify-content: space-between; gap: 24px; align-items: end; padding: 24px 28px; border-bottom: 1px solid var(--line); }
-    .lab-head h3 { margin: 5px 0 0; font-size: 1.4rem; }
-    .lab-label { color: var(--cyan); font-size: .68rem; font-weight: 800; }
-    .lab-body { display: grid; grid-template-columns: minmax(260px, .8fr) minmax(0, 1.4fr); }
-    .lab-controls { padding: 28px; border-right: 1px solid var(--line); }
-    .control-group { margin: 0 0 26px; padding: 0; border: 0; }
-    .control-group legend, .range-label { display: block; margin-bottom: 11px; font-weight: 800; }
-    .seed-buttons { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-    .seed-button { min-height: 44px; border: 1px solid var(--line); border-radius: 10px; background: var(--night); color: var(--ink); font-weight: 800; }
-    .seed-button[aria-pressed="true"] { border-color: var(--cyan); background: var(--panel-2); color: var(--cyan); }
-    .range-row { display: flex; align-items: center; gap: 14px; }
-    input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--acid); }
-    .range-value { min-width: 4ch; color: var(--acid); font: 800 1rem var(--font-mono); }
-    .lab-note { margin: 0; color: var(--muted); font-size: .88rem; }
-    .lab-stage { padding: 28px; }
-    .visual-flow { display: grid; grid-template-columns: 1fr 92px 1fr; align-items: center; gap: 18px; }
-    .image-frame { position: relative; aspect-ratio: 4 / 3; overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: var(--night); }
-    .scene-sky { position: absolute; inset: 0; background: color-mix(in srgb, var(--cyan-fill) 22%, var(--panel-2)); }
-    .scene-sun { position: absolute; width: 19%; aspect-ratio: 1; left: 13%; top: 14%; border-radius: 50%; background: var(--orange); }
-    .scene-ridge { position: absolute; left: -8%; right: -8%; bottom: -16%; height: 63%; background: var(--acid-fill); clip-path: polygon(0 74%, 21% 26%, 39% 62%, 58% 12%, 100% 72%, 100% 100%, 0 100%); }
-    .scene-road { position: absolute; left: 38%; bottom: -2%; width: 25%; height: 48%; background: color-mix(in srgb, var(--night) 82%, transparent); clip-path: polygon(44% 0, 58% 0, 100% 100%, 0 100%); }
-    .output-frame .scene-sun, .output-frame .scene-ridge, .output-frame .scene-road { transition: transform .2s ease, opacity .2s ease; }
-    .output-frame.seed-a .scene-sun { transform: translate(52%, 18%) scale(.88); }
-    .output-frame.seed-a .scene-ridge { transform: translateX(4%) scaleY(.94); }
-    .output-frame.seed-a .scene-road { transform: translateX(-24%) skewX(5deg); }
-    .output-frame.seed-b .scene-sun { transform: translate(270%, 48%) scale(.72); }
-    .output-frame.seed-b .scene-ridge { transform: translateX(-8%) scaleY(.86); }
-    .output-frame.seed-b .scene-road { transform: translateX(62%) skewX(-8deg); }
-    .output-frame.seed-c .scene-sun { transform: translate(130%, -10%) scale(1.15); }
-    .output-frame.seed-c .scene-ridge { transform: translateX(9%) scaleY(1.12); }
-    .output-frame.seed-c .scene-road { transform: translateX(-52%) skewX(10deg); }
-    .visual-caption { margin: 10px 0 0; color: var(--muted); font-size: .8rem; }
-    .embedding { text-align: center; }
-    .bars { height: 104px; display: flex; align-items: center; justify-content: center; gap: 5px; }
-    .bar { width: 7px; border-radius: 999px; background: var(--cyan-fill); opacity: .82; }
-    .bar:nth-child(1) { height: 42%; } .bar:nth-child(2) { height: 78%; }
-    .bar:nth-child(3) { height: 58%; } .bar:nth-child(4) { height: 92%; }
-    .bar:nth-child(5) { height: 64%; } .bar:nth-child(6) { height: 34%; }
-    .embedding span { display: block; color: var(--muted); font: 700 .66rem var(--font-mono); text-transform: uppercase; }
-    .lab-output { margin: 22px 0 0; min-height: 54px; border-top: 1px solid var(--line); padding-top: 18px; color: var(--muted); }
-    .lab-output strong { color: var(--ink); }
-    .checkpoint { max-width: 880px; padding: clamp(24px, 4vw, 38px); border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
-    .checkpoint h3 { margin: 0 0 16px; }
-    .choice-list { display: grid; gap: 10px; }
-    .choice { min-height: 48px; padding: 12px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--night); color: var(--ink); text-align: left; }
-    .choice[data-state="correct"] { border-color: var(--acid); }
-    .choice[data-state="wrong"] { border-color: var(--orange); }
-    .feedback { min-height: 28px; margin: 16px 0 0; color: var(--muted); }
-    .takeaway { display: grid; grid-template-columns: .65fr 1.35fr; gap: 42px; align-items: start; }
-    .takeaway ul { margin: 0; padding-left: 22px; font-size: 1.08rem; }
-    .takeaway li + li { margin-top: 14px; }
-    .case-study { display: grid; grid-template-columns: minmax(0, .84fr) minmax(0, 1.16fr); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--panel); }
-    .case-brief, .case-plan { padding: clamp(24px, 4vw, 40px); }
-    .case-brief { background: var(--panel-2); border-right: 1px solid var(--line); }
-    .case-study h3 { margin: 0 0 14px; font-size: 1.34rem; }
-    .case-study p { margin: 0; color: var(--muted); }
-    .case-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 20px 0 0; }
-    .case-grid div { min-width: 0; border-top: 1px solid var(--line); padding-top: 12px; }
-    .case-grid dt { color: var(--cyan); font: 800 .68rem var(--font-mono); letter-spacing: .1em; text-transform: uppercase; }
-    .case-grid dd { margin: 5px 0 0; color: var(--muted); font-size: .92rem; }
-    .case-plan ol { margin: 18px 0 0; padding-left: 22px; color: var(--muted); }
-    .case-plan li + li { margin-top: 10px; }
-    .scope-note { margin-top: 20px !important; border-left: 3px solid var(--cyan); padding-left: 14px; font-size: .9rem; }
-    .related-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
-    .related-list a { min-height: 168px; padding: 24px; background: var(--panel); text-decoration: none; transition: background .2s ease, color .2s ease; }
-    .related-list a + a { border-left: 1px solid var(--line); }
-    .related-list a:hover { background: var(--panel-2); }
-    .related-list strong { display: block; color: var(--acid); font: 800 .72rem var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
-    .related-list span { display: block; margin-top: 12px; color: var(--muted); font-size: .92rem; }
-    .source-list { margin: 20px 0 0; padding-left: 20px; color: var(--muted); font-size: .88rem; }
-    .source-list li + li { margin-top: 8px; }
-    .source-list a { display: inline-flex; align-items: center; min-height: 44px; color: var(--cyan); }
-    .brand { min-height: 44px; align-items: center; }
-    .lesson-nav { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin-top: 28px; }
-    .lesson-nav .button { flex: 1 1 230px; }
-    details { margin-top: 28px; border-top: 1px solid var(--line); }
-    summary { min-height: 48px; display: flex; align-items: center; font-weight: 800; cursor: pointer; }
-    details p { max-width: 760px; color: var(--muted); }
-    .page-footer { padding: 34px 0 48px; color: var(--muted); }
-    .footer-inner { display: flex; justify-content: space-between; gap: 18px; align-items: center; }
-    .footer-inner a { min-height: 44px; display: inline-flex; align-items: center; }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 56px;
+      align-items: center;
+    }
+    .hero-eyebrow {
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--cyan);
+      margin: 0 0 18px;
+    }
+    .hero-h1 {
+      font-size: clamp(3.4rem, 7vw, 7.6rem);
+      font-weight: 900;
+      letter-spacing: -.07em;
+      line-height: 1;
+      margin: 0 0 22px;
+      color: var(--ink);
+    }
+    .hero-lead {
+      font-size: 1.12rem;
+      color: var(--muted);
+      margin: 0 0 36px;
+      max-width: 520px;
+      line-height: 1.7;
+    }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+
+    /* Hero visual panel */
+    .hero-panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 32px 28px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero-panel::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 80% 10%, rgba(98,231,245,.07), transparent 60%);
+      pointer-events: none;
+    }
+    .hp-label {
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      font-weight: 700;
+      letter-spacing: .15em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin: 0 0 20px;
+    }
+    .node-tree {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .node-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      font-size: .88rem;
+      font-family: var(--font-mono);
+    }
+    .node-item.core { border-color: var(--line); }
+    .node-item.custom { border-color: var(--acid); }
+    .node-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .node-item.core .node-dot { background: var(--dim); }
+    .node-item.custom .node-dot { background: var(--acid-fill); box-shadow: 0 0 10px rgba(200,255,61,.5); }
+    .node-tag {
+      margin-left: auto;
+      font-size: .64rem;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+    .node-item.core .node-tag { background: var(--panel); color: var(--dim); }
+    .node-item.custom .node-tag { background: color-mix(in srgb, var(--acid-fill) 15%, transparent); color: var(--acid); }
+
+    /* ── Section shell ── */
+    .section { padding: 72px 0; }
+    .section + .section { border-top: 1px solid var(--line); }
+    .section-index {
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      font-weight: 700;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin: 0 0 12px;
+    }
+    .section-h2 {
+      font-size: clamp(1.8rem, 3.5vw, 2.6rem);
+      font-weight: 900;
+      letter-spacing: -.04em;
+      line-height: 1.1;
+      margin: 0 0 16px;
+      color: var(--ink);
+    }
+    .section-lead {
+      font-size: 1rem;
+      color: var(--muted);
+      margin: 0 0 44px;
+      max-width: 640px;
+      line-height: 1.7;
+    }
+
+    /* ── Definition panels ── */
+    .def-panel {
+      border-left: 3px solid var(--cyan);
+      background: var(--panel);
+      border-radius: 0 14px 14px 0;
+      padding: 24px 28px;
+      margin-bottom: 16px;
+    }
+    .def-panel-title {
+      font-family: var(--font-mono);
+      font-size: .75rem;
+      font-weight: 700;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--cyan);
+      margin: 0 0 8px;
+    }
+    .def-panel p { margin: 0; color: var(--muted); font-size: .95rem; line-height: 1.7; }
+    .def-panel strong { color: var(--ink); }
+
+    /* ── Comparison grid ── */
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 40px;
+    }
+    .compare-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 28px;
+    }
+    .compare-card.highlight { border-color: var(--acid); }
+    .compare-card-label {
+      font-family: var(--font-mono);
+      font-size: .7rem;
+      font-weight: 700;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      margin: 0 0 14px;
+    }
+    .compare-card.base .compare-card-label { color: var(--dim); }
+    .compare-card.highlight .compare-card-label { color: var(--acid); }
+    .compare-card h3 { font-size: 1.05rem; font-weight: 800; margin: 0 0 12px; color: var(--ink); }
+    .compare-card ul { margin: 0; padding: 0 0 0 18px; color: var(--muted); font-size: .9rem; line-height: 1.8; }
+
+    /* Node example chips */
+    .node-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 28px; }
+    .node-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      font-family: var(--font-mono);
+      font-size: .78rem;
+      color: var(--muted);
+    }
+    .node-chip.popular { border-color: color-mix(in srgb, var(--acid-fill) 40%, transparent); color: var(--ink); }
+    .node-chip-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--acid-fill); flex-shrink: 0; }
+
+    /* ── Manager UI diagram ── */
+    .manager-ui {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin-bottom: 32px;
+    }
+    .manager-titlebar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 20px;
+      background: var(--panel-2);
+      border-bottom: 1px solid var(--line);
+    }
+    .tb-dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      background: var(--line);
+    }
+    .tb-title {
+      font-family: var(--font-mono);
+      font-size: .75rem;
+      color: var(--muted);
+      margin-left: 8px;
+    }
+    .manager-menu {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .manager-menu-item {
+      padding: 11px 18px;
+      font-size: .83rem;
+      font-weight: 700;
+      color: var(--muted);
+      border-bottom: 2px solid transparent;
+      white-space: nowrap;
+    }
+    .manager-menu-item.active {
+      color: var(--cyan);
+      border-bottom-color: var(--cyan);
+    }
+    .manager-body { padding: 24px; }
+    .manager-search {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin-bottom: 16px;
+    }
+    .manager-search-icon { color: var(--dim); font-size: .9rem; }
+    .manager-search-text {
+      font-family: var(--font-mono);
+      font-size: .82rem;
+      color: var(--muted);
+    }
+    .manager-result {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      margin-bottom: 8px;
+    }
+    .mr-name {
+      font-family: var(--font-mono);
+      font-size: .82rem;
+      color: var(--ink);
+      font-weight: 700;
+      flex: 1;
+    }
+    .mr-desc { font-size: .78rem; color: var(--dim); }
+    .mr-btn {
+      min-width: 72px;
+      padding: 6px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--acid);
+      background: color-mix(in srgb, var(--acid-fill) 12%, transparent);
+      color: var(--acid);
+      font-family: var(--font-mono);
+      font-size: .73rem;
+      font-weight: 700;
+      cursor: default;
+    }
+    .mr-btn:disabled { opacity: .58; border-style: dashed; }
+    [data-theme="light"] .mr-btn { background: color-mix(in srgb, var(--acid) 10%, transparent); }
+
+    /* ── Interactive install steps ── */
+    .install-stage {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .install-step-track {
+      display: flex;
+      border-bottom: 1px solid var(--line);
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .install-step-track::-webkit-scrollbar { display: none; }
+    .step-tab {
+      flex: 1;
+      min-width: 100px;
+      padding: 16px 10px;
+      text-align: center;
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--dim);
+      border: none;
+      background: transparent;
+      border-bottom: 2px solid transparent;
+      transition: color .2s ease, border-color .2s ease;
+      position: relative;
+    }
+    .step-tab[aria-selected="true"] {
+      color: var(--acid);
+      border-bottom-color: var(--acid);
+      background: color-mix(in srgb, var(--acid-fill) 5%, transparent);
+    }
+    .step-tab[aria-disabled="true"] { opacity: .4; cursor: not-allowed; }
+    .step-tab:not([aria-disabled="true"]):hover { color: var(--ink); }
+    .step-num {
+      display: block;
+      font-size: .65rem;
+      color: var(--dim);
+      margin-bottom: 4px;
+    }
+    .step-tab[aria-selected="true"] .step-num { color: var(--acid); }
+
+    .install-panels { position: relative; }
+    .install-panel {
+      display: none;
+      padding: 40px 36px;
+      animation: fadeIn .25s ease;
+    }
+    .install-panel.active { display: flex; gap: 28px; align-items: flex-start; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .install-panel { animation: none; }
+    }
+    .step-icon {
+      flex-shrink: 0;
+      width: 60px;
+      height: 60px;
+      border-radius: 16px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.8rem;
+      line-height: 1;
+    }
+    .step-content h3 {
+      font-size: 1.15rem;
+      font-weight: 800;
+      margin: 0 0 10px;
+      color: var(--ink);
+    }
+    .step-content p { margin: 0 0 12px; color: var(--muted); font-size: .95rem; line-height: 1.7; }
+    .step-content p:last-child { margin-bottom: 0; }
+    .code-inline {
+      font-family: var(--font-mono);
+      font-size: .85em;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 2px 7px;
+      color: var(--cyan);
+      white-space: nowrap;
+    }
+    .command-block {
+      display: block;
+      max-width: 100%;
+      margin-top: 10px;
+      padding: 10px 12px;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel-2);
+      color: var(--cyan);
+      font: .8rem/1.5 var(--font-mono);
+      white-space: pre;
+    }
+
+    .install-controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 36px;
+      border-top: 1px solid var(--line);
+      background: var(--panel-2);
+    }
+    .step-counter {
+      font-family: var(--font-mono);
+      font-size: .75rem;
+      color: var(--dim);
+    }
+
+    /* ── Issues table ── */
+    .issues-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 32px; }
+    .issue-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      padding: 20px 22px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+    }
+    .issue-badge {
+      flex-shrink: 0;
+      font-family: var(--font-mono);
+      font-size: .65rem;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 6px;
+      margin-top: 2px;
+    }
+    .issue-badge.warn { background: color-mix(in srgb, var(--orange) 15%, transparent); color: var(--orange); border: 1px solid color-mix(in srgb, var(--orange) 35%, transparent); }
+    .issue-badge.err { background: color-mix(in srgb, var(--red) 15%, transparent); color: var(--red); border: 1px solid color-mix(in srgb, var(--red) 35%, transparent); }
+    .issue-content h4 { font-size: .95rem; font-weight: 800; margin: 0 0 6px; color: var(--ink); }
+    .issue-content p { margin: 0; color: var(--muted); font-size: .88rem; line-height: 1.6; }
+
+    /* ── Checkpoint / Quiz ── */
+    .quiz-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 36px;
+      margin-bottom: 20px;
+    }
+    .quiz-q-label {
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      font-weight: 700;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin: 0 0 10px;
+    }
+    .quiz-q-text { font-size: 1rem; font-weight: 700; color: var(--ink); margin: 0 0 22px; line-height: 1.5; }
+    .quiz-options { display: flex; flex-direction: column; gap: 10px; }
+    .quiz-option {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 13px 18px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      cursor: pointer;
+      text-align: left;
+      color: var(--ink);
+      font-size: .93rem;
+      transition: border-color .18s ease, background .18s ease;
+      width: 100%;
+    }
+    .quiz-option:hover:not(:disabled) { border-color: var(--cyan); }
+    .quiz-option:disabled { cursor: default; }
+    .quiz-option.correct { border-color: var(--acid); background: color-mix(in srgb, var(--acid-fill) 10%, transparent); }
+    .quiz-option.wrong { border-color: var(--red); background: color-mix(in srgb, var(--red) 10%, transparent); }
+    .quiz-option-mark {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 2px solid var(--line);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .8rem;
+      font-weight: 800;
+    }
+    .quiz-option.correct .quiz-option-mark { border-color: var(--acid); color: var(--acid); background: color-mix(in srgb, var(--acid-fill) 20%, transparent); }
+    .quiz-option.wrong .quiz-option-mark { border-color: var(--red); color: var(--red); background: color-mix(in srgb, var(--red) 20%, transparent); }
+    .quiz-feedback {
+      margin-top: 16px;
+      padding: 14px 18px;
+      border-radius: 10px;
+      font-size: .9rem;
+      line-height: 1.6;
+      display: none;
+    }
+    .quiz-feedback.show { display: block; }
+    .quiz-feedback.ok { background: color-mix(in srgb, var(--acid-fill) 10%, transparent); border: 1px solid color-mix(in srgb, var(--acid-fill) 30%, transparent); color: var(--ink); }
+    .quiz-feedback.fail { background: color-mix(in srgb, var(--red) 10%, transparent); border: 1px solid color-mix(in srgb, var(--red) 30%, transparent); color: var(--ink); }
+    .quiz-feedback strong { color: inherit; }
+    .quiz-reset {
+      margin-top: 14px;
+      font-size: .82rem;
+      color: var(--dim);
+      background: none;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 7px 16px;
+      cursor: pointer;
+      display: none;
+    }
+    .quiz-reset.show { display: inline-flex; align-items: center; gap: 6px; }
+    .quiz-reset:hover { color: var(--ink); border-color: var(--dim); }
+
+    /* Quiz progress bar (for multi-q) */
+    .quiz-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 28px;
+    }
+    .quiz-score-label {
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      color: var(--dim);
+    }
+    .quiz-progress {
+      width: 120px;
+      height: 4px;
+      background: var(--line);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .quiz-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--acid), var(--cyan));
+      border-radius: 4px;
+      transition: width .35s ease;
+    }
+
+    /* ── Disclosure ── */
+    details {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+    summary {
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 18px 22px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: .93rem;
+      background: var(--panel);
+      color: var(--ink);
+      user-select: none;
+    }
+    summary::-webkit-details-marker { display: none; }
+    .sum-arrow {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .65rem;
+      color: var(--dim);
+      transition: transform .2s ease;
+      flex-shrink: 0;
+      margin-left: auto;
+    }
+    details[open] .sum-arrow { transform: rotate(180deg); }
+    .details-body { padding: 6px 22px 22px; background: var(--panel); font-size: .92rem; color: var(--muted); line-height: 1.75; }
+    .details-body p { margin: 0 0 10px; }
+    .details-body p:last-child { margin: 0; }
+
+    /* ── Takeaways ── */
+    .takeaways {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 48px;
+    }
+    .takeaway {
+      padding: 24px 22px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+    }
+    .takeaway-icon {
+      font-size: 1.4rem;
+      margin-bottom: 10px;
+      display: block;
+      line-height: 1;
+    }
+    .takeaway h4 { font-size: .9rem; font-weight: 800; margin: 0 0 6px; color: var(--ink); }
+    .takeaway p { margin: 0; font-size: .83rem; color: var(--muted); line-height: 1.6; }
+
+    /* ── Utility classes ── */
+    .node-chips-intro { margin: 24px 0 12px; font-size: .92rem; color: var(--muted); }
+    .manager-features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+    .def-panel-acid { border-left-color: var(--acid); }
+    .def-panel-orange { border-left-color: var(--orange); }
+    .def-panel-acid .def-panel-title { color: var(--acid); }
+    .def-panel-orange .def-panel-title { color: var(--orange); }
+    .em-ink { color: var(--ink); }
+    .em-acid { color: var(--acid); }
+    .qpf-33 { width: 33%; }
+    .qpf-66 { width: 66%; }
+    .qpf-100 { width: 100%; }
+
+    /* ── Footer ── */
+    .footer {
+      padding: 40px 0;
+      border-top: 1px solid var(--line);
+    }
+    .footer-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .footer-brand {
+      font-family: var(--font-mono);
+      font-size: .75rem;
+      font-weight: 700;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+    .footer-nav { display: flex; gap: 20px; }
+    .footer-nav a {
+      font-size: .82rem;
+      color: var(--muted);
+      text-decoration: none;
+    }
+    .footer-nav a:hover { color: var(--ink); }
+
+    /* ── Production brief + preflight simulation ── */
+    .brief-grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 20px; }
+    .brief-card, .simulator { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 28px; }
+    .brief-card h3, .simulator h3 { margin: 0 0 12px; font-size: 1.1rem; }
+    .brief-card p, .brief-card li, .simulator p { color: var(--muted); font-size: .92rem; }
+    .brief-card ul { margin: 14px 0 0; padding-left: 20px; }
+    .brief-card li + li { margin-top: 8px; }
+    .brief-label { color: var(--cyan); font: 700 .7rem var(--font-mono); letter-spacing: .12em; text-transform: uppercase; }
+    .simulator { border-color: color-mix(in srgb, var(--acid-fill) 45%, var(--line)); }
+    .simulator label { display: block; margin: 18px 0 7px; color: var(--ink); font-size: .88rem; font-weight: 800; }
+    .simulator select { width: 100%; min-height: 46px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); color: var(--ink); }
+    .simulator .button { margin-top: 18px; }
+    .sim-result { min-height: 58px; margin: 16px 0 0; padding: 12px; border-left: 3px solid var(--cyan); background: var(--panel-2); color: var(--muted); font-size: .88rem; }
+    .related-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .related-list a { min-height: 132px; padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: var(--ink); text-decoration: none; }
+    .related-list a:hover { border-color: var(--cyan); background: var(--panel-2); }
+    .related-list strong { display: block; margin-bottom: 8px; }
+    .related-list span { color: var(--muted); font-size: .86rem; line-height: 1.55; }
+
+    /* ── Responsive ── */
     @media (max-width: 900px) {
-      .topnav { display: none; }
-      .process { grid-template-columns: 1fr 1fr; }
-      .process-node:nth-child(2) { border-right: 0; }
-      .process-node:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
-      .process-node:nth-child(2)::after { display: none; }
-      .lab-body, .takeaway { grid-template-columns: 1fr; }
-      .lab-controls { border-right: 0; border-bottom: 1px solid var(--line); }
-      .case-study { grid-template-columns: 1fr; }
-      .case-brief { border-right: 0; border-bottom: 1px solid var(--line); }
+      .hero-grid { grid-template-columns: 1fr; gap: 40px; }
+      .hero-panel { order: -1; }
+      .compare-grid { grid-template-columns: 1fr; }
+      .takeaways { grid-template-columns: 1fr 1fr; }
+      .brief-grid { grid-template-columns: 1fr; }
     }
     @media (max-width: 640px) {
-      .lesson-hero { padding: 58px 0 48px; }
-      .lesson-section { padding: 56px 0; }
-      .hero-actions .button { width: 100%; }
-      .process, .compare { grid-template-columns: 1fr; }
-      .process-node { min-height: 0; border-right: 0; border-bottom: 1px solid var(--line); }
-      .process-node:last-child { border-bottom: 0; }
-      .process-node::after { display: none; }
-      .compare article + article { border-left: 0; border-top: 1px solid var(--line); }
-      .case-grid, .related-list { grid-template-columns: 1fr; }
-      .related-list a + a { border-left: 0; border-top: 1px solid var(--line); }
-      .lab-head { align-items: start; flex-direction: column; }
-      .visual-flow { grid-template-columns: 1fr; }
-      .embedding { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
-      .embedding::before, .embedding::after { content: ""; height: 1px; background: var(--line); }
-      .bars { height: 62px; padding-inline: 12px; }
-      .embedding span { grid-column: 1 / -1; }
-      .footer-inner { align-items: start; flex-direction: column; }
+      .hero { padding: 52px 0 48px; }
+      .install-panel.active { flex-direction: column; }
+      .install-controls { padding: 14px 20px; }
+      .install-panel { padding: 28px 20px; }
+      .quiz-card { padding: 24px 20px; }
+      .takeaways { grid-template-columns: 1fr; }
+      .related-list { grid-template-columns: 1fr; }
+      .footer-inner { flex-direction: column; align-items: flex-start; }
+      .manager-menu { overflow-x: auto; }
     }
+
+    /* ── Standardized Phase 5 Blocks ── */
+    .flow-minimap {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 14px 0;
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      color: var(--dim);
+      border-bottom: 1px solid var(--line);
+    }
+    .flow-minimap-label {
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-right: 4px;
+    }
+    .flow-minimap-sep { color: var(--line); }
+    .flow-minimap-item {
+      color: var(--muted);
+      text-decoration: none;
+      padding: 2px 6px;
+      border-radius: 4px;
+      transition: color .15s;
+    }
+    .flow-minimap-item:hover { color: var(--cyan); }
+    .flow-minimap-item.current {
+      color: var(--acid);
+      background: rgba(200,255,61,.1);
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .prereq-callout {
+      display: flex;
+      gap: 16px;
+      padding: 18px 24px;
+      border: 1px solid rgba(98,231,245,.3);
+      border-left: 4px solid var(--cyan);
+      border-radius: var(--radius);
+      background: rgba(98,231,245,.05);
+      margin-bottom: 32px;
+      align-items: flex-start;
+    }
+    .prereq-icon { color: var(--cyan); flex-shrink: 0; margin-top: 2px; }
+    .prereq-title { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--cyan); margin: 0 0 6px; }
+    .prereq-body { color: var(--muted); font-size: .9rem; line-height: 1.55; margin: 0 0 10px; }
+    .prereq-link { color: var(--cyan); font-size: .85rem; text-decoration: none; }
+    .prereq-link:hover { text-decoration: underline; }
+    .output-artifact {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      background: rgba(200,255,61,.08);
+      border: 1px solid rgba(200,255,61,.25);
+      border-radius: 10px;
+      margin-bottom: 20px;
+      font-size: .85rem;
+      flex-wrap: wrap;
+    }
+    .output-artifact svg { color: var(--acid); flex-shrink: 0; }
+    .output-artifact-label { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--acid); }
+    .output-artifact-text { color: var(--muted); }
+    .handoff-card {
+      display: grid;
+      grid-template-columns: 60px 1fr;
+      gap: 24px;
+      align-items: start;
+      padding: 40px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      position: relative;
+      overflow: hidden;
+    }
+    .handoff-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(200,255,61,.05) 0%, transparent 60%);
+      pointer-events: none;
+    }
+    .handoff-card-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: rgba(200,255,61,.1);
+      color: var(--acid);
+      flex-shrink: 0;
+    }
+    .handoff-card-label { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin: 0 0 8px; }
+    .handoff-card-title { font-size: clamp(1.6rem, 3vw, 2.4rem); font-weight: 900; letter-spacing: -.04em; margin: 0 0 16px; color: var(--ink); }
+    .handoff-card-body { color: var(--muted); font-size: .95rem; line-height: 1.6; margin: 0 0 24px; }
+    .code-block-wrap { position: relative; }
+    .code-copy-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 10px;
+      min-height: 32px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      color: var(--dim);
+      font-size: .72rem;
+      font-family: var(--font-mono);
+      cursor: pointer;
+      transition: color .15s, border-color .15s;
+      z-index: 2;
+    }
+    .code-copy-btn:hover { color: var(--ink); border-color: var(--dim); }
+    .code-copy-btn.copied { color: var(--acid); border-color: var(--acid); }
   </style>
 </head>
 <body>
-  <a class="skip-link" href="#main-content">Bỏ qua điều hướng</a>
-  <header class="topbar">
-    <div class="topbar-inner">
-      <a class="brand" href="index.html" aria-label="Trang chủ Video Generation Study">
-        <span class="brand-mark" aria-hidden="true"></span>
-        Video Generation Study
-      </a>
-      <nav class="topnav" aria-label="Điều hướng bài học">
-        <a href="#pipeline">Pipeline</a>
-        <a href="#lab">Phòng thử nghiệm</a>
-        <a href="#checkpoint">Kiểm tra</a>
+
+<a class="skip-link" href="#main">Bỏ qua điều hướng</a>
+
+<!-- Topbar -->
+<header class="topbar" role="banner">
+  <div class="topbar-inner">
+    <a class="brand" href="index.html" data-curriculum-home aria-label="Video Gen Lab – trang chủ">
+      <span class="brand-mark" aria-hidden="true"></span>
+      Video Gen Lab
+    </a>
+    <nav class="topnav" aria-label="Điều hướng bài học">
+      <a href="video-generation-part-4-lesson-1.html" data-curriculum-prev>← Bài 4.1</a>
+      <a href="index.html" data-curriculum-home>Trang chủ</a>
+      <a href="video-generation-part-4-lesson-3.html" data-curriculum-next>Bài 4.3 →</a>
+    </nav>
+    <!-- theme toggle injected by video-generation-theme.js -->
+    <div class="progress-track" aria-hidden="true">
+      <div class="progress-fill" id="js-progress"></div>
+    </div>
+  </div>
+</header>
+
+<!-- Main -->
+<main id="main">
+
+  <!-- Hero -->
+  <section class="hero" aria-labelledby="hero-h1">
+    <div class="shell">
+      <div class="hero-grid">
+        <!-- Left: text -->
+        <div>
+          <p class="hero-eyebrow" data-curriculum-hero-label>GENERATION SETUP · BÀI 4.2 · ECOSYSTEM</p>
+          <h1 class="hero-h1" id="hero-h1">Custom Node &amp; Manager</h1>
+          <p class="hero-lead">Đánh giá, cài và kiểm soát rủi ro khi thêm Custom Node vào workflow video. Bài này tách rõ khả năng của ComfyUI, hành vi của Manager và quy ước riêng của từng extension.</p>
+
+          <!-- OUTPUT ARTIFACT BADGE -->
+          <div class="output-artifact" role="note">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            <span class="output-artifact-label">Đầu ra bài học:</span>
+            <span class="output-artifact-text">Biết cài đặt custom node qua ComfyUI Manager, xử lý missing-node errors, và kiểm tra tính tương thích phiên bản</span>
+          </div>
+
+          <div class="hero-actions">
+            <a href="#install-steps" class="button primary">Bắt đầu cài đặt</a>
+            <a href="#checkpoint" class="button">Làm bài kiểm tra</a>
+          </div>
+        </div>
+        <!-- Right: visual panel -->
+        <div>
+          <div class="hero-panel" aria-label="Sơ đồ node gốc và custom node">
+            <p class="hp-label">Node Palette</p>
+            <div class="node-tree" role="list" aria-label="Danh sách ví dụ node">
+              <div class="node-item core" role="listitem">
+                <span class="node-dot" aria-hidden="true"></span>
+                <span>KSampler</span>
+                <span class="node-tag">Core</span>
+              </div>
+              <div class="node-item core" role="listitem">
+                <span class="node-dot" aria-hidden="true"></span>
+                <span>CLIPTextEncode</span>
+                <span class="node-tag">Core</span>
+              </div>
+              <div class="node-item custom" role="listitem">
+                <span class="node-dot" aria-hidden="true"></span>
+                <span>WAS Image Save</span>
+                <span class="node-tag">Custom</span>
+              </div>
+              <div class="node-item custom" role="listitem">
+                <span class="node-dot" aria-hidden="true"></span>
+                <span>VHS Load Video</span>
+                <span class="node-tag">Custom</span>
+              </div>
+              <div class="node-item custom" role="listitem">
+                <span class="node-dot" aria-hidden="true"></span>
+                <span>AnimateDiff Loader</span>
+                <span class="node-tag">Custom</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FLOW POSITION MINI-MAP -->
+  <div class="shell">
+    <nav class="flow-minimap" aria-label="Vị trí trong lộ trình">
+      <span class="flow-minimap-label">LỘ TRÌNH</span>
+      <span class="flow-minimap-sep">›</span>
+      <a class="flow-minimap-item" href="video-generation-part-4-lesson-1.html">4.1: Workflow JSON</a>
+      <span class="flow-minimap-sep">›</span>
+      <strong class="flow-minimap-item current" aria-current="step">4.2: Custom Node & Manager</strong>
+      <span class="flow-minimap-sep">›</span>
+      <a class="flow-minimap-item" href="video-generation-part-4-lesson-3.html">4.3: Model Loaders</a>
+    </nav>
+  </div>
+
+  <!-- Section 1: What is Custom Node -->
+  <section class="section" aria-labelledby="s1-h2" id="custom-node">
+    <div class="shell">
+      <p class="section-index" aria-hidden="true">01 — Khái niệm</p>
+      <h2 class="section-h2" id="s1-h2">Custom Node là gì?</h2>
+      <p class="section-lead">Custom Node là extension do cộng đồng hoặc nhà cung cấp phát hành, được ComfyUI nạp khi khởi động. Nội dung node, dependency và khả năng tương thích thuộc về từng extension; không phải mọi node ngoài core đều có cùng quy trình cài.</p>
+
+      <!-- PREREQUISITE CALLOUT -->
+      <div class="prereq-callout" role="note" aria-label="Yêu cầu trước bài học">
+        <div class="prereq-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 8v4m0 4h.01"/></svg>
+        </div>
+        <div>
+          <p class="prereq-title">Cần biết trước</p>
+          <p class="prereq-body">Bài này yêu cầu hiểu node-graph từ Bài 4.1 — cần biết node là gì và Workflow JSON được cấu trúc ra sao trước khi quản lý custom nodes.</p>
+          <a class="prereq-link" href="video-generation-part-4-lesson-1.html">← Xem lại bài trước: Node & Workflow JSON (4.1)</a>
+        </div>
+      </div>
+
+      <div class="compare-grid">
+        <div class="compare-card base">
+          <p class="compare-card-label">Node Gốc (Core)</p>
+          <h3>Đi kèm ComfyUI</h3>
+          <ul>
+            <li>KSampler, VAE Encode/Decode</li>
+            <li>CLIP Text Encode, ControlNet Apply</li>
+            <li>Load Checkpoint, Save Image</li>
+            <li>Đi kèm bản ComfyUI tương ứng; vẫn có thể thay đổi theo phiên bản</li>
+          </ul>
+        </div>
+        <div class="compare-card highlight">
+          <p class="compare-card-label">Custom Node (Mở rộng)</p>
+          <h3>Cài từ cộng đồng</h3>
+          <ul>
+            <li>AnimateDiff, IP-Adapter, Reactor</li>
+            <li>Chức năng chuyên biệt (video, face, inpaint)</li>
+            <li>Có thể cài qua registry/Manager hoặc theo README của repo</li>
+            <li>Có dependency, model và phạm vi phiên bản riêng</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="def-panel">
+        <p class="def-panel-title">Định nghĩa</p>
+        <p>Một <strong>Custom Node</strong> là extension bổ sung node vào ComfyUI. Với cách cài truyền thống nó thường nằm dưới <code class="code-inline">custom_nodes/</code>; các extension hiện đại có thể khai báo metadata qua <code class="code-inline">pyproject.toml</code>. Đừng suy luận tên thư mục từ tên repo: Manager cảnh báo hai tên này có thể khác nhau.</p>
+      </div>
+
+      <div class="def-panel def-panel-orange">
+        <p class="def-panel-title">Lưu ý Version & Platform</p>
+        <p>Tính tương thích của custom nodes phụ thuộc vào phiên bản ComfyUI và platform (local vs cloud). Kiểm tra phiên bản trước khi cài.</p>
+      </div>
+
+      <p class="node-chips-intro">Một số Custom Node phổ biến:</p>
+      <div class="node-chips" role="list" aria-label="Custom Node phổ biến">
+        <span class="node-chip popular" role="listitem"><span class="node-chip-dot" aria-hidden="true"></span>WAS Node Suite</span>
+        <span class="node-chip popular" role="listitem"><span class="node-chip-dot" aria-hidden="true"></span>ComfyUI-VideoHelperSuite</span>
+        <span class="node-chip popular" role="listitem"><span class="node-chip-dot" aria-hidden="true"></span>AnimateDiff Evolved</span>
+        <span class="node-chip popular" role="listitem"><span class="node-chip-dot" aria-hidden="true"></span>ComfyUI IPAdapter Plus</span>
+        <span class="node-chip popular" role="listitem"><span class="node-chip-dot" aria-hidden="true"></span>ComfyUI Reactor</span>
+        <span class="node-chip popular" role="listitem"><span class="node-chip-dot" aria-hidden="true"></span>ComfyUI Manager</span>
+        <span class="node-chip" role="listitem">ControlNet Preprocessors</span>
+        <span class="node-chip" role="listitem">Efficiency Nodes</span>
+        <span class="node-chip" role="listitem">Impact Pack</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 2: ComfyUI Manager -->
+  <section class="section" aria-labelledby="s2-h2" id="comfyui-manager">
+    <div class="shell">
+      <p class="section-index" aria-hidden="true">02 — Công cụ quản lý</p>
+      <h2 class="section-h2" id="s2-h2">ComfyUI Manager</h2>
+      <p class="section-lead">Theo README của Manager (dòng V3 hiện hành), extension này hỗ trợ cài, gỡ, bật/tắt Custom Node và truy cập danh mục. Danh mục, channel, network mode và cơ chế dependency là trạng thái của Manager/extension ở phiên bản đang dùng — không phải đặc tính lõi của mọi bản ComfyUI.</p>
+
+      <!-- Simulated Manager UI -->
+      <div class="manager-ui" role="img" aria-label="Giao diện giả lập ComfyUI Manager — Install Missing Nodes">
+        <div class="manager-titlebar" aria-hidden="true">
+          <span class="tb-dot"></span>
+          <span class="tb-dot"></span>
+          <span class="tb-dot"></span>
+          <span class="tb-title">ComfyUI Manager — Node Manager</span>
+        </div>
+        <div class="manager-menu" role="tablist" aria-label="Menu Manager" aria-hidden="true">
+          <div class="manager-menu-item">Manager</div>
+          <div class="manager-menu-item active">Install Missing Nodes</div>
+          <div class="manager-menu-item">Install via Git URL</div>
+          <div class="manager-menu-item">Update All</div>
+        </div>
+        <div class="manager-body" aria-hidden="true">
+          <div class="manager-search">
+            <span class="manager-search-icon" aria-hidden="true">🔍</span>
+            <span class="manager-search-text">animatediff…</span>
+          </div>
+          <div class="manager-result">
+            <div>
+              <div class="mr-name">AnimateDiff Evolved</div>
+              <div class="mr-desc">Advanced AnimateDiff nodes with motion modules</div>
+            </div>
+            <button class="mr-btn" type="button" disabled tabindex="-1" aria-hidden="true">Install</button>
+          </div>
+          <div class="manager-result">
+            <div>
+              <div class="mr-name">ComfyUI-VideoHelperSuite</div>
+              <div class="mr-desc">Load, save, and process video files in ComfyUI</div>
+            </div>
+            <button class="mr-btn" type="button" disabled tabindex="-1" aria-hidden="true">Install</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chức năng chính -->
+      <div class="manager-features-grid">
+        <div class="def-panel def-panel-acid">
+          <p class="def-panel-title">Install Missing Nodes</p>
+          <p>Manager liệt kê extension chứa node chưa có trong workflow; hãy đối chiếu repo, version và dependency trước khi bấm cài.</p>
+        </div>
+        <div class="def-panel def-panel-orange">
+          <p class="def-panel-title">Install via Git URL</p>
+          <p>Dán URL repo GitHub vào để cài thủ công các node chưa có trong danh mục của Manager.</p>
+        </div>
+        <div class="def-panel">
+          <p class="def-panel-title">Update All</p>
+          <p>Cập nhật tất cả Custom Node đang cài lên phiên bản mới nhất chỉ bằng một nút bấm.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 3: Installation steps (interactive) -->
+  <section class="section" aria-labelledby="s3-h2" id="install-steps">
+    <div class="shell">
+      <p class="section-index" aria-hidden="true">03 — Quy trình cài đặt</p>
+      <h2 class="section-h2" id="s3-h2">Cài đặt từng bước</h2>
+      <p class="section-lead">Nhấn <strong class="em-ink">Tiếp theo</strong> để xem từng bước cài đặt một Custom Node qua ComfyUI Manager.</p>
+
+      <div class="install-stage" role="region" aria-label="Các bước cài đặt Custom Node">
+        <!-- Step tabs (decorative + keyboard-accessible) -->
+        <div class="install-step-track" role="tablist" aria-label="Bước cài đặt">
+          <button class="step-tab" role="tab" id="tab-1" aria-controls="panel-1" aria-selected="true" data-step="1">
+            <span class="step-num">Bước 1</span>Mở Manager
+          </button>
+          <button class="step-tab" role="tab" id="tab-2" aria-controls="panel-2" aria-selected="false" data-step="2" tabindex="-1">
+            <span class="step-num">Bước 2</span>Tìm Node
+          </button>
+          <button class="step-tab" role="tab" id="tab-3" aria-controls="panel-3" aria-selected="false" data-step="3" tabindex="-1">
+            <span class="step-num">Bước 3</span>Cài đặt
+          </button>
+          <button class="step-tab" role="tab" id="tab-4" aria-controls="panel-4" aria-selected="false" data-step="4" tabindex="-1">
+            <span class="step-num">Bước 4</span>Khởi động lại
+          </button>
+        </div>
+
+        <!-- Panels -->
+        <div class="install-panels">
+          <div class="install-panel active" id="panel-1" role="tabpanel" aria-labelledby="tab-1">
+            <div class="step-icon" aria-hidden="true">🗂️</div>
+            <div class="step-content">
+              <h3>Mở ComfyUI Manager</h3>
+              <p>Trong giao diện ComfyUI, tìm nút <code class="code-inline">Manager</code>. Nếu không thấy, đừng kết luận extension chưa cài: kiểm tra nó có bị disable không, bundle/giao diện hiện tại đặt menu ở đâu, và log khởi động. Chỉ khi xác nhận Manager vắng mặt mới chọn cách cài phù hợp với bản ComfyUI của bạn.</p>
+              <p>Để cài Manager lần đầu, vào thư mục <code class="code-inline">ComfyUI/custom_nodes</code>, rồi chạy:</p>
+              <div class="code-block-wrap">
+                <button class="code-copy-btn" type="button" aria-label="Sao chép code" data-copy-target="cmd-git-clone">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                  Copy
+                </button>
+                <code id="cmd-git-clone" class="command-block">git clone https://github.com/Comfy-Org/ComfyUI-Manager.git comfyui-manager</code>
+              </div>
+            </div>
+          </div>
+          <div class="install-panel" id="panel-2" role="tabpanel" aria-labelledby="tab-2" hidden>
+            <div class="step-icon" aria-hidden="true">🔍</div>
+            <div class="step-content">
+              <h3>Tìm kiếm node cần cài</h3>
+              <p>Trong cửa sổ Manager, chọn <strong class="em-ink">Install Custom Nodes</strong>. Nhập tên node vào ô tìm kiếm — ví dụ <code class="code-inline">VideoHelperSuite</code> hoặc <code class="code-inline">AnimateDiff</code>.</p>
+              <p>Bạn cũng có thể dùng <strong class="em-ink">Install Missing Nodes</strong> nếu đang mở một workflow cũ bị thiếu node.</p>
+            </div>
+          </div>
+          <div class="install-panel" id="panel-3" role="tabpanel" aria-labelledby="tab-3" hidden>
+            <div class="step-icon" aria-hidden="true">⬇️</div>
+            <div class="step-content">
+              <h3>Nhấn Install</h3>
+              <p>Nhấn <strong class="em-ink">Install</strong> chỉ sau khi đã xác minh publisher và README. <br><br><strong>Bảo mật:</strong> Kiểm tra source/repo của custom node trước khi cài đặt — chỉ dùng từ nguồn đáng tin cậy. Manager có thể chạy <code class="code-inline">requirements.txt</code> hoặc <code class="code-inline">install.py</code> nếu extension cung cấp chúng; đây là mã của extension, không phải bảo đảm an toàn hay tương thích.</p>
+              <p><strong class="em-acid">Installed</strong> chỉ xác nhận thao tác cài trong Manager. Kiểm tra log khởi động, node palette và một workflow tối thiểu trước khi đưa vào job thật.</p>
+            </div>
+          </div>
+          <div class="install-panel" id="panel-4" role="tabpanel" aria-labelledby="tab-4" hidden>
+            <div class="step-icon" aria-hidden="true">🔄</div>
+            <div class="step-content">
+              <h3>Khởi động lại ComfyUI</h3>
+              <p>Khởi động lại ComfyUI để extension vừa cài được nạp. Đây là yêu cầu của quy trình cài Manager; UI hay F5 của trình duyệt không thay thế việc kiểm tra log server.</p>
+              <p>Sau khi khởi động lại, node mới sẽ xuất hiện trong <strong class="em-ink">palette</strong> (nhấn đúp chuột phải vào canvas để tìm). Hoàn tất!</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="install-controls">
+          <button class="button" id="btn-prev" aria-label="Bước trước" disabled>← Trước</button>
+          <span class="step-counter" id="step-counter" aria-live="polite" aria-atomic="true">Bước 1 / 4</span>
+          <button class="button primary" id="btn-next" aria-label="Bước tiếp theo">Tiếp theo →</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 4: Production brief -->
+  <section class="section" aria-labelledby="brief-heading" id="production-brief">
+    <div class="shell">
+      <p class="section-index" aria-hidden="true">04 — Case study</p>
+      <h2 class="section-h2" id="brief-heading">Production brief: nhận workflow I2V bàn giao</h2>
+      <p class="section-lead">Tình huống mô phỏng: một editor nhận workflow 5 giây cho social ad nhưng thiếu VideoHelperSuite. Mục tiêu là khôi phục pipeline có thể kiểm tra, không phải “cài cho hết lỗi đỏ”.</p>
+      <div class="brief-grid">
+        <article class="brief-card">
+          <p class="brief-label">Ràng buộc &amp; A/B</p>
+          <h3>Giữ một biến, đổi một biến</h3>
+          <ul>
+            <li><strong class="em-ink">Đầu ra:</strong> MP4 5 giây, 16:9 cho bản duyệt nội bộ.</li>
+            <li><strong class="em-ink">Input/workflow:</strong> JSON bàn giao + ComfyUI và extension đã pin version.</li>
+            <li><strong class="em-ink">Giữ cố định:</strong> checkpoint, prompt, seed, resolution, frame count và GPU.</li>
+            <li><strong class="em-ink">Thử nghiệm:</strong> chỉ cài một extension thiếu, rồi chạy workflow test tối thiểu.</li>
+            <li><strong class="em-ink">Giới hạn:</strong> 12 GB VRAM, 20 phút cho vòng chẩn đoán; đây là budget dự án, không phải benchmark.</li>
+            <li><strong class="em-ink">Đánh giá:</strong> log sạch, node xuất hiện, output có đúng số frame/codec dự kiến.</li>
+            <li><strong class="em-ink">Thất bại:</strong> import error, node mapping khác, output rỗng hoặc VRAM OOM. Bước sau: rollback snapshot, lấy version workflow, đọc issue/README của extension.</li>
+          </ul>
+        </article>
+        <section class="simulator" aria-labelledby="preflight-heading">
+          <p class="brief-label">Mô phỏng quyết định</p>
+          <h3 id="preflight-heading">Preflight trước khi cài</h3>
+          <p>Chọn tín hiệu bạn đang có. Kết quả là checklist mô phỏng, không phải kết luận tương thích.</p>
+          <label for="install-signal">Tín hiệu từ workflow</label>
+          <select id="install-signal">
+            <option value="missing">Node thiếu trong workflow bàn giao</option>
+            <option value="repo">Có URL repo nhưng chưa rõ version</option>
+            <option value="update">Workflow chạy được, chỉ định cập nhật extension</option>
+          </select>
+          <button class="button primary" type="button" id="preflight-run">Tạo checklist</button>
+          <p class="sim-result" id="preflight-result" role="status" aria-live="polite" aria-atomic="true">Chọn một tình huống rồi tạo checklist.</p>
+        </section>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 5: Issues & Troubleshooting -->
+  <section class="section" aria-labelledby="s4-h2" id="troubleshoot">
+    <div class="shell">
+      <p class="section-index" aria-hidden="true">05 — Quản lý &amp; Xử lý lỗi</p>
+      <h2 class="section-h2" id="s4-h2">Vấn đề thường gặp</h2>
+      <p class="section-lead">Custom Node mang lại sức mạnh nhưng cũng có thể gây ra xung đột. Dưới đây là các lỗi phổ biến và cách khắc phục.</p>
+
+      <div class="issues-list" role="list" aria-label="Các lỗi phổ biến">
+        <div class="issue-row" role="listitem">
+          <span class="issue-badge err" aria-label="Lỗi nghiêm trọng">Đỏ</span>
+          <div class="issue-content">
+            <h4>Node hiển thị màu đỏ / "Node not found"</h4>
+            <p>Custom Node chưa được cài, hoặc cài thất bại. Dùng Manager → Install Missing Nodes để phát hiện và cài lại. Kiểm tra log terminal khi khởi động ComfyUI.</p>
+          </div>
+        </div>
+        <div class="issue-row" role="listitem">
+          <span class="issue-badge warn" aria-label="Cảnh báo">Import</span>
+          <div class="issue-content">
+            <h4>Lỗi import khi khởi động: ModuleNotFoundError</h4>
+            <p>Thiếu Python package. Đọc README và log của đúng extension; chỉ chạy dependency trong môi trường Python mà ComfyUI đang dùng. Không áp dụng lệnh <code class="code-inline">pip install -r requirements.txt</code> nếu repo không cung cấp file đó.</p>
+          </div>
+        </div>
+        <div class="issue-row" role="listitem">
+          <span class="issue-badge warn" aria-label="Cảnh báo">Conflict</span>
+          <div class="issue-content">
+            <h4>Xung đột phiên bản giữa các node</h4>
+            <p>Hai extension có thể ghim phiên bản khác nhau của cùng thư viện. <code class="code-inline">--lowvram</code> là tuỳ chọn bộ nhớ, không sửa dependency conflict. Ghi lại version, khôi phục snapshot hoặc cô lập môi trường; rồi gửi log tối thiểu cho maintainer.</p>
+          </div>
+        </div>
+        <div class="issue-row" role="listitem">
+          <span class="issue-badge err" aria-label="Lỗi">Missing</span>
+          <div class="issue-content">
+            <h4>Node cài xong nhưng không thấy trong palette</h4>
+            <p>Quên khởi động lại ComfyUI sau khi cài. Luôn restart server sau mỗi lần cài hoặc gỡ Custom Node để ComfyUI tải lại danh sách.</p>
+          </div>
+        </div>
+      </div>
+
+      <details>
+        <summary>Khi nào nên cài qua Git URL thay vì Manager?<span class="sum-arrow" aria-hidden="true">▾</span></summary>
+        <div class="details-body">
+          <p>Dùng <strong>Install via Git URL</strong> khi: node chưa có trong danh mục Manager, bạn muốn cài từ một fork cụ thể, hoặc muốn cài phiên bản đang phát triển (branch dev).</p>
+          <p>Chú ý: cài bằng Git URL đồng nghĩa với ít kiểm tra tương thích hơn. Hãy đọc README của repo trước khi cài.</p>
+        </div>
+      </details>
+      <details>
+        <summary>Làm sao gỡ cài đặt một Custom Node?<span class="sum-arrow" aria-hidden="true">▾</span></summary>
+        <div class="details-body">
+          <p>Trong Manager, mở tab <strong>Installed</strong>, tìm node muốn gỡ và nhấn <strong>Uninstall</strong>. Sau đó khởi động lại ComfyUI. Có thể xóa thư mục trực tiếp trong <code class="code-inline">ComfyUI/custom_nodes/</code> nếu Manager không hoạt động.</p>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <!-- Section 5: Checkpoint -->
+  <section class="section" aria-labelledby="s5-h2" id="checkpoint">
+    <div class="shell">
+      <p class="section-index" aria-hidden="true">06 — Kiểm tra</p>
+      <h2 class="section-h2" id="s5-h2">Checkpoint</h2>
+      <p class="section-lead">Kiểm tra cách phân biệt trạng thái cài đặt với trạng thái workflow chạy được.</p>
+
+      <!-- Quiz 1 -->
+      <div class="quiz-card" id="quiz-1">
+        <div class="quiz-meta">
+          <p class="quiz-q-label">Câu 1 / 3</p>
+          <div class="quiz-progress" aria-hidden="true">
+            <div class="quiz-progress-fill qpf-33" id="quiz-prog-1"></div>
+          </div>
+        </div>
+        <p class="quiz-q-text">Node nào dưới đây là <strong>node gốc</strong> (có sẵn trong ComfyUI, không cần cài thêm)?</p>
+        <div class="quiz-options" role="group" aria-label="Các lựa chọn câu 1">
+          <button class="quiz-option" data-correct="false" aria-pressed="false">
+            <span class="quiz-option-mark" aria-hidden="true"></span>
+            WAS Image Save
+          </button>
+          <button class="quiz-option" data-correct="true" aria-pressed="false">
+            <span class="quiz-option-mark" aria-hidden="true"></span>
+            KSampler
+          </button>
+          <button class="quiz-option" data-correct="false" aria-pressed="false">
+            <span class="quiz-option-mark" aria-hidden="true"></span>
+            AnimateDiff Loader
+          </button>
+          <button class="quiz-option" data-correct="false" aria-pressed="false">
+            <span class="quiz-option-mark" aria-hidden="true"></span>
+            VHS Load Video
+          </button>
+        </div>
+        <div class="quiz-feedback" id="fb-1" role="alert" aria-live="assertive"></div>
+        <button class="quiz-reset" id="reset-1" aria-label="Làm lại câu 1">↺ Làm lại</button>
+      </div>
+
+      <!-- Quiz 2 -->
+      <div class="quiz-card" id="quiz-2">
+        <div class="quiz-meta">
+          <p class="quiz-q-label">Câu 2 / 3</p>
+          <div class="quiz-progress" aria-hidden="true">
+            <div class="quiz-progress-fill qpf-66" id="quiz-prog-2"></div>
+          </div>
+        </div>
+        <p class="quiz-q-text">Sau khi Manager báo Installed, bước kiểm chứng đáng tin cậy nhất là gì?</p>
+        <div class="quiz-options" role="group" aria-label="Các lựa chọn câu 2">
+          <button class="quiz-option" data-correct="false" aria-pressed="false">
+            <span class="quiz-option-mark" aria-hidden="true"></span>
+            Nhấn F5 để tải lại trang trình duyệt
+          </button>
+          <button class="quiz-option" data-correct="false" aria-pressed="false">
+            <span class="quiz-option-mark" aria-hidden="true"></span>
+            Chạy <code class="code-inline">pip install</code> thủ công
+          </button>
+          <button class="quiz-option" data-correct="true" aria-pressed="false">
+            <span class="quiz-option-mark" aria-hidden="true"></span>
+            Khởi động lại ComfyUI, kiểm tra log và chạy workflow tối thiểu
+          </button>
+          <button class="quiz-option" data-correct="false" aria-pressed="false">
+            <span class="quiz-option-mark" aria-hidden="true"></span>
+            Kéo node vào canvas ngay
+          </button>
+        </div>
+        <div class="quiz-feedback" id="fb-2" role="alert" aria-live="assertive"></div>
+        <button class="quiz-reset" id="reset-2" aria-label="Làm lại câu 2">↺ Làm lại</button>
+      </div>
+
+      <!-- Quiz 3 -->
+      <div class="quiz-card" id="quiz-3">
+        <div class="quiz-meta">
+          <p class="quiz-q-label">Câu 3 / 3</p>
+          <div class="quiz-progress" aria-hidden="true">
+            <div class="quiz-progress-fill qpf-100" id="quiz-prog-3"></div>
+          </div>
+        </div>
+        <p class="quiz-q-text">Bạn nhận workflow từ đồng nghiệp và có node thiếu. Cách khởi đầu an toàn nhất là?</p>
+        <div class="quiz-options" role="group" aria-label="Các lựa chọn câu 3">
+          <button class="quiz-option" data-correct="false" aria-pressed="false">
+            <span class="quiz-option-mark" aria-hidden="true"></span>
+            Xóa các node đó và xây lại workflow
+          </button>
+          <button class="quiz-option" data-correct="true" aria-pressed="false">
+            <span class="quiz-option-mark" aria-hidden="true"></span>
+            Dùng Install Missing để xác định extension, rồi xác minh repo/version trước khi cài
+          </button>
+          <button class="quiz-option" data-correct="false" aria-pressed="false">
+            <span class="quiz-option-mark" aria-hidden="true"></span>
+            Gỡ và cài lại ComfyUI từ đầu
+          </button>
+          <button class="quiz-option" data-correct="false" aria-pressed="false">
+            <span class="quiz-option-mark" aria-hidden="true"></span>
+            Bỏ qua, node đỏ vẫn chạy được
+          </button>
+        </div>
+        <div class="quiz-feedback" id="fb-3" role="alert" aria-live="assertive"></div>
+        <button class="quiz-reset" id="reset-3" aria-label="Làm lại câu 3">↺ Làm lại</button>
+      </div>
+
+      <!-- Takeaways -->
+      <div class="takeaways" role="list" aria-label="Điểm chính của bài học">
+        <div class="takeaway" role="listitem">
+          <span class="takeaway-icon" aria-hidden="true">🧩</span>
+          <h4>Custom Node = Mở rộng</h4>
+          <p>Không sửa ComfyUI gốc, chỉ thêm thư mục Python vào <code class="code-inline">custom_nodes/</code>.</p>
+        </div>
+        <div class="takeaway" role="listitem">
+          <span class="takeaway-icon" aria-hidden="true">🛠️</span>
+          <h4>Manager giúp quản lý</h4>
+          <p>Tìm kiếm, cài, cập nhật, và gỡ node qua giao diện đồ họa, không cần Git thủ công.</p>
+        </div>
+        <div class="takeaway" role="listitem">
+          <span class="takeaway-icon" aria-hidden="true">🔄</span>
+          <h4>Restart rồi kiểm chứng</h4>
+          <p>Khởi động lại để nạp extension, sau đó đọc log và chạy workflow test trước khi render production.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="related-heading" id="related-lessons">
+    <div class="shell">
+      <p class="section-index" aria-hidden="true">07 — Điều hướng kiến thức</p>
+      <h2 class="section-h2" id="related-heading">Bài liên quan</h2>
+      <p class="section-lead">Đi theo mối liên hệ kỹ thuật: cấu trúc workflow → model loader → node chuyên dụng → hạ tầng chạy.</p>
+      <nav class="related-list" aria-label="Các bài liên quan">
+        <a href="video-generation-part-4-lesson-1.html"><strong>6.1 · Node &amp; Workflow JSON</strong><span>Nền tảng để đọc ID, type và node thiếu trong workflow bàn giao.</span></a>
+        <a href="video-generation-part-4-lesson-3.html"><strong>6.3 · Checkpoint &amp; Model Loaders</strong><span>Chẩn đoán tiếp khi extension đã nạp nhưng model hoặc loader vẫn không khớp.</span></a>
+        <a href="video-generation-part-4-lesson-4.html"><strong>6.4 · Bộ node WanVideo</strong><span>Ứng dụng kế tiếp: hiểu node chuyên dụng và dependency của workflow WanVideo.</span></a>
+        <a href="video-generation-part-7-lesson-4.html"><strong>6.5 · Chạy trên RunPod</strong><span>Liên quan khi môi trường, volume hoặc GPU làm thay đổi cách tái lập workflow.</span></a>
       </nav>
     </div>
-    <div class="progress-track" aria-hidden="true"><div class="progress-fill" id="reading-progress"></div></div>
-  </header>
+  </section>
 
-  <main id="main-content">
-    <section class="lesson-hero">
-      <div class="shell">
-        <p class="eyebrow">Part 4 · Bài 02 · Image conditioning</p>
-        <h1>Ảnh đi vào model như một ý niệm.</h1>
-        <p class="hero-lead">CLIP Vision Encode không đưa nguyên từng pixel của ảnh tham chiếu vào video. Nó nén những đặc trưng có ý nghĩa thành embedding để model dùng như một lời gợi ý thị giác.</p>
-        <div class="hero-meta" aria-label="Thông tin bài học">
-          <span class="meta">Trình độ: Cơ bản → Trung cấp</span>
-          <span class="meta">Thời lượng: 12 phút</span>
-          <span class="meta">Kết quả: Phân biệt guidance / copy</span>
-        </div>
-        <div class="hero-actions">
-          <a class="button primary" href="#pipeline">Theo dấu ảnh tham chiếu ↓</a>
-          <a class="button" href="#lab">Thử đổi seed</a>
-        </div>
-      </div>
-    </section>
-
-    <section class="lesson-section" aria-labelledby="meaning-title">
-      <div class="shell">
-        <p class="section-index">01 / Ý chính</p>
-        <h2 id="meaning-title">Encode là dịch ảnh sang ngôn ngữ mà model hiểu.</h2>
-        <p class="section-intro">Ảnh gốc có hàng triệu giá trị pixel. CLIP Vision gom chúng thành một vector đặc trưng nhỏ hơn, mô tả các mối liên hệ thị giác hữu ích.</p>
-        <div class="definition">
-          <strong>CLIP Vision embedding</strong> là biểu diễn số do vision encoder tạo ra. Nó có thể mang các đặc trưng thị giác hữu ích cho nhiệm vụ đã học; mức giữ chủ thể, màu, phong cách hay bố cục phụ thuộc checkpoint và cách workflow dùng embedding — không phải một bản ảnh thu nhỏ để dán vào output.
-        </div>
-      </div>
-    </section>
-
-    <section class="lesson-section" id="pipeline" aria-labelledby="pipeline-title">
-      <div class="shell">
-        <p class="section-index">02 / Pipeline</p>
-        <h2 id="pipeline-title">Bốn chặng từ ảnh đến conditioning.</h2>
-        <p class="section-intro">Hãy đọc từ trái sang phải. Mỗi chặng bỏ bớt chi tiết pixel và giữ lại tín hiệu cần thiết để định hướng quá trình sinh.</p>
-        <div class="process" aria-label="Quy trình CLIP Vision Encode gồm bốn bước">
-          <article class="process-node">
-            <span class="node-label">Input · 01</span>
-            <h3>Reference image</h3>
-            <p>Ảnh chứa cả thông tin quan trọng lẫn chi tiết ngẫu nhiên: chủ thể, ánh sáng, texture, nhiễu và từng pixel.</p>
-          </article>
-          <article class="process-node">
-            <span class="node-label">Encode · 02</span>
-            <h3>Vision encoder</h3>
-            <p>Với CLIP dùng ViT, encoder chia ảnh thành các patch để tìm quan hệ và tạo biểu diễn đặc trưng; các backbone vision khác trích xuất đặc trưng theo kiến trúc riêng.</p>
-          </article>
-          <article class="process-node">
-            <span class="node-label">Vector · 03</span>
-            <h3>Image embedding</h3>
-            <p>Một dãy số cô đọng mang tín hiệu ngữ nghĩa thay vì lưu tọa độ màu của từng pixel.</p>
-            <div class="tokens" aria-label="Ví dụ các đặc trưng được mã hóa">
-              <span class="token">subject</span><span class="token">palette</span><span class="token">layout</span>
-            </div>
-          </article>
-          <article class="process-node">
-            <span class="node-label">Guide · 04</span>
-            <h3>Conditioning</h3>
-            <p>Một adapter hoặc pipeline tương thích có thể dùng embedding làm conditioning khi khử nhiễu. Cổng tiêm và strength là lựa chọn của workflow, không phải API mặc định của CLIP.</p>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <section class="lesson-section" aria-labelledby="boundary-title">
-      <div class="shell">
-        <p class="section-index">03 / Ranh giới</p>
-        <h2 id="boundary-title">Giống về ý, không buộc giống từng điểm ảnh.</h2>
-        <p class="section-intro">Đây là điểm dễ nhầm nhất khi dùng reference image. Conditioning làm thay đổi hướng sinh; nó không khóa output thành một bản sao.</p>
-        <div class="compare">
-          <article class="yes">
-            <h3>Embedding có thể giữ</h3>
-            <ul>
-              <li>Cảm giác về chủ thể hoặc loại cảnh.</li>
-              <li>Bảng màu và phong cách thị giác tổng quát.</li>
-              <li>Một số tương quan bố cục ở mức ngữ nghĩa, tùy checkpoint và adapter.</li>
-            </ul>
-          </article>
-          <article class="no">
-            <h3>Embedding không đảm bảo</h3>
-            <ul>
-              <li>Đúng tọa độ của từng vật thể hay từng pixel.</li>
-              <li>Giữ nguyên danh tính khuôn mặt một cách tuyệt đối.</li>
-              <li>Tái tạo nguyên ảnh khi seed, prompt hoặc noise đổi.</li>
-            </ul>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <section class="lesson-section" aria-labelledby="case-title">
-      <div class="shell">
-        <p class="section-index">04 / Production brief</p>
-        <h2 id="case-title">A/B test thumbnail key art trước khi đưa ảnh vào I2V.</h2>
-        <p class="section-intro">Đây là brief giả định để tách ảnh hưởng của reference embedding khỏi seed và prompt. Các con số là ngân sách vận hành, không phải benchmark hay preset chung.</p>
-        <div class="case-study">
-          <article class="case-brief">
-            <h3>Trailer ra mắt giày chạy bộ</h3>
-            <p>Mục tiêu là tạo shot mở đầu 5 giây cho landing page: runner ở bình minh, màu thương hiệu xanh-ngọc/cam, còn logo phải được compositing ở hậu kỳ thay vì kỳ vọng từ embedding.</p>
-            <dl class="case-grid">
-              <div><dt>Bối cảnh</dt><dd>3 biến thể social cutdown cần cùng art direction.</dd></div>
-              <div><dt>Input / workflow</dt><dd>1 key art đã duyệt → CLIP Vision → adapter I2V tương thích; prompt cố định.</dd></div>
-              <div><dt>Giữ cố định</dt><dd>Checkpoint, resolution, số frame, prompt, negative prompt, sampler và seed cho từng cặp A/B.</dd></div>
-              <div><dt>Đang thử</dt><dd>Bật/tắt conditioning ảnh (hoặc strength của adapter nếu workflow đó có) với cùng seed.</dd></div>
-              <div><dt>Giới hạn</dt><dd>24 GB VRAM, tối đa 12 phút/biến thể; dừng nếu phải giảm resolution ngoài brief.</dd></div>
-              <div><dt>Đánh giá</dt><dd>Art direction, silhouette runner, ổn định chuyển động và chỗ trống đặt logo.</dd></div>
-            </dl>
-          </article>
-          <article class="case-plan">
-            <h3>Quy trình chẩn đoán</h3>
-            <ol>
-              <li>Chạy A/B theo từng seed: một lần không dùng ảnh, một lần dùng ảnh; không thay đồng thời prompt và strength.</li>
-              <li>Ghi lại kết quả theo rubric 1–5, kèm seed, checkpoint, resolution, frame count, thời gian và phiên bản node/adapter.</li>
-              <li>Dấu hiệu thất bại: silhouette vẫn trôi, palette không bám, motion méo hoặc output giống key art nhưng không chuyển động thuyết phục.</li>
-              <li>Bước tiếp theo: nếu art direction không bám, kiểm tra đúng vision encoder/adapter cho checkpoint rồi thử strength trong phạm vi tài liệu của workflow; nếu cấu trúc cần khóa, chuyển sang ControlNet thay vì tăng strength vô hạn.</li>
-            </ol>
-            <p class="scope-note">Heuristic: chỉ thay một biến mỗi lượt A/B. “Strength” ở đây là tham số giả định của adapter; tên, dải và tác dụng thực tế thay đổi theo node, phiên bản và model.</p>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <section class="lesson-section" id="lab" aria-labelledby="lab-title">
-      <div class="shell">
-        <p class="section-index">05 / Thử nghiệm</p>
-        <h2 id="lab-title">Một embedding, nhiều cách hiện thực hóa.</h2>
-        <p class="section-intro">Đổi seed để tạo một diễn giải khác; đổi mức bám để quan sát ảnh tham chiếu định hướng mạnh hay nhẹ. Mô phỏng này mang tính khái niệm, không chạy model thật.</p>
-        <div class="lab">
-          <div class="lab-head">
-            <div>
-              <span class="lab-label">Mô phỏng khái niệm · đơn vị tương đối</span>
-              <h3>Semantic guidance ≠ pixel copy</h3>
-            </div>
-            <button class="button" id="reset-lab" type="button">Đặt lại</button>
-          </div>
-          <div class="lab-body">
-            <div class="lab-controls">
-              <fieldset class="control-group">
-                <legend>1. Chọn seed</legend>
-                <div class="seed-buttons">
-                  <button class="seed-button" type="button" data-seed="a" aria-pressed="true">Seed A</button>
-                  <button class="seed-button" type="button" data-seed="b" aria-pressed="false">Seed B</button>
-                  <button class="seed-button" type="button" data-seed="c" aria-pressed="false">Seed C</button>
-                </div>
-              </fieldset>
-              <div class="control-group">
-                <label class="range-label" for="guidance">2. Mức bám ảnh tham chiếu <span aria-hidden="true">(tương đối)</span></label>
-                <div class="range-row">
-                  <input id="guidance" type="range" min="0" max="100" step="25" value="75">
-                  <output class="range-value" id="guidance-value" for="guidance">75%</output>
-                </div>
-              </div>
-              <p class="lab-note">Seed đổi cách sắp xếp chi tiết. Guidance đổi mức ảnh hưởng của embedding. Không thao tác nào lấy pixel gốc để chép sang khung output.</p>
-            </div>
-            <div class="lab-stage">
-              <div class="visual-flow">
-                <div>
-                  <div class="image-frame" role="img" aria-label="Ảnh tham chiếu trừu tượng: mặt trời bên trái, núi xanh sáng và con đường ở giữa">
-                    <span class="scene-sky"></span><span class="scene-sun"></span><span class="scene-ridge"></span><span class="scene-road"></span>
-                  </div>
-                  <p class="visual-caption">Reference · pixel cố định</p>
-                </div>
-                <div class="embedding" aria-label="Embedding là dãy vector đặc trưng">
-                  <div class="bars" aria-hidden="true"><i class="bar"></i><i class="bar"></i><i class="bar"></i><i class="bar"></i><i class="bar"></i><i class="bar"></i></div>
-                  <span>Embedding →</span>
-                </div>
-                <div>
-                  <div class="image-frame output-frame seed-a" id="output-frame" role="img" aria-label="Output Seed A: vẫn gợi cảnh núi, mặt trời và con đường nhưng chi tiết không trùng ảnh tham chiếu">
-                    <span class="scene-sky"></span><span class="scene-sun"></span><span class="scene-ridge"></span><span class="scene-road"></span>
-                  </div>
-                  <p class="visual-caption">Output · diễn giải theo seed</p>
-                </div>
-              </div>
-              <p class="lab-output" id="lab-output" aria-live="polite"><strong>Seed A · bám 75%:</strong> Chủ đề, palette và bố cục được ưu tiên; hình học cụ thể vẫn do quá trình sinh quyết định.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="lesson-section" id="checkpoint" aria-labelledby="checkpoint-title">
-      <div class="shell">
-        <p class="section-index">06 / Kiểm tra nhanh</p>
-        <h2 id="checkpoint-title">Bạn đã phân biệt được hai cơ chế?</h2>
-        <p class="section-intro">Chọn phát biểu mô tả đúng CLIP Vision conditioning.</p>
-        <div class="checkpoint">
-          <h3>Khi đổi seed nhưng giữ nguyên reference image, vì sao output có thể khác?</h3>
-          <div class="choice-list">
-            <button class="choice" type="button" data-correct="false">Vì encoder làm mất ảnh tham chiếu sau lần chạy đầu.</button>
-            <button class="choice" type="button" data-correct="true">Vì embedding chỉ định hướng đặc trưng; seed vẫn quyết định cách noise được hiện thực hóa.</button>
-            <button class="choice" type="button" data-correct="false">Vì CLIP Vision chỉ đọc metadata tên file.</button>
-          </div>
-          <p class="feedback" id="checkpoint-feedback" aria-live="polite">Chưa chọn đáp án.</p>
-        </div>
-      </div>
-    </section>
-
-    <section class="lesson-section" aria-labelledby="takeaway-title">
-      <div class="shell takeaway">
-        <div>
-          <p class="section-index">07 / Mang theo</p>
-          <h2 id="takeaway-title">Ba câu để nhớ.</h2>
+  <!-- HANDOFF CARD -->
+  <section class="content-section" id="handoff" aria-labelledby="handoff-heading">
+    <div class="shell">
+      <div class="handoff-card">
+        <div class="handoff-card-icon" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
         </div>
         <div>
-          <ul>
-            <li>Reference image được mã hóa thành embedding đặc trưng trước khi trở thành conditioning.</li>
-            <li>Conditioning nghiêng xác suất sinh về phía ý nghĩa thị giác mong muốn, không sao chép pixel.</li>
-            <li>Nếu cần khóa danh tính hoặc cấu trúc mạnh hơn, CLIP Vision đơn lẻ chưa chắc đủ; đó là vai trò của các cơ chế chuyên biệt ở bài sau.</li>
-          </ul>
-          <details>
-            <summary>Vì sao output đôi khi vẫn rất giống ảnh gốc?</summary>
-            <p>Mức conditioning mạnh, prompt gần ảnh gốc và pipeline có thêm tín hiệu khác có thể làm kết quả giống đáng kể. Tuy vậy, “trông giống” vẫn không đồng nghĩa với việc encoder chuyển nguyên pixel sang output.</p>
-          </details>
+          <p class="handoff-card-label">Bài tiếp theo</p>
+          <h2 class="handoff-card-title" id="handoff-heading">Checkpoint & Model Loaders</h2>
+          <p class="handoff-card-body">Sau khi có nền tảng về node management, bài tiếp theo giải thích cách load model đúng cách — model family, component compatibility, và loader node tương ứng để chạy Wan2.2.</p>
+          <a class="button primary" href="video-generation-part-4-lesson-3.html" data-curriculum-next>Sang Bài 4.3 →</a>
         </div>
       </div>
-    </section>
-
-    <section class="lesson-section" aria-labelledby="related-title">
-      <div class="shell">
-        <p class="section-index">08 / Bài liên quan</p>
-        <h2 id="related-title">Nối đúng cơ chế trước khi đổi núm.</h2>
-        <p class="section-intro">Các bài này cùng tạo thành một chuỗi: chọn loại input, mã hóa ảnh, rồi quyết định cách và mức injection.</p>
-        <nav class="related-list" aria-label="Bài học liên quan">
-          <a href="video-generation-part-4-lesson-1.html"><strong>Part 4 · Bài 1</strong><span><b>I2V, T2V, FLF2V.</b> Chọn I2V khi key art là điểm neo hình ảnh trước khi bàn đến encoder.</span></a>
-          <a href="video-generation-part-1-lesson-3.html"><strong>Part 1 · Bài 3</strong><span><b>CLIP.</b> Nền tảng về cặp encoder ảnh–văn bản và ý nghĩa của biểu diễn chung.</span></a>
-          <a href="video-generation-part-4-lesson-3.html"><strong>Part 4 · Bài 3</strong><span><b>IP-Adapter.</b> Đi tiếp từ image embedding sang vị trí injection trong attention và cách chẩn đoán strength.</span></a>
-        </nav>
-        <ul class="source-list" aria-label="Nguồn chính chủ">
-          <li><a href="https://github.com/openai/CLIP">OpenAI CLIP repository</a> — API <code>encode_image()</code> trả về image features.</li>
-          <li><a href="https://arxiv.org/abs/2103.00020">CLIP paper (Radford et al., 2021)</a> — pre-training trên cặp image–text để học visual representations.</li>
-        </ul>
-        <nav class="lesson-nav" aria-label="Điều hướng tuần tự">
-          <a class="button" href="video-generation-part-4-lesson-1.html">← Bài trước: I2V, T2V, FLF2V</a>
-          <a class="button primary" href="video-generation-part-4-lesson-3.html">Bài tiếp: IP-Adapter →</a>
-        </nav>
-      </div>
-    </section>
-  </main>
-
-  <footer class="page-footer">
-    <div class="shell footer-inner">
-      <span>Video Generation Study · Part 4 / Lesson 2</span>
-      <a href="index.html">Về mục lục →</a>
     </div>
-  </footer>
+  </section>
 
-  <script>
-    (() => {
-      const progress = document.querySelector('#reading-progress');
-      const updateProgress = () => {
-        const available = document.documentElement.scrollHeight - window.innerHeight;
-        const percent = available > 0 ? Math.min(100, Math.max(0, window.scrollY / available * 100)) : 0;
-        progress.style.width = `${percent}%`;
+</main>
+
+<!-- Footer -->
+<footer class="footer" role="contentinfo">
+  <div class="shell">
+    <div class="footer-inner page-footer">
+      <span class="footer-brand" data-curriculum-completion-label>VIDEO GEN LAB · GENERATION SETUP · BÀI 4.2 / CUSTOM NODE &amp; MANAGER</span>
+      <nav class="footer-nav" aria-label="Điều hướng bài học">
+        <a href="video-generation-part-4-lesson-1.html" data-curriculum-prev data-curriculum-title-fallback>← Bài 4.1: Node &amp; Workflow JSON</a>
+        <a href="video-generation-part-4-lesson-3.html" data-curriculum-next data-curriculum-title-fallback>Bài 4.3: Checkpoint &amp; Model Loaders →</a>
+      </nav>
+    </div>
+  </div>
+</footer>
+
+<script>
+  (() => {
+    'use strict';
+
+    /* ── Progress bar ── */
+    const progressFill = document.getElementById('js-progress');
+    if (progressFill) {
+      const update = () => {
+        const total = document.documentElement.scrollHeight - window.innerHeight;
+        progressFill.style.width = total > 0 ? (window.scrollY / total * 100) + '%' : '0%';
       };
-      window.addEventListener('scroll', updateProgress, {passive: true});
-      window.addEventListener('resize', updateProgress);
-      updateProgress();
+      window.addEventListener('scroll', update, { passive: true });
+      update();
+    }
 
-      const seedButtons = [...document.querySelectorAll('.seed-button')];
-      const guidance = document.querySelector('#guidance');
-      const guidanceValue = document.querySelector('#guidance-value');
-      const frame = document.querySelector('#output-frame');
-      const labOutput = document.querySelector('#lab-output');
-      const reset = document.querySelector('#reset-lab');
-      let activeSeed = 'a';
+    /* ── Install steps ── */
+    const TOTAL_STEPS = 4;
+    let currentStep = 1;
 
-      const descriptions = {
-        a: 'vẫn gợi cảnh núi, mặt trời và con đường nhưng chi tiết không trùng ảnh tham chiếu',
-        b: 'đổi vị trí mặt trời, hướng đường và đường núi nhưng vẫn giữ các đặc trưng chính',
-        c: 'tạo thêm một bố cục núi và đường khác từ cùng embedding'
-      };
+    const tabs   = Array.from(document.querySelectorAll('.step-tab'));
+    const panels = Array.from(document.querySelectorAll('.install-panel'));
+    const btnPrev    = document.getElementById('btn-prev');
+    const btnNext    = document.getElementById('btn-next');
+    const stepCounter = document.getElementById('step-counter');
 
-      const renderLab = () => {
-        const amount = Number(guidance.value);
-        guidanceValue.value = `${amount}%`;
-        guidanceValue.textContent = `${amount}%`;
-        frame.className = `image-frame output-frame seed-${activeSeed}`;
-        const opacity = .25 + amount / 100 * .75;
-        frame.querySelector('.scene-ridge').style.opacity = String(opacity);
-        frame.querySelector('.scene-sun').style.opacity = String(opacity);
-        const message = amount === 0
-          ? 'Embedding gần như không ảnh hưởng; output tự do theo seed và các điều kiện khác.'
-          : amount <= 50
-            ? 'Đặc trưng ảnh chỉ là gợi ý nhẹ; seed có nhiều không gian để diễn giải.'
-            : 'Chủ đề, palette và bố cục được ưu tiên; hình học cụ thể vẫn do quá trình sinh quyết định.';
-        labOutput.innerHTML = `<strong>Mô phỏng · Seed ${activeSeed.toUpperCase()} · bám tương đối ${amount}%:</strong> ${message}`;
-        frame.setAttribute('aria-label', `Output Seed ${activeSeed.toUpperCase()}: ${descriptions[activeSeed]}. Mức bám ${amount} phần trăm.`);
-      };
+    function goToStep(n) {
+      if (n < 1 || n > TOTAL_STEPS) return;
+      currentStep = n;
 
-      seedButtons.forEach((button) => {
-        button.addEventListener('click', () => {
-          activeSeed = button.dataset.seed;
-          seedButtons.forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
-          renderLab();
+      tabs.forEach((tab, i) => {
+        const step = i + 1;
+        const isActive = step === currentStep;
+        tab.setAttribute('aria-selected', String(isActive));
+        tab.tabIndex = isActive ? 0 : -1;
+      });
+
+      panels.forEach((panel, i) => {
+        const isActive = (i + 1) === currentStep;
+        panel.classList.toggle('active', isActive);
+        panel.hidden = !isActive;
+      });
+
+      btnPrev.disabled = currentStep === 1;
+      btnNext.disabled = currentStep === TOTAL_STEPS;
+      btnNext.textContent = currentStep === TOTAL_STEPS ? 'Xong ✓' : 'Tiếp theo →';
+      stepCounter.textContent = `Bước ${currentStep} / ${TOTAL_STEPS}`;
+    }
+
+    btnPrev.addEventListener('click', () => goToStep(currentStep - 1));
+    btnNext.addEventListener('click', () => { if (currentStep < TOTAL_STEPS) goToStep(currentStep + 1); });
+
+    tabs.forEach((tab, i) => {
+      tab.addEventListener('click', () => goToStep(i + 1));
+      tab.addEventListener('keydown', e => {
+        const next = e.key === 'ArrowRight' ? (i + 1) % TOTAL_STEPS : e.key === 'ArrowLeft' ? (i + TOTAL_STEPS - 1) % TOTAL_STEPS : null;
+        if (next !== null) { e.preventDefault(); goToStep(next + 1); tabs[next].focus(); }
+      });
+    });
+
+    goToStep(1);
+
+    /* ── Production preflight: educational simulation, not a compatibility check ── */
+    const preflightSignal = document.getElementById('install-signal');
+    const preflightRun = document.getElementById('preflight-run');
+    const preflightResult = document.getElementById('preflight-result');
+    const preflightCopy = {
+      missing: 'Checklist: ghi tên node đỏ → dùng Install Missing để nhận diện extension → đối chiếu README, maintainer và version workflow → lưu snapshot → cài một extension → restart, đọc log, chạy test tối thiểu.',
+      repo: 'Checklist: không cài ngay từ URL. Đọc README/release, kiểm tra ComfyUI và Python được hỗ trợ, dependency/model tải thêm, rồi pin commit hoặc release trước khi thử trong môi trường có thể rollback.',
+      update: 'Checklist: coi update là biến thử nghiệm. Lưu snapshot và output baseline, cập nhật một extension, restart rồi A/B cùng checkpoint, seed, prompt và resolution. Rollback nếu node mapping hoặc output đổi ngoài dự kiến.',
+    };
+    if (preflightSignal && preflightRun && preflightResult) {
+      preflightRun.addEventListener('click', () => {
+        preflightResult.textContent = preflightCopy[preflightSignal.value];
+      });
+    }
+
+    /* ── Quiz ── */
+    const feedbackText = {
+      correct: [
+        '✓ Chính xác! KSampler là node gốc có sẵn trong ComfyUI, không cần cài thêm. WAS Image Save, AnimateDiff Loader và VHS Load Video đều là Custom Node.',
+        '✓ Đúng rồi! Installed chưa chứng minh workflow chạy được. Restart để nạp extension, đọc log và chạy test tối thiểu là chuỗi kiểm chứng phù hợp.',
+        '✓ Chính xác! Install Missing giúp nhận diện extension có node thiếu; xác minh repo, version và dependency trước khi cài để tránh biến môi trường thành ẩn số.',
+      ],
+      wrong: [
+        '✗ Chưa đúng. Hãy để ý: node gốc là những node đi kèm ComfyUI ngay từ đầu, không cần thêm bất kỳ bước cài đặt nào.',
+        '✗ Chưa đúng. Tải lại trình duyệt hay chỉ chạy pip không xác minh extension đã nạp đúng. Hãy restart, đọc log và chạy workflow nhỏ.',
+        '✗ Chưa đúng. Cài ngay là rủi ro: hãy dùng Install Missing như tín hiệu nhận diện, sau đó kiểm tra nguồn và version trước.',
+      ],
+    };
+
+    document.querySelectorAll('.quiz-card').forEach((card, cardIdx) => {
+      const options  = Array.from(card.querySelectorAll('.quiz-option'));
+      const feedback = card.querySelector('.quiz-feedback');
+      const resetBtn = card.querySelector('.quiz-reset');
+      let answered   = false;
+
+      options.forEach(opt => {
+        opt.addEventListener('click', () => {
+          if (answered) return;
+          answered = true;
+          const isCorrect = opt.dataset.correct === 'true';
+
+          options.forEach(o => {
+            o.disabled = true;
+            const correct = o.dataset.correct === 'true';
+            if (correct) {
+              o.classList.add('correct');
+              o.querySelector('.quiz-option-mark').textContent = '✓';
+            } else if (o === opt && !isCorrect) {
+              o.classList.add('wrong');
+              o.querySelector('.quiz-option-mark').textContent = '✗';
+            }
+            o.setAttribute('aria-pressed', String(o === opt));
+          });
+
+          feedback.textContent = isCorrect
+            ? feedbackText.correct[cardIdx]
+            : feedbackText.wrong[cardIdx];
+          feedback.className = 'quiz-feedback show ' + (isCorrect ? 'ok' : 'fail');
+          resetBtn.classList.add('show');
         });
       });
-      guidance.addEventListener('input', renderLab);
-      reset.addEventListener('click', () => {
-        activeSeed = 'a';
-        guidance.value = '75';
-        seedButtons.forEach((item) => item.setAttribute('aria-pressed', String(item.dataset.seed === 'a')));
-        renderLab();
-        seedButtons[0].focus();
-      });
 
-      const feedback = document.querySelector('#checkpoint-feedback');
-      document.querySelectorAll('.choice').forEach((choice) => {
-        choice.addEventListener('click', () => {
-          document.querySelectorAll('.choice').forEach((item) => item.removeAttribute('data-state'));
-          const correct = choice.dataset.correct === 'true';
-          choice.dataset.state = correct ? 'correct' : 'wrong';
-          feedback.textContent = correct
-            ? 'Đúng. Embedding giữ hướng ngữ nghĩa; seed vẫn mở ra nhiều cách sắp xếp pixel.'
-            : 'Chưa đúng. CLIP Vision đọc nội dung ảnh và tạo embedding, còn seed làm thay đổi quá trình sinh từ noise.';
+      resetBtn.addEventListener('click', () => {
+        answered = false;
+        options.forEach(o => {
+          o.disabled = false;
+          o.classList.remove('correct', 'wrong');
+          o.setAttribute('aria-pressed', 'false');
+          o.querySelector('.quiz-option-mark').textContent = '';
         });
+        feedback.className = 'quiz-feedback';
+        feedback.textContent = '';
+        resetBtn.classList.remove('show');
+        options[0].focus();
       });
-    })();
-  </script>
+    });
+  });
+
+  // ── Code copy logic ──
+  document.querySelectorAll('.code-copy-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = document.getElementById(btn.dataset.copyTarget);
+      if (!target) return;
+      navigator.clipboard.writeText(target.textContent).then(() => {
+        btn.classList.add('copied');
+        btn.textContent = '✓ Đã copy';
+        setTimeout(() => {
+          btn.classList.remove('copied');
+          btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy';
+        }, 2000);
+      });
+    });
+  });
+</script>
 </body>
 </html>

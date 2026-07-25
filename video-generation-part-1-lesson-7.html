@@ -1,13 +1,15 @@
 <!DOCTYPE html>
-<html lang="vi" data-theme="dark">
+<html lang="vi" data-theme="dark" data-curriculum-id="temporal-context">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Context Window — Attention theo thời gian | Video Gen Lab</title>
-  <meta name="description" content="Hiểu Context Window trong video generation: temporal attention hoạt động thế nào, trade-off VRAM, sliding window overlap, và ứng dụng trong WanVideo/ComfyUI." />
+  <title>Model Architecture · Bài 1.7 — Temporal Context Window</title>
+  <meta name="description" content="Hiểu Context Window trong video generation: temporal attention hoạt động thế nào, trade-off VRAM, sliding window overlap, và ứng dụng khi tạo video dài." />
 
   <script src="video-generation-theme.js"></script>
   <link rel="stylesheet" href="video-generation-design-system.css" />
+  <script src="video-generation-curriculum.js"></script>
+  <script src="video-generation-navigation.js"></script>
 
   <style>
     /* ── Page layout ── */
@@ -824,6 +826,14 @@
       .related-card { transition: none; }
       .related-card:hover { transform: none; }
     }
+    .phase-contract { margin: 26px 0 0; padding: 18px; border: 1px solid var(--line); border-left: 4px solid var(--cyan); border-radius: 16px; background: color-mix(in srgb, var(--panel) 88%, transparent); }
+    .phase-contract h2 { margin: 0; font: 800 .78rem/1.35 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--cyan); }
+    .phase-contract > p { margin: 8px 0 14px; color: var(--muted); font-size: .92rem; }
+    .phase-contract-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .phase-contract-item { padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--panel-2); }
+    .phase-contract-item strong { display: block; margin-bottom: 4px; font: 800 .68rem/1.3 var(--font-mono); letter-spacing: .07em; text-transform: uppercase; color: var(--ink); }
+    .phase-contract-item span { display: block; color: var(--muted); font-size: .82rem; line-height: 1.45; }
+    @media (max-width: 700px) { .phase-contract-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -833,13 +843,14 @@
   <!-- ── Topbar ── -->
   <header class="topbar" role="banner">
     <div class="topbar-inner">
-      <a class="brand" href="index.html" aria-label="Video Gen Lab — trang chủ">
+      <a class="brand" href="index.html" data-curriculum-home aria-label="Video Gen Lab — trang chủ">
         <span class="brand-mark" aria-hidden="true"></span>
         VIDEO GEN LAB
       </a>
-      <nav class="topnav" aria-label="Điều hướng chính">
-        <a href="index.html">Trang chủ</a>
-        <a href="video-generation-part-2-lesson-5.html" aria-current="page">Part 2 · Bài 5</a>
+      <nav class="topnav" aria-label="Điều hướng bài học">
+        <a href="video-generation-part-1-lesson-6.html" data-curriculum-prev>← Bài 1.6</a>
+        <a href="index.html" data-curriculum-home>Trang chủ</a>
+        <a href="video-generation-part-2-lesson-1.html" data-curriculum-next>Bài 2.1 →</a>
       </nav>
       <!-- theme toggle injected by video-generation-theme.js -->
     </div>
@@ -851,24 +862,49 @@
   <!-- ── Hero ── -->
   <section class="hero" aria-labelledby="hero-heading">
     <div class="shell">
-      <div class="hero-meta">
-        <span>Part 2 — Sampling / Inference</span>
-        <span class="sep" aria-hidden="true">·</span>
-        <span>Bài 5 / 6</span>
-        <span class="sep" aria-hidden="true">·</span>
-        <span class="hero-tag">Context Window</span>
+      <div class="hero-meta" data-curriculum-hero-label>
+        MODEL ARCHITECTURE · BÀI 1.7 · TEMPORAL
       </div>
       <h1 id="hero-heading">Context Window<br/><em>Attention theo thời gian</em></h1>
       <p class="hero-lead">
-        Model không nhìn toàn bộ video cùng một lúc — nó chọn lọc một "cửa sổ" frame để tính attention.
-        Bài này giải thích cơ chế đó, vì sao nó quyết định sự nhất quán của video, và cách chọn thông số phù hợp.
+        Context window là khả năng temporal của model, không phải một preset train hay inference duy nhất. Bài này tách rõ ràng ràng buộc dữ liệu khi train khỏi window/overlap bạn vận hành khi render clip dài.
       </p>
+      <aside class="phase-contract" aria-label="Vị trí của bài trong lộ trình">
+        <h2>Bạn đang ở đâu?</h2>
+        <p>Kiến trúc temporal tạo ra các ràng buộc cho cả hai luồng, nhưng người học sẽ trực tiếp chỉnh window và overlap ở phần inference.</p>
+        <div class="phase-contract-grid">
+          <div class="phase-contract-item"><strong>Base pretraining</strong><span>Độ dài và cách model nhìn chuỗi frame được học từ dữ liệu/video recipe của checkpoint.</span></div>
+          <div class="phase-contract-item"><strong>LoRA training</strong><span>Dataset, frame count và bucket phải tôn trọng ràng buộc recipe; Phase 2–3 sẽ biến điều đó thành cấu hình.</span></div>
+          <div class="phase-contract-item"><strong>Inference</strong><span>Window size và overlap là tham số workflow để kéo dài clip, cân bằng seam, thời gian và VRAM.</span></div>
+        </div>
+      </aside>
+
+      <!-- OUTPUT ARTIFACT BADGE -->
+      <div class="output-artifact" role="note">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+        <span class="output-artifact-label">Đầu ra bài học:</span>
+        <span class="output-artifact-text">Hiểu temporal context window trong Wan2.2: cách frames được nhóm, overlap, và xử lý tuần tự để duy trì chuyển động mượt mà</span>
+      </div>
+
       <div class="hero-actions">
         <a class="button primary" href="#lab">Thử interactive demo</a>
         <a class="button" href="#concepts">Đọc lý thuyết</a>
       </div>
     </div>
   </section>
+
+  <!-- FLOW POSITION MINI-MAP -->
+  <div class="shell">
+    <nav class="flow-minimap" aria-label="Vị trí trong lộ trình">
+      <span class="flow-minimap-label">LỘ TRÌNH</span>
+      <span class="flow-minimap-sep">›</span>
+      <a class="flow-minimap-item" href="video-generation-part-1-lesson-6.html">1.6: Self & Cross-Attention</a>
+      <span class="flow-minimap-sep">›</span>
+      <strong class="flow-minimap-item current" aria-current="step">1.7: Temporal Context Window</strong>
+      <span class="flow-minimap-sep">›</span>
+      <a class="flow-minimap-item" href="video-generation-part-2-lesson-1.html">2.1: Training Brief & Baseline</a>
+    </nav>
+  </div>
 
   <!-- ── Main content ── -->
   <main id="main">
@@ -883,6 +919,18 @@
             Trong video generation, context window (cửa sổ ngữ cảnh) xác định phạm vi temporal mà model
             xử lý cùng lúc. UI thường biểu diễn bằng output frame, còn bên trong model có thể làm việc trên temporal latent.
           </p>
+
+          <!-- PREREQUISITE CALLOUT -->
+          <div class="prereq-callout" role="note" aria-label="Yêu cầu trước bài học">
+            <div class="prereq-icon" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 8v4m0 4h.01"/></svg>
+            </div>
+            <div>
+              <p class="prereq-title">Cần biết trước</p>
+              <p class="prereq-body">Bài này yêu cầu hiểu self/cross-attention từ Bài 1.6 (P1L5) để hiểu cách attention hoạt động theo chiều thời gian.</p>
+              <a class="prereq-link" href="video-generation-part-1-lesson-6.html">← Xem lại bài trước: Bài 1.6</a>
+            </div>
+          </div>
 
           <div class="def-panel" role="note">
             <div class="def-term">Định nghĩa</div>
@@ -993,6 +1041,16 @@
             <strong>Đọc đúng công thức:</strong> các con số trên chỉ minh họa thành phần attention khi giữ nguyên
             resolution và kiến trúc. Peak VRAM thực tế còn phụ thuộc model weights, spatial token, activation, dtype,
             cache và block swap; “frame” trên UI cũng có thể khác temporal token bên trong VAE.
+          </div>
+
+          <!-- INFERENCE TUNING CALLOUT -->
+          <div class="callout" role="note" style="margin-bottom: 24px; padding: 18px 24px; border: 1px solid var(--orange); border-left: 4px solid var(--orange); background: color-mix(in srgb, var(--orange) 5%, var(--panel)); border-radius: 12px; display: flex; gap: 14px; align-items: flex-start;">
+            <div class="callout-icon" aria-hidden="true" style="color: var(--orange); margin-top: 2px;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+            <div class="callout-body" style="font-size: .92rem; color: var(--muted); line-height: 1.6;">
+              <strong style="color: var(--orange);">Lưu ý:</strong> Điều chỉnh context window cho inference sẽ được đề cập trong phần Generation (bài 4.x trở đi) — tại đây chỉ tập trung vào cơ chế nền tảng.
+            </div>
           </div>
 
           <div class="table-scroll" tabindex="0" role="region" aria-label="Bảng so sánh kích thước context window, có thể cuộn ngang">
@@ -1125,7 +1183,7 @@
         <!-- Section 5: Application -->
         <section class="section" aria-labelledby="s5-heading">
           <div class="section-label">Khái niệm 05</div>
-          <h2 id="s5-heading">Ứng dụng trong WanVideo / ComfyUI</h2>
+          <h2 id="s5-heading">Ứng dụng trong thực tế</h2>
           <p class="section-intro">
             Hiểu context window giúp bạn điều chỉnh thông số trong workflow thực tế.
           </p>
@@ -1134,10 +1192,7 @@
             <summary>Context window ảnh hưởng đến VRAM usage như thế nào?</summary>
             <div class="details-body">
               <p>
-                Trong ComfyUI với WanVideo, node <code>WanVideoContextOptions</code> cho phép đặt
-                <code>context_length</code> (window size) và <code>context_overlap</code>.
-                Hãy đọc tooltip đúng phiên bản node để xác nhận hai giá trị đang tính theo output frame hay
-                temporal latent; không nên chuyển đổi đơn vị theo cảm tính.
+                Các inference framework thường expose hai tham số cho context window: <strong>window size</strong> (số frame xử lý cùng lúc) và <strong>overlap</strong> (số frame tái xử lý để transition mượt). Đơn vị của hai tham số này — output frame hay temporal latent — phụ thuộc vào implementation cụ thể. Hãy đọc documentation của tool và phiên bản đang dùng để xác nhận, không suy ra bằng cảm tính.
               </p>
               <p>
                 Nếu OOM, đo từng đòn bẩy: context length, resolution, dtype, block swap/offload và cache.
@@ -1219,8 +1274,8 @@
               <li>WanVideoWrapper có ví dụ 81/16; coi đó là baseline để đo, không phải preset đúng cho mọi model.</li>
             </ul>
             <div class="nav-buttons">
-              <a class="button" href="video-generation-part-2-lesson-4.html">← Bài 4: CFG</a>
-              <a class="button primary" href="video-generation-part-2-lesson-6.html">Bài 6: VRAM &amp; Noise Aug →</a>
+              <a class="button" href="video-generation-part-6-lesson-4.html">← Bài 4: CFG</a>
+              <a class="button primary" href="video-generation-part-6-lesson-5.html">Bài 6: VRAM &amp; Noise Aug →</a>
             </div>
           </div>
         </section>
@@ -1234,19 +1289,19 @@
             <p>Đi tiếp theo từ khóa xuất hiện trong bài — attention, chất lượng chuyển động và node triển khai thực tế.</p>
           </div>
           <nav class="related-grid" aria-label="Các bài học liên quan">
-            <a class="related-card" href="video-generation-part-1-lesson-5.html">
+            <a class="related-card" href="video-generation-part-1-lesson-6.html">
               <span class="related-tag">Attention · Nền tảng</span>
               <strong>Self &amp; Cross Attention</strong>
               <small>Ôn cách token tạo trọng số trước khi mở rộng attention sang trục thời gian.</small>
               <span class="related-arrow" aria-hidden="true">Mở bài ↗</span>
             </a>
-            <a class="related-card" href="video-generation-part-5-lesson-3.html">
+            <a class="related-card" href="video-generation-part-7-lesson-2.html">
               <span class="related-tag">Flicker · Motion</span>
               <strong>Chất lượng chuyển động</strong>
               <small>Đọc artifact theo temporal consistency, motion blur và độ ổn định của chủ thể.</small>
               <span class="related-arrow" aria-hidden="true">Mở bài ↗</span>
             </a>
-            <a class="related-card" href="video-generation-part-6-lesson-4.html">
+            <a class="related-card" href="video-generation-part-4-lesson-4.html">
               <span class="related-tag">WanVideo · Workflow</span>
               <strong>Bộ node WanVideo</strong>
               <small>Đặt kiến thức context window vào workflow ComfyUI và các node inference thật.</small>
@@ -1259,11 +1314,31 @@
     </div>
   </main>
 
+  <!-- HANDOFF CARD -->
+  <section class="content-section" id="handoff" aria-labelledby="handoff-heading" style="border-bottom: 1px solid var(--line);">
+    <div class="shell">
+      <div class="handoff-card">
+        <div class="handoff-card-icon" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </div>
+        <div>
+          <p class="handoff-card-label">Bài tiếp theo</p>
+          <h2 class="handoff-card-title" id="handoff-heading">Training Brief & Baseline</h2>
+          <p class="handoff-card-body">Với nền tảng kiến trúc hoàn chỉnh, bài tiếp theo bắt đầu phần Training: lập Training Brief để xác định mục tiêu, dataset, và tiêu chí nghiệm thu trước khi chạy LoRA.</p>
+          <a class="button primary" href="video-generation-part-2-lesson-1.html" data-curriculum-next>Sang Bài 2.1 →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ── Footer ── -->
   <footer class="site-footer" role="contentinfo">
-    <div class="shell footer-inner">
-      <span class="footer-brand">Video Gen Lab</span>
-      <span class="footer-copy">Part 2 · Bài 5 / 6 — Context Window</span>
+    <div class="shell page-footer">
+      <span class="footer-copy" data-curriculum-completion-label>VIDEO GEN LAB · MODEL ARCHITECTURE · BÀI 1.7 / TEMPORAL CONTEXT WINDOW</span>
+      <div style="display:flex;gap:12px">
+        <a class="button" href="video-generation-part-1-lesson-6.html" data-curriculum-prev data-curriculum-title-fallback>← Bài 1.6: Self &amp; Cross-Attention</a>
+        <a class="button primary" href="video-generation-part-2-lesson-1.html" data-curriculum-next data-curriculum-title-fallback>Bài 2.1: Training Brief &amp; Baseline →</a>
+      </div>
     </div>
   </footer>
 

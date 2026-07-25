@@ -1,438 +1,1087 @@
 <!doctype html>
-<html lang="vi">
+<html lang="vi" data-curriculum-id="prompt-structure">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Bài học thực hành về Noise Aug Strength, Start Latent Strength và End Latent Strength trong I2V/FLF2V.">
-  <title>Latent Strength &amp; Noise Aug trong I2V/FLF2V | Video Generation Study</title>
+  <meta name="description" content="Học cách viết prompt có cấu trúc cho video AI: Subject Description, Motion Description và Style Keywords trước khi tách positive/negative prompt.">
+  <title>Cấu trúc Prompt cho Video — Video Generation Study</title>
   <link rel="icon" href="video-generation-favicon.svg" type="image/svg+xml">
+  <script src="video-generation-curriculum.js"></script>
   <script src="video-generation-theme.js"></script>
   <link rel="stylesheet" href="video-generation-design-system.css">
   <style>
-    .hero { padding: clamp(64px, 10vw, 120px) 0 70px; border-bottom: 1px solid var(--line); }
-    .hero-grid,
-    .section-head,
-    .lab,
-    .takeaways { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(290px, .65fr); gap: clamp(34px, 7vw, 88px); }
-    .hero-grid { align-items: end; }
+    /* ── Layout shell ── */
+    .topbar-inner { position: relative; }
+    .lesson-main { overflow: clip; }
+    .brand, .topnav a { min-height: 44px; display: inline-flex; align-items: center; }
 
+    /* ── Typography helpers ── */
     .eyebrow,
-    .section-index,
-    .mini-label,
-    .frame-label {
+    .section-kicker,
+    .tag-label,
+    .mono-label {
       font-family: var(--font-mono);
-      font-size: .75rem;
-      font-weight: 850;
-      letter-spacing: .11em;
+      font-size: .74rem;
+      font-weight: 800;
+      letter-spacing: .1em;
       text-transform: uppercase;
     }
-    .eyebrow,
-    .section-index { color: var(--cyan); }
+    .eyebrow { color: var(--acid); }
+    .section-kicker { color: var(--cyan); }
 
-    h1 { max-width: 970px; margin: 18px 0 24px; font-size: clamp(3rem, 8vw, 7.3rem); line-height: .88; letter-spacing: -.072em; }
-    .hero-lead { max-width: 760px; margin: 0; color: var(--muted); font-size: clamp(1.05rem, 2vw, 1.3rem); }
-    .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
-    .goal { padding: 26px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); box-shadow: 12px 12px 0 color-mix(in srgb, var(--cyan) 14%, transparent); }
-    .goal p { margin: 10px 0 0; color: var(--muted); }
-    .goal strong { color: var(--ink); }
+    /* ── Hero ── */
+    .hero { padding: clamp(72px, 10vw, 132px) 0 76px; }
+    .hero h1 {
+      max-width: 900px;
+      margin: 18px 0 24px;
+      font-size: clamp(2.8rem, 7.5vw, 6.4rem);
+      line-height: .9;
+      letter-spacing: -.065em;
+    }
+    .hero-lead {
+      max-width: 720px;
+      margin: 0;
+      color: var(--muted);
+      font-size: clamp(1.05rem, 2vw, 1.3rem);
+      line-height: 1.6;
+    }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; }
+    .hero-note {
+      max-width: 820px;
+      margin-top: 48px;
+      border-left: 4px solid var(--acid);
+      padding: 18px 24px;
+      background: var(--panel);
+      border-radius: 0 10px 10px 0;
+      color: var(--muted);
+    }
+    .hero-note strong { color: var(--ink); }
 
-    main section { padding: clamp(70px, 9vw, 110px) 0; }
-    main section + section { border-top: 1px solid var(--line); }
-    .section-head { align-items: end; margin-bottom: 42px; }
-    .section-head h2,
-    .takeaways h2 { max-width: 820px; margin: 8px 0 0; font-size: clamp(2rem, 5vw, 4.3rem); line-height: .98; letter-spacing: -.055em; }
-    .section-head > p { margin: 0; color: var(--muted); }
+    /* ── Sections ── */
+    .lesson-section { padding: 84px 0; border-top: 1px solid var(--line); }
+    .section-heading {
+      max-width: 760px;
+      margin: 12px 0 16px;
+      font-size: clamp(1.9rem, 4.5vw, 3.6rem);
+      line-height: 1;
+      letter-spacing: -.045em;
+    }
+    .section-intro {
+      max-width: 720px;
+      margin: 0 0 38px;
+      color: var(--muted);
+      font-size: 1.05rem;
+    }
 
-    .definition { padding: 26px 30px; border-left: 5px solid var(--acid-fill); background: var(--panel); font-size: clamp(1.06rem, 2vw, 1.28rem); }
-    .definition p { max-width: 950px; margin: 0; }
+    /* ── Component cards ── */
+    .component-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .component-card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: clamp(22px, 3.5vw, 36px);
+      background: var(--panel);
+    }
+    .component-card .card-index {
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    .component-card h3 {
+      margin: 0 0 10px;
+      font-size: 1.45rem;
+      line-height: 1.1;
+      letter-spacing: -.03em;
+    }
+    .component-card p {
+      margin: 0 0 18px;
+      color: var(--muted);
+      font-size: .95rem;
+    }
+    .component-card .examples {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .ex-chip {
+      display: inline-block;
+      padding: 5px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font-family: var(--font-mono);
+      font-size: .8rem;
+      color: var(--muted);
+      background: var(--panel-2);
+    }
+    .card-subject .card-index { color: var(--acid); }
+    .card-subject { border-top: 3px solid var(--acid); }
+    .card-motion .card-index { color: var(--cyan); }
+    .card-motion { border-top: 3px solid var(--cyan); }
+    .card-style .card-index { color: var(--orange); }
+    .card-style { border-top: 3px solid var(--orange); }
 
-    .roles { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
-    .role { min-height: 260px; padding: 28px; border-right: 1px solid var(--line); background: var(--panel); }
-    .role:last-child { border-right: 0; }
-    .role .mini-label { color: var(--cyan); }
-    .role h3 { margin: 30px 0 10px; font-size: 1.25rem; line-height: 1.15; }
-    .role p { margin: 0; color: var(--muted); }
-    .role strong { color: var(--ink); }
-    .role-question { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); font-size: .92rem; }
+    /* ── Order diagram ── */
+    .order-diagram {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--panel);
+    }
+    .order-block {
+      flex: 1;
+      padding: clamp(20px, 3vw, 32px) clamp(18px, 2.5vw, 28px);
+      border-right: 1px solid var(--line);
+    }
+    .order-block:last-child { border-right: none; }
+    .order-block .ob-num {
+      font-family: var(--font-mono);
+      font-size: .7rem;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .order-block h4 { margin: 0 0 6px; font-size: 1.1rem; }
+    .order-block p { margin: 0; color: var(--muted); font-size: .9rem; }
+    .ob-subject .ob-num { color: var(--acid); }
+    .ob-motion .ob-num { color: var(--cyan); }
+    .ob-style .ob-num { color: var(--orange); }
+    .order-note {
+      margin-top: 16px;
+      padding: 14px 20px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--panel-2);
+      color: var(--muted);
+      font-size: .92rem;
+    }
+    .order-note strong { color: var(--ink); }
 
-    .boundary { margin-top: 26px; padding: 22px 26px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel-2); }
-    .boundary p { margin: 0; }
-    .simulation-note { margin: 0 0 20px; color: var(--dim); font-size: .9rem; }
+    /* ── Comparison ── */
+    .comparison {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--panel);
+    }
+    .compare-side { padding: clamp(24px, 4vw, 40px); }
+    .compare-side + .compare-side { border-left: 1px solid var(--line); }
+    .compare-tag {
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      font-weight: 800;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .compare-tag.bad { color: var(--red); }
+    .compare-tag.good { color: var(--acid); }
+    .compare-side h3 { margin: 0 0 12px; font-size: 1.3rem; }
+    .compare-prompt {
+      font-family: var(--font-mono);
+      font-size: .85rem;
+      line-height: 1.6;
+      color: var(--muted);
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 16px 18px;
+      margin: 0 0 16px;
+      white-space: pre-wrap;
+    }
+    .compare-result {
+      color: var(--muted);
+      font-size: .93rem;
+    }
+    .compare-result strong { color: var(--ink); }
 
-    .lab { grid-template-columns: minmax(310px, .78fr) minmax(0, 1.22fr); padding: clamp(24px, 5vw, 50px); border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); box-shadow: 14px 14px 0 color-mix(in srgb, var(--acid-fill) 12%, transparent); }
-    .lab-controls h3 { margin: 8px 0 12px; font-size: clamp(1.6rem, 3vw, 2.5rem); line-height: 1.05; }
-    .lab-controls > p { margin: 0; color: var(--muted); }
-    .control-list { display: grid; gap: 24px; margin-top: 30px; }
-    .control-head { display: flex; justify-content: space-between; align-items: baseline; gap: 14px; }
-    .control-head label { font-weight: 850; }
-    .value { color: var(--acid); font-family: var(--font-mono); font-size: 1.08rem; font-weight: 900; }
-    input[type="range"] { width: 100%; min-height: 44px; margin-top: 8px; accent-color: var(--acid); }
-    .range-ends { display: flex; justify-content: space-between; color: var(--dim); font-family: var(--font-mono); font-size: .72rem; }
-    .help { margin: 6px 0 0; color: var(--muted); font-size: .86rem; }
-    .reset { margin-top: 26px; }
+    /* ── Structured prompt highlight ── */
+    .struct-prompt {
+      font-family: var(--font-mono);
+      font-size: .88rem;
+      line-height: 1.7;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 16px 18px;
+      margin: 0;
+    }
+    .sp-subject { color: var(--acid); }
+    .sp-motion { color: var(--cyan); }
+    .sp-style { color: var(--orange); }
 
-    .result { min-width: 0; padding: 28px; border: 1px solid var(--line); border-radius: 18px; background: var(--night); }
-    .timeline { position: relative; display: grid; grid-template-columns: 110px 1fr 110px; gap: 20px; align-items: center; padding: 26px 0 32px; }
-    .timeline::before { content: ""; position: absolute; left: 88px; right: 88px; top: 50%; height: 2px; background: var(--line); }
-    .frame { position: relative; z-index: 1; min-height: 126px; display: grid; place-items: center; align-content: center; gap: 8px; border: 2px solid var(--cyan); border-radius: 16px; background: var(--panel); text-align: center; }
-    .frame.end { border-color: var(--acid-fill); }
-    .frame-label { color: var(--muted); }
-    .frame output { font-family: var(--font-mono); font-size: 1.25rem; font-weight: 900; }
-    .motion-field { position: relative; z-index: 1; min-width: 0; padding: 20px; border: 1px dashed var(--line); border-radius: 999px; background: var(--night); text-align: center; }
-    .motion-field strong { display: block; font-family: var(--font-mono); font-size: clamp(1.25rem, 3vw, 2rem); }
-    .motion-field span { color: var(--muted); font-size: .84rem; }
+    /* ── Lab ── */
+    .lab-panel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      overflow: hidden;
+    }
+    .lab-header {
+      padding: 22px 28px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel-2);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .lab-header .lab-title {
+      font-size: 1.05rem;
+      font-weight: 800;
+    }
+    .lab-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--acid-fill);
+      box-shadow: 0 0 14px rgba(200,255,61,.65);
+    }
+    .lab-body { padding: clamp(20px, 3vw, 32px) 28px; }
+    .lab-fields { display: flex; flex-direction: column; gap: 24px; }
+    .lab-field { display: flex; flex-direction: column; gap: 8px; }
+    .lab-field label {
+      font-family: var(--font-mono);
+      font-size: .74rem;
+      font-weight: 800;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+    .lab-field label.lbl-subject { color: var(--acid); }
+    .lab-field label.lbl-motion { color: var(--cyan); }
+    .lab-field label.lbl-style { color: var(--orange); }
+    .lab-field .field-hint {
+      font-size: .82rem;
+      color: var(--dim);
+      margin-bottom: 4px;
+    }
+    .lab-field textarea {
+      width: 100%;
+      min-height: 80px;
+      padding: 12px 14px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      color: var(--ink);
+      font-family: var(--font-mono);
+      font-size: .88rem;
+      line-height: 1.6;
+      resize: vertical;
+      transition: border-color .15s;
+    }
+    .lab-field textarea:focus {
+      outline: 3px solid var(--cyan);
+      outline-offset: 2px;
+      border-color: var(--cyan);
+    }
+    .lab-actions {
+      margin-top: 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .lab-output-section {
+      margin-top: 24px;
+      border-top: 1px solid var(--line);
+      padding-top: 22px;
+    }
+    .lab-output-label {
+      font-family: var(--font-mono);
+      font-size: .74rem;
+      font-weight: 800;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .lab-output-wrap { position: relative; }
+    .lab-output {
+      width: 100%;
+      min-height: 90px;
+      padding: 14px 16px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      color: var(--ink);
+      font-family: var(--font-mono);
+      font-size: .88rem;
+      line-height: 1.6;
+      resize: vertical;
+    }
+    .copy-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      min-height: 44px;
+      padding: 6px 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: .74rem;
+      font-weight: 800;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background .15s, color .15s;
+    }
+    .copy-btn:hover { background: var(--panel-2); color: var(--ink); }
+    .copy-btn:focus-visible { outline: 3px solid var(--cyan); outline-offset: 3px; }
+    .copy-feedback {
+      font-family: var(--font-mono);
+      font-size: .8rem;
+      color: var(--acid);
+      margin-left: 4px;
+      min-width: 80px;
+    }
+    [role="status"] { min-height: 1.2em; }
 
-    .status-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; align-items: baseline; border-top: 1px solid var(--line); padding-top: 22px; }
-    .status-head h3 { margin: 0; font-size: 1.25rem; }
-    .status-zone { color: var(--cyan); font-family: var(--font-mono); font-size: .76rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
-    .live-summary { min-height: 82px; margin: 14px 0 22px; color: var(--muted); }
+    /* ── Production brief + prompt diagnostic ── */
+    .brief-grid, .related-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .brief-card, .related-card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: clamp(22px, 3vw, 34px);
+      background: var(--panel);
+    }
+    .brief-card h3, .related-card h3 { margin: 8px 0 12px; font-size: 1.3rem; line-height: 1.15; }
+    .brief-card p, .related-card p { margin: 0; color: var(--muted); }
+    .brief-facts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 13px; margin: 0; }
+    .brief-facts div { border-top: 1px solid var(--line); padding-top: 12px; }
+    .brief-facts dt { color: var(--cyan); font: 800 .72rem var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
+    .brief-facts dd { margin: 4px 0 0; color: var(--muted); font-size: .93rem; }
+    .sim-note { margin: 20px 0 0; color: var(--dim); font-size: .84rem; }
+    .diagnostic {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 16px;
+      margin-top: 18px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel-2);
+    }
+    .diagnostic strong { display: block; }
+    .diagnostic p { margin: 3px 0 0; color: var(--muted); font-size: .9rem; }
+    .diagnostic-score { min-width: 92px; color: var(--acid); font: 900 1.1rem var(--font-mono); text-align: right; }
+    .related-card { min-height: 176px; display: flex; flex-direction: column; }
+    .related-card a { min-height: 44px; display: inline-flex; align-items: center; color: var(--ink); text-decoration-thickness: 2px; text-underline-offset: 4px; }
+    .related-card p { font-size: .93rem; }
 
-    .metrics { display: grid; gap: 15px; }
-    .metric { display: grid; grid-template-columns: 150px 1fr 3ch; gap: 12px; align-items: center; }
-    .metric label { color: var(--muted); font-family: var(--font-mono); font-size: .72rem; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; }
-    progress { width: 100%; height: 10px; overflow: hidden; border: 0; border-radius: 999px; background: var(--panel-2); }
-    progress::-webkit-progress-bar { background: var(--panel-2); }
-    progress::-webkit-progress-value { background: var(--cyan-fill); }
-    progress::-moz-progress-bar { background: var(--cyan-fill); }
-    .metric:nth-child(2) progress::-webkit-progress-value { background: var(--acid-fill); }
-    .metric:nth-child(2) progress::-moz-progress-bar { background: var(--acid-fill); }
-    .metric:nth-child(3) progress::-webkit-progress-value { background: var(--orange); }
-    .metric:nth-child(3) progress::-moz-progress-bar { background: var(--orange); }
-    .metric output { font-family: var(--font-mono); text-align: right; }
-    .decision { margin: 22px 0 0; padding-top: 20px; border-top: 1px solid var(--line); }
+    /* ── Final callout ── */
+    .finale-callout {
+      border: 1px solid var(--line);
+      border-top: 4px solid var(--acid);
+      border-radius: var(--radius);
+      padding: clamp(28px, 5vw, 52px);
+      background: var(--panel);
+      text-align: center;
+      max-width: 760px;
+      margin-inline: auto;
+    }
+    .finale-callout .finale-icon {
+      font-size: 2.4rem;
+      margin-bottom: 16px;
+      display: block;
+      line-height: 1;
+    }
+    .finale-callout h3 {
+      margin: 0 0 12px;
+      font-size: 1.7rem;
+      letter-spacing: -.03em;
+    }
+    .finale-callout p {
+      max-width: 560px;
+      margin: 0 auto 24px;
+      color: var(--muted);
+      font-size: 1rem;
+    }
+    .finale-journey {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }
+    .journey-chip {
+      padding: 6px 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font-family: var(--font-mono);
+      font-size: .75rem;
+      font-weight: 800;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      background: var(--panel-2);
+    }
 
-    .read-grid { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
-    .read-card { padding: 27px; border-right: 1px solid var(--line); background: var(--panel); }
-    .read-card:last-child { border-right: 0; }
-    .read-card h3 { margin: 26px 0 8px; font-size: 1.12rem; }
-    .read-card p { margin: 0; color: var(--muted); }
-    details { margin-top: 26px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); }
-    summary { min-height: 56px; padding: 16px 20px; cursor: pointer; font-weight: 850; }
-    details p { margin: 0; padding: 0 20px 22px; color: var(--muted); }
+    /* ── Lesson nav ── */
+    .lesson-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 40px 0 80px;
+      border-top: 1px solid var(--line);
+      flex-wrap: wrap;
+    }
+    .lesson-nav-label {
+      font-family: var(--font-mono);
+      font-size: .8rem;
+      color: var(--dim);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
 
-    .takeaway-list { margin: 0; padding: 0; list-style: none; counter-reset: point; }
-    .takeaway-list li { counter-increment: point; display: grid; grid-template-columns: 42px 1fr; gap: 12px; padding: 19px 0; border-bottom: 1px solid var(--line); }
-    .takeaway-list li::before { content: "0" counter(point); color: var(--cyan); font-family: var(--font-mono); font-weight: 900; }
-    .production-brief { display: grid; grid-template-columns: minmax(0, .78fr) minmax(0, 1.22fr); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--panel); }
-    .brief-story { padding: clamp(25px, 4vw, 42px); background: color-mix(in srgb, var(--cyan) 7%, var(--panel)); }
-    .brief-story h3 { margin: 12px 0; font-size: clamp(1.5rem, 3vw, 2.2rem); line-height: 1.06; }
-    .brief-story p { margin: 0; color: var(--muted); }
-    .brief-data { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; }
-    .brief-data div { min-width: 0; padding: 19px 22px; border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-    .brief-data div:nth-last-child(-n + 2) { border-bottom: 0; }
-    .brief-data dt { color: var(--cyan); font: 850 .7rem var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
-    .brief-data dd { margin: 7px 0 0; color: var(--muted); font-size: .91rem; line-height: 1.55; }
-    .brief-data strong { color: var(--ink); }
-    .related-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
-    .related-card { display: block; min-height: 180px; border: 1px solid var(--line); border-radius: 17px; padding: 22px; background: var(--panel); text-decoration: none; transition: transform .2s ease, border-color .2s ease, background .2s ease; }
-    .related-card:hover { transform: translateY(-3px); border-color: var(--cyan); background: var(--panel-2); }
-    .related-card > span { color: var(--cyan); font: 850 .7rem var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
-    .related-card h3 { margin: 10px 0 8px; font-size: 1.1rem; line-height: 1.18; }
-    .related-card p { margin: 0; color: var(--muted); font-size: .9rem; line-height: 1.5; }
-    .source-list { display: grid; gap: 10px; max-width: 900px; padding: 0; margin: 0; list-style: none; }
-    .source-list a { display: block; min-height: 44px; padding: 10px 0; border-bottom: 1px solid var(--line); color: var(--muted); }
-    .source-list a:hover { color: var(--cyan); }
-    .brand { min-height: 44px; align-items: center; }
-    .lesson-nav { display: flex; justify-content: space-between; gap: 14px; padding: 32px 0 0; }
-    footer { padding: 34px 0 50px; border-top: 1px solid var(--line); color: var(--muted); }
-    .footer-inner { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
-    footer p { margin: 0; }
+    /* ── Details / disclosure ── */
+    .details-block {
+      margin-top: 20px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .details-block summary {
+      padding: 16px 20px;
+      background: var(--panel-2);
+      cursor: pointer;
+      font-weight: 700;
+      list-style: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .details-block summary::-webkit-details-marker { display: none; }
+    .details-toggle-hint {
+      font-family: var(--font-mono);
+      font-size: .8rem;
+      color: var(--dim);
+    }
+    .details-body { padding: 20px; }
+    .struct-legend {
+      margin: 12px 0 0;
+      font-size: .86rem;
+      color: var(--muted);
+    }
+    .legend-subject { color: var(--acid); font-weight: 700; }
+    .legend-motion  { color: var(--cyan); font-weight: 700; }
+    .legend-style   { color: var(--orange); font-weight: 700; }
 
+    /* ── Fieldset inside lab ── */
+    .lab-fieldset {
+      border: none;
+      padding: 0;
+      margin: 0;
+    }
+    .lab-fieldset legend {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    .lab-field-gap { margin-top: 20px; }
+
+    /* ── Journey chip accent ── */
+    .journey-chip-accent {
+      border-color: var(--acid);
+      color: var(--acid);
+    }
+
+    /* ── Footer ── */
+    .site-footer {
+      border-top: 1px solid var(--line);
+      padding: 32px 0;
+    }
+    .footer-inner {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .footer-brand,
+    .footer-meta {
+      font-family: var(--font-mono);
+      font-size: .76rem;
+      color: var(--dim);
+    }
+    .footer-brand { text-transform: uppercase; letter-spacing: .1em; }
+
+    /* ── Responsive ── */
     @media (max-width: 900px) {
-      .hero-grid,
-      .section-head,
-      .lab,
-      .takeaways { grid-template-columns: 1fr; }
-      .goal { max-width: 610px; }
-      .roles,
-      .read-grid { grid-template-columns: 1fr; }
-      .role,
-      .read-card { min-height: 0; border-right: 0; border-bottom: 1px solid var(--line); }
-      .role:last-child,
-      .read-card:last-child { border-bottom: 0; }
-      .production-brief { grid-template-columns: 1fr; }
-      .brief-data div { border-left: 0; }
-      .brief-data div:nth-last-child(2) { border-bottom: 1px solid var(--line); }
-      .related-grid { grid-template-columns: 1fr; }
+      .component-grid { grid-template-columns: 1fr; }
+      .order-diagram { flex-direction: column; }
+      .order-block { border-right: none; border-bottom: 1px solid var(--line); }
+      .order-block:last-child { border-bottom: none; }
+      .comparison { grid-template-columns: 1fr; }
+      .compare-side + .compare-side { border-left: none; border-top: 1px solid var(--line); }
+      .brief-grid, .related-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .lab-body { padding: 18px 18px; }
+      .copy-btn { position: static; margin-top: 10px; }
     }
 
-    @media (max-width: 640px) {
-      .topnav { display: none; }
-      .hero { padding-top: 54px; }
-      h1 { font-size: clamp(3rem, 16vw, 4.8rem); }
-      .hero-actions .button { width: 100%; }
-      .lab { padding: 22px; }
-      .result { padding: 20px 17px; }
-      .timeline { grid-template-columns: 1fr; gap: 14px; }
-      .timeline::before { top: 70px; bottom: 70px; left: 50%; right: auto; width: 2px; height: auto; }
-      .frame { width: min(180px, 100%); justify-self: center; }
-      .motion-field { width: min(240px, 100%); justify-self: center; }
-      .metric { grid-template-columns: 1fr 3ch; }
-      .metric progress { grid-column: 1 / -1; grid-row: 2; }
-      .footer-inner { flex-direction: column; align-items: flex-start; }
-      .brief-data { grid-template-columns: 1fr; }
-      .brief-data div { border-bottom: 1px solid var(--line); }
-      .brief-data div:last-child { border-bottom: 0; }
-      .lesson-nav { display: grid; }
-      .lesson-nav .button { width: 100%; }
-    }
-    @media (prefers-reduced-motion: reduce) { .related-card:hover { transform: none; } }
+    /* ── Curriculum Standard Blocks ───────────────────────── */
+    .flow-minimap { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 14px 0; font-family: var(--font-mono); font-size: .72rem; color: var(--dim); border-bottom: 1px solid var(--line); }
+    .flow-minimap-label { letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin-right: 4px; }
+    .flow-minimap-sep { color: var(--line); }
+    .flow-minimap-item { color: var(--muted); text-decoration: none; padding: 2px 6px; border-radius: 4px; transition: color .15s; }
+    .flow-minimap-item:hover { color: var(--cyan); }
+    .flow-minimap-item.current { color: var(--acid); background: rgba(200,255,61,.1); padding: 2px 8px; border-radius: 4px; }
+
+    .prereq-callout { display: flex; gap: 16px; padding: 18px 24px; border: 1px solid rgba(98,231,245,.3); border-left: 4px solid var(--cyan); border-radius: var(--radius); background: rgba(98,231,245,.05); margin-bottom: 32px; align-items: flex-start; }
+    .prereq-icon { color: var(--cyan); flex-shrink: 0; margin-top: 2px; }
+    .prereq-title { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--cyan); margin: 0 0 6px; }
+    .prereq-body { color: var(--muted); font-size: .9rem; line-height: 1.55; margin: 0 0 10px; }
+    .prereq-link { color: var(--cyan); font-size: .85rem; text-decoration: none; }
+    .prereq-link:hover { text-decoration: underline; }
+
+    .output-artifact { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: rgba(200,255,61,.08); border: 1px solid rgba(200,255,61,.25); border-radius: 10px; margin-bottom: 20px; font-size: .85rem; flex-wrap: wrap; }
+    .output-artifact svg { color: var(--acid); flex-shrink: 0; }
+    .output-artifact-label { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--acid); }
+    .output-artifact-text { color: var(--muted); }
+
+    .handoff-card { display: grid; grid-template-columns: 60px 1fr; gap: 24px; align-items: start; padding: 40px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); position: relative; overflow: hidden; }
+    .handoff-card::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(200,255,61,.05) 0%, transparent 60%); pointer-events: none; }
+    .handoff-card-icon { display: flex; align-items: center; justify-content: center; width: 56px; height: 56px; border-radius: 50%; background: rgba(200,255,61,.1); color: var(--acid); flex-shrink: 0; }
+    .handoff-card-label { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin: 0 0 8px; }
+    .handoff-card-title { font-size: clamp(1.6rem, 3vw, 2.4rem); font-weight: 900; letter-spacing: -.04em; margin: 0 0 16px; color: var(--ink); }
+    .handoff-card-body { color: var(--muted); font-size: .95rem; line-height: 1.6; margin: 0 0 24px; }
+    html, body, main, .shell, section { overflow-x: hidden !important; max-width: 100% !important; }
+  .structured-prompt, pre, code { overflow-x: auto !important; max-width: 100% !important; display: block !important; white-space: pre-wrap !important; word-wrap: break-word !important; }
   </style>
 </head>
 <body>
-  <a class="skip-link" href="#main-content">Bỏ qua điều hướng</a>
-  <header class="topbar">
-    <div class="topbar-inner">
-      <a class="brand" href="index.html" aria-label="Video Generation Study — Trang chủ"><span class="brand-mark" aria-hidden="true"></span><span>Video Generation Study</span></a>
-      <nav class="topnav" aria-label="Điều hướng bài học"><a href="index.html">Lộ trình</a><a href="#timeline-lab">Timeline lab</a></nav>
-      <div class="progress-track" aria-hidden="true"><div class="progress-fill"></div></div>
+  <a class="skip-link" href="#main">Bỏ qua điều hướng</a>
+
+  <header class="topbar" role="banner">
+    <div class="topbar-inner shell">
+      <a class="brand" href="index.html">
+        <span class="brand-mark" aria-hidden="true"></span>
+        Video Generation Study
+      </a>
+      <nav class="topnav" aria-label="Điều hướng bài học">
+        <a href="video-generation-part-4-lesson-4.html" data-curriculum-prev>← Bài 4.4</a>
+        <a href="index.html" data-curriculum-home>Trang chủ</a>
+        <a href="video-generation-part-4-lesson-5.html" data-curriculum-next>Bài 4.6 →</a>
+      </nav>
+      <div class="progress-track" aria-hidden="true">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
     </div>
   </header>
 
-  <main id="main-content">
-    <section class="hero">
-      <div class="shell hero-grid">
-        <div>
-          <div class="eyebrow">Part 4 · Bài 07 · Intermediate</div>
-          <h1>Latent strength &amp; noise aug</h1>
-          <p class="hero-lead">Một số workflow I2V/FLF2V đặt controls cho noise và độ neo ở đầu/cuối timeline. Hãy đọc chúng theo vị trí lỗi và theo node/version đang dùng, không coi tên hoặc scale là tham số phổ quát của mọi model.</p>
-          <div class="hero-actions"><a class="button primary" href="#timeline-lab">Thử timeline</a><a class="button" href="#roles">Phân biệt 3 núm</a></div>
-        </div>
-        <aside class="goal" aria-label="Mục tiêu bài học"><div class="eyebrow">Mục tiêu</div><p>Sau bài này, bạn có thể <strong>dự đoán hiệu ứng giữ ảnh — tạo motion ở đầu và cuối clip</strong>, rồi chỉnh ba strength theo lỗi quan sát được.</p></aside>
+  <main id="main" class="lesson-main">
+
+    <!-- ── Hero ── -->
+    <section class="hero shell" aria-labelledby="hero-heading">
+      <p class="eyebrow mono-label">Generation Setup · Bài 4.5 &nbsp;—&nbsp; Prompt Engineering</p>
+      <h1 id="hero-heading">Cấu trúc<br>Prompt cho&nbsp;Video</h1>
+      <p class="hero-lead">
+        Một prompt có chủ đích thường nói rõ <em>ai/cái gì</em>, <em>chuyển động ra sao</em>, và <em>trông như thế nào</em>. Bài này dùng ba tầng đó để biến ý tưởng thành brief dễ kiểm tra, rồi A/B trên model và workflow cụ thể.
+      </p>
+      <div class="hero-actions">
+        <a href="#components" class="button primary">Bắt đầu học</a>
+        <a href="#lab" class="button">Đến Lab</a>
+      </div>
+
+      <!-- OUTPUT ARTIFACT BADGE -->
+      <div class="output-artifact" role="note" style="margin-top: 24px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+        <span class="output-artifact-label">Đầu ra bài học:</span>
+        <span class="output-artifact-text">Nắm vững cấu trúc Subject → Motion → Style cho video prompt, biết tạo prompt mô tả chuyển động, ánh sáng, và phong cách hoàn chỉnh</span>
+      </div>
+
+      <div class="hero-note" role="note">
+        <strong>Mục tiêu bài học:</strong> Sau bài này bạn có thể viết prompt cho video AI theo cấu trúc Subject → Motion → Style, tránh các lỗi phổ biến và dùng công cụ lab để ghép prompt hoàn chỉnh.
       </div>
     </section>
 
-    <section aria-labelledby="model-title">
-      <div class="shell">
-        <div class="section-head"><div><div class="section-index">01 · Mental model</div><h2 id="model-title">Hai mỏ neo và một mức “nới”</h2></div><p>Hãy hình dung clip là sợi dây: start/end latent giữ hai đầu, noise aug cho model khoảng linh hoạt để tạo các frame ở giữa.</p></div>
-        <div class="definition"><p><strong>Preservation và motion là một trade-off để kiểm chứng, không phải định luật một chiều.</strong> Trong workflow có các control này, neo mạnh hơn có thể ưu tiên reference ở đầu/cuối; nới conditioning có thể cho model nhiều tự do hơn. Kết quả còn phụ thuộc checkpoint, prompt, scheduler và preprocessing.</p></div>
-      </div>
-    </section>
+    <!-- FLOW POSITION MINI-MAP -->
+    <div class="shell">
+      <nav class="flow-minimap" aria-label="Vị trí trong lộ trình">
+        <span class="flow-minimap-label">LỘ TRÌNH</span>
+        <span class="flow-minimap-sep">›</span>
+        <a class="flow-minimap-item" href="video-generation-part-4-lesson-4.html">4.4: Bộ node WanVideo</a>
+        <span class="flow-minimap-sep">›</span>
+        <strong class="flow-minimap-item current" aria-current="step">4.5: Cấu trúc Prompt</strong>
+        <span class="flow-minimap-sep">›</span>
+        <a class="flow-minimap-item" href="video-generation-part-4-lesson-5.html">4.6: Positive &amp; Negative Prompt</a>
+      </nav>
+    </div>
 
-    <section id="roles" aria-labelledby="roles-title">
+    <!-- ── Section 1: Why structure matters ── -->
+    <section class="lesson-section" id="why" aria-labelledby="why-heading">
       <div class="shell">
-        <div class="section-head"><div><div class="section-index">02 · Ba vai trò</div><h2 id="roles-title">Đừng gom cả ba thành “độ bám ảnh”</h2></div><p>Tên và scale có thể khác giữa workflow, nhưng ba câu hỏi dưới đây vẫn là cách đọc hữu ích.</p></div>
-        <div class="roles">
-          <article class="role"><div class="mini-label">Workflow control · Noise Aug</div><h3>Conditioning được làm lỏng bao nhiêu?</h3><p>Ở workflow có control này, noise augmentation có thể làm ảnh điều kiện bớt bị bám chi tiết. <strong>Motion có thể mở ra</strong>, đổi lại fidelity có thể giảm; không suy ra cùng hành vi cho node khác.</p><p class="role-question">Quan sát: clip quá tĩnh hay identity đang trôi?</p></article>
-          <article class="role"><div class="mini-label">Workflow control · Start anchor</div><h3>Frame đầu được neo chặt đến đâu?</h3><p>Trong workflow minh họa, giá trị cao hơn ưu tiên bảo toàn trạng thái mở đầu. Tên control thực tế có thể không phải “Start Latent Strength”.</p><p class="role-question">Quan sát: frame đầu có đúng điểm xuất phát không?</p></article>
-          <article class="role"><div class="mini-label">Workflow control · End anchor</div><h3>Frame cuối phải hội tụ sát đến đâu?</h3><p>Trong workflow minh họa, giá trị cao hơn ưu tiên end reference. Với FLF2V, hai keyframe vẫn có thể mâu thuẫn về pose/camera; một slider không tự giải quyết điều đó.</p><p class="role-question">Quan sát: clip có tới đúng trạng thái kết thúc không?</p></article>
-        </div>
-        <div class="boundary"><p><strong>Phạm vi chính chủ:</strong> Wan2.1 công bố task FLF2V nhận first/last frame và prompt. Ba tên/scale trong bài là mô hình điều khiển cấp workflow để học cách A/B, <strong>không phải</strong> danh sách flag của Wan2.1 CLI hay preset chính thức. So sánh chỉ trong cùng node, version, model, scheduler, số frame và preprocessing.</p></div>
-      </div>
-    </section>
+        <p class="section-kicker mono-label">01 — Vì sao cần cấu trúc</p>
+        <h2 class="section-heading" id="why-heading">Video ≠ Ảnh tĩnh</h2>
+        <p class="section-intro">
+          Video thêm thời gian và chuyển động vào bài toán. Vì vậy, một prompt có chủ đích thường nêu <strong>chủ thể, hành động/camera và diện mạo</strong>. Mức độ bám từng chi tiết vẫn phụ thuộc checkpoint, task T2V/I2V, text encoder, seed và workflow — prompt không phải kịch bản bảo đảm từng frame.
+        </p>
 
-    <section id="timeline-lab" aria-labelledby="lab-title">
-      <div class="shell">
-        <div class="section-head"><div><div class="section-index">03 · Timeline lab</div><h2 id="lab-title">Dự đoán trước khi render</h2></div><p>Ba range đều dùng được bằng bàn phím, touch và chuột. Mô hình bên phải chỉ diễn giải quan hệ tương đối, không dự báo điểm số chất lượng thực tế.</p></div>
-        <p class="simulation-note"><strong>Mô phỏng · đơn vị tương đối 0–1.</strong> Các con số và meter không phải benchmark, không quy đổi sang setting của model/node khác.</p>
-        <div class="lab">
-          <div class="lab-controls">
-            <div class="eyebrow">FLF2V scenario</div>
-            <h3>Từ chân dung tĩnh → quay đầu nhìn camera</h3>
-            <p>Frame đầu và cuối đều có reference. Hãy cân bằng nhận diện với khoảng motion ở giữa.</p>
-            <div class="control-list">
-              <div>
-                <div class="control-head"><label for="noise">Noise Aug Strength</label><output class="value" id="noise-value" for="noise">0.20</output></div>
-                <input id="noise" type="range" min="0" max="1" step="0.05" value="0.20" aria-describedby="noise-help">
-                <div class="range-ends" aria-hidden="true"><span>ít nới</span><span>nới mạnh</span></div>
-                <p class="help" id="noise-help">Tác động lên mức tự do của image conditioning.</p>
-              </div>
-              <div>
-                <div class="control-head"><label for="start">Start Latent Strength</label><output class="value" id="start-value" for="start">0.80</output></div>
-                <input id="start" type="range" min="0" max="1" step="0.05" value="0.80" aria-describedby="start-help">
-                <div class="range-ends" aria-hidden="true"><span>rời sớm</span><span>neo đầu</span></div>
-                <p class="help" id="start-help">Tác động chủ yếu lên độ bảo toàn ở đầu clip.</p>
-              </div>
-              <div>
-                <div class="control-head"><label for="end">End Latent Strength</label><output class="value" id="end-value" for="end">0.75</output></div>
-                <input id="end" type="range" min="0" max="1" step="0.05" value="0.75" aria-describedby="end-help">
-                <div class="range-ends" aria-hidden="true"><span>hội tụ lỏng</span><span>neo cuối</span></div>
-                <p class="help" id="end-help">Tác động chủ yếu lên độ bảo toàn ở cuối clip.</p>
-              </div>
-            </div>
-            <button class="button reset" id="reset-lab" type="button">Đặt lại 0.20 · 0.80 · 0.75</button>
+        <!-- PREREQUISITE CALLOUT -->
+        <div class="prereq-callout" role="note" aria-label="Yêu cầu trước bài học">
+          <div class="prereq-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 8v4m0 4h.01"/></svg>
           </div>
+          <div>
+            <p class="prereq-title">Cần biết trước</p>
+            <p class="prereq-body">Bài này dùng workflow WanVideo từ Bài 4.4 làm ngữ cảnh để biến một ý tưởng quay thành prompt có thể kiểm thử.</p>
+            <a class="prereq-link" href="video-generation-part-4-lesson-4.html">← Xem lại bài trước: Bộ node WanVideo (4.4)</a>
+          </div>
+        </div>
 
-          <div class="result">
-            <div class="timeline" role="group" aria-label="Timeline FLF2V gồm frame đầu được neo, vùng motion ở giữa và frame cuối được neo.">
-              <div class="frame"><span class="frame-label">Start anchor</span><output id="start-anchor">73</output><span>% bảo toàn</span></div>
-              <div class="motion-field"><strong id="motion-score">29</strong><span>% khoảng motion</span></div>
-              <div class="frame end"><span class="frame-label">End anchor</span><output id="end-anchor">68</output><span>% bảo toàn</span></div>
-            </div>
-            <div class="status-head"><h3>Dự đoán tương đối</h3><span class="status-zone" id="status-zone">Hai đầu khá ổn</span></div>
-            <p class="live-summary" id="live-summary" aria-live="polite">Frame đầu và cuối đều được neo khá rõ. Noise thấp ưu tiên bảo toàn reference; chuyển động có thể dè dặt nếu model hoặc prompt chưa đủ mạnh.</p>
-            <div class="metrics" aria-label="Ba chỉ báo tương đối">
-              <div class="metric"><label for="identity-meter">Giữ identity</label><progress id="identity-meter" max="100" value="67">67%</progress><output id="identity-number">67</output></div>
-              <div class="metric"><label for="motion-meter">Khoảng motion</label><progress id="motion-meter" max="100" value="29">29%</progress><output id="motion-number">29</output></div>
-              <div class="metric"><label for="stress-meter">Áp lực chuyển tiếp</label><progress id="stress-meter" max="100" value="6">6%</progress><output id="stress-number">6</output></div>
-            </div>
-            <p class="decision" id="decision"><strong>Đọc output:</strong> Nếu clip quá tĩnh, thử nới noise hoặc giảm một trong hai anchor từng bước nhỏ; nếu identity trôi, làm ngược lại.</p>
+        <div class="comparison">
+          <div class="compare-side">
+            <p class="compare-tag bad mono-label">✗ Prompt ảnh tĩnh</p>
+            <h3>Viết như chụp ảnh</h3>
+            <pre class="compare-prompt">a woman in a red dress, forest, sunset, beautiful</pre>
+            <p class="compare-result">
+              <strong>Rủi ro:</strong> thiếu ý định chuyển động và góc máy, nên output có thể mơ hồ hoặc chuyển động không phục vụ shot. Đây là giả thuyết để A/B, không phải kết quả chắc chắn của mọi model.
+            </p>
+          </div>
+          <div class="compare-side">
+            <p class="compare-tag good mono-label">✓ Prompt video có cấu trúc</p>
+            <h3>Mô tả đủ ba tầng</h3>
+            <pre class="compare-prompt">a young woman in a flowing red dress walks slowly through a sunlit forest, camera follows her from behind, golden hour lighting, cinematic, shallow depth of field</pre>
+            <p class="compare-result">
+              <strong>Lợi ích kỳ vọng:</strong> brief dễ chấm hơn: có hành động, hướng camera và look để đối chiếu. Hãy render cùng điều kiện rồi kiểm tra thay vì suy ra chất lượng từ câu chữ.
+            </p>
           </div>
         </div>
       </div>
     </section>
 
-    <section aria-labelledby="production-heading">
+    <!-- ── Section 2: Three components ── -->
+    <section class="lesson-section" id="components" aria-labelledby="components-heading">
       <div class="shell">
-        <div class="section-head"><div><div class="section-index">04 · Production brief</div><h2 id="production-heading">A/B một transition trước khi mở mọi “strength”</h2></div><p>Đặt một giả thuyết đo được cho từng render để biết lỗi nằm ở keyframe, prompt hay control.</p></div>
-        <article class="production-brief" aria-label="Production brief cho transition nội thất">
-          <div class="brief-story"><div class="mini-label">Case / architectural reel</div><h3>Camera đi từ phòng khách sáng sang phòng ngủ ban đêm.</h3><p>Bối cảnh: agency cần một clip dọc ngắn để pitch concept. Hai still đã được art director duyệt; shot phải bắt đầu/kết thúc đúng keyframe hơn là tối đa hóa motion.</p></div>
-          <dl class="brief-data">
-            <div><dt>Mục tiêu đầu ra</dt><dd><strong>9:16, 4 giây</strong>; giữ kiến trúc nhận ra được, camera đi liên tục và tới đúng keyframe đêm.</dd></div>
-            <div><dt>Input / model</dt><dd>Prompt + first/last frame; test task <strong>Wan2.1 FLF2V</strong> với checkpoint và revision ghi trong run log.</dd></div>
-            <div><dt>Giữ cố định</dt><dd>Hai keyframe, crop/preprocess, seed, prompt, resolution, số frame, sampler/scheduler và checkpoint.</dd></div>
-            <div><dt>Đang thử nghiệm</dt><dd>Mỗi lượt chỉ thay <strong>một workflow control</strong> (noise hoặc anchor đầu/cuối) và ghi rõ node/version chứa control đó.</dd></div>
-            <div><dt>Giới hạn</dt><dd>Tối đa 24 phút cho 3 candidate trên GPU đã chọn; đây là ngân sách sản xuất, không phải benchmark tốc độ.</dd></div>
-            <div><dt>Tiêu chí đánh giá</dt><dd>Đầu/cuối khớp brief; đường camera không jump; cửa/tường không morph; ánh sáng chuyển có chủ đích.</dd></div>
-            <div><dt>Dấu hiệu thất bại</dt><dd>Frame cuối bỏ keyframe; corridor “co giãn”; layout đảo; subject drift hoặc transition đứng yên.</dd></div>
-            <div><dt>Bước kế tiếp</dt><dd>Nếu hai đầu lệch, kiểm tra matching pose/camera/crop trước; nếu vẫn quá khó, chia shot hoặc dùng compositing thay vì tăng tất cả control.</dd></div>
-          </dl>
-        </article>
-      </div>
-    </section>
+        <p class="section-kicker mono-label">02 — Ba thành phần chính</p>
+        <h2 class="section-heading" id="components-heading">Subject · Motion · Style</h2>
+        <p class="section-intro">
+          Ba tầng này tương ứng với ba câu hỏi model cần trả lời khi sinh video: <em>Đây là gì?</em> — <em>Nó đang làm gì?</em> — <em>Trông như thế nào?</em>
+        </p>
 
-    <section aria-labelledby="diagnose-title">
-      <div class="shell">
-        <div class="section-head"><div><div class="section-index">05 · Chẩn đoán</div><h2 id="diagnose-title">Chỉnh đúng núm theo đúng vị trí lỗi</h2></div><p>Thay một biến mỗi lượt. Nếu đổi cả ba cùng lúc, bạn không biết cải thiện đến từ đâu.</p></div>
-        <div class="read-grid">
-          <article class="read-card"><div class="mini-label">Lỗi ở đầu</div><h3>Mở đầu không giống reference</h3><p>Kiểm tra preprocessing và conditioning trước; sau đó cân nhắc tăng start latent strength hoặc giảm noise aug.</p></article>
-          <article class="read-card"><div class="mini-label">Lỗi ở giữa</div><h3>Clip đứng yên hoặc biến dạng</h3><p>Quá nhiều bảo toàn có thể bó motion; quá nhiều noise có thể làm identity trôi. Điều chỉnh theo hướng lỗi quan sát được.</p></article>
-          <article class="read-card"><div class="mini-label">Lỗi ở cuối</div><h3>Không tới end reference</h3><p>Kiểm tra end frame có tương thích với start/prompt không, rồi cân nhắc tăng end strength thay vì ép toàn clip.</p></article>
+        <div class="component-grid" role="list">
+          <!-- Subject -->
+          <article class="component-card card-subject" role="listitem" aria-labelledby="card-subject-title">
+            <p class="card-index">01 — Subject</p>
+            <h3 id="card-subject-title">Subject Description</h3>
+            <p>Mô tả chủ thể chính: ai/cái gì, ngoại hình, trang phục, vị trí trong khung hình. Chi tiết vừa đủ — quá ít model đoán mò, quá nhiều gây conflict.</p>
+            <div class="examples" aria-label="Ví dụ Subject">
+              <span class="ex-chip">an elderly fisherman</span>
+              <span class="ex-chip">in a worn blue raincoat</span>
+              <span class="ex-chip">standing at a dock</span>
+              <span class="ex-chip">full body, centered frame</span>
+            </div>
+          </article>
+
+          <!-- Motion -->
+          <article class="component-card card-motion" role="listitem" aria-labelledby="card-motion-title">
+            <p class="card-index">02 — Motion</p>
+            <h3 id="card-motion-title">Motion Description</h3>
+            <p>Mô tả hành động, camera và nhịp nếu các ý này quan trọng cho shot. Không có một tầng “quan trọng nhất” cho mọi model: với I2V, ảnh đầu vào cũng là một conditioning lớn.</p>
+            <div class="examples" aria-label="Ví dụ Motion">
+              <span class="ex-chip">walks slowly forward</span>
+              <span class="ex-chip">camera pans left</span>
+              <span class="ex-chip">slow zoom in</span>
+              <span class="ex-chip">gentle breeze moves coat</span>
+            </div>
+          </article>
+
+          <!-- Style -->
+          <article class="component-card card-style" role="listitem" aria-labelledby="card-style-title">
+            <p class="card-index">03 — Style</p>
+            <h3 id="card-style-title">Style Keywords</h3>
+            <p>Nêu ánh sáng, mood và look khi chúng là yêu cầu giao hàng. Chúng là tín hiệu văn bản, không thay thế lighting reference, LoRA hoặc color pipeline nếu workflow cần kiểm soát chặt.</p>
+            <div class="examples" aria-label="Ví dụ Style">
+              <span class="ex-chip">cinematic</span>
+              <span class="ex-chip">golden hour</span>
+              <span class="ex-chip">shallow depth of field</span>
+              <span class="ex-chip">dramatic fog</span>
+            </div>
+          </article>
         </div>
-        <details><summary>Tại sao hai anchor đều cao vẫn có thể cho transition xấu?</summary><p>Model phải nối hai trạng thái trong số frame hữu hạn. Nếu pose, camera hoặc bố cục đầu/cuối mâu thuẫn mạnh, hai neo chặt có thể làm vùng giữa chịu áp lực lớn. Thêm frame, giảm một anchor, giảm độ mâu thuẫn của reference hoặc điều chỉnh motion prompt có thể hợp lý hơn việc tăng mọi strength.</p></details>
       </div>
     </section>
 
-    <section aria-labelledby="takeaway-title">
-      <div class="shell takeaways">
-        <div><div class="section-index">06 · Ghi nhớ</div><h2 id="takeaway-title">Đọc timeline, không săn con số</h2></div>
-        <ol class="takeaway-list">
-          <li><span>Noise aug đổi mức linh hoạt tổng thể của image conditioning; cao hơn thường đổi được nhiều hơn nhưng giữ ít hơn.</span></li>
-          <li><span>Start/end latent strength neo hai vị trí khác nhau, vì vậy hãy chỉnh theo nơi lỗi xuất hiện.</span></li>
-          <li><span>Dùng preset chỉ làm điểm xuất phát; kiểm chứng bằng các lần chạy có kiểm soát trong chính workflow của bạn.</span></li>
-        </ol>
-      </div>
-    </section>
-
-    <section id="related" aria-labelledby="related-heading">
+    <!-- ── Section 3: Order ── -->
+    <section class="lesson-section" id="order" aria-labelledby="order-heading">
       <div class="shell">
-        <div class="section-head"><div><div class="section-index">Knowledge links</div><h2 id="related-heading">Bài liên quan</h2></div><p>Theo quan hệ workflow và chẩn đoán, không chỉ theo tên tham số.</p></div>
-        <nav class="related-grid" aria-label="Các bài học liên quan">
-          <a class="related-card" href="video-generation-part-4-lesson-6.html"><span>Cùng control</span><h3>4.6 · ControlNet</h3><p>Phân biệt control cấu trúc với các controls bám keyframe; cả hai cần chẩn đoán loại lỗi trước khi tăng strength.</p></a>
-          <a class="related-card" href="video-generation-part-2-lesson-6.html"><span>Phạm vi noise</span><h3>2.6 · VRAM &amp; Noise Aug</h3><p>Noise augmentation trong training/workflow có thể khác ý nghĩa và vị trí áp dụng: đừng gộp setting giữa tool hay stage.</p></a>
-          <a class="related-card" href="video-generation-part-5-lesson-1.html"><span>Biến bị khóa</span><h3>5.1 · FPS, Frames &amp; Resolution</h3><p>Số frame và resolution thay đổi độ khó transition lẫn chi phí; khóa chúng khi A/B three-control timeline.</p></a>
-        </nav>
+        <p class="section-kicker mono-label">03 — Thứ tự đề xuất</p>
+        <h2 class="section-heading" id="order-heading">Subject → Motion → Style</h2>
+        <p class="section-intro">
+          Dùng ba khối này như một <strong>checklist biên tập</strong>: chủ thể → hành động/camera → look. Đây không phải luật về token weight hay thứ tự xử lý nội bộ. Repository Wan2.2 chính chủ minh hoạ prompt bằng câu tự nhiên và còn hỗ trợ prompt extension; hãy kiểm chứng thứ tự trên checkpoint/workflow đang dùng.
+        </p>
+
+        <div class="order-diagram" role="img" aria-label="Sơ đồ thứ tự: Subject ở đầu, tiếp theo Motion, cuối cùng Style">
+          <div class="order-block ob-subject">
+            <p class="ob-num mono-label">01 — Đầu tiên</p>
+            <h4>Subject</h4>
+            <p>Ai/cái gì + ngoại hình + vị trí</p>
+          </div>
+          <div class="order-block ob-motion">
+            <p class="ob-num mono-label">02 — Tiếp theo</p>
+            <h4>Motion</h4>
+            <p>Hành động + camera + tốc độ</p>
+          </div>
+          <div class="order-block ob-style">
+            <p class="ob-num mono-label">03 — Cuối cùng</p>
+            <h4>Style</h4>
+            <p>Lighting + mood + look</p>
+          </div>
+        </div>
+
+        <p class="order-note">
+          <strong>Phạm vi:</strong> Đây là khung viết để review và A/B, không phải preset Wan2.2 hay ComfyUI. Wan2.2 cung cấp tuỳ chọn mở rộng prompt; bản thân extension là một bước của inference, không chứng minh rằng một thứ tự cụ thể luôn tốt hơn. Ghi lại model revision, task, resolution và seed trước khi kết luận.
+        </p>
+
+        <details class="details-block">
+          <summary>
+            Ví dụ prompt hoàn chỉnh được tô màu theo tầng
+            <span aria-hidden="true" class="details-toggle-hint">▾ Xem</span>
+          </summary>
+          <div class="details-body">
+            <pre class="struct-prompt" aria-label="Ví dụ prompt được phân màu: xanh lá là Subject, xanh lam là Motion, cam là Style"><span class="sp-subject">an elderly fisherman in a worn blue raincoat, standing at a wooden dock, full body</span>, <span class="sp-motion">walks slowly forward toward the sea, camera follows from behind at eye level, gentle breeze moves his coat</span>, <span class="sp-style">cinematic, overcast soft light, muted cool tones, shallow depth of field, 35mm film grain</span></pre>
+            <p class="struct-legend">
+              <span class="legend-subject">■ Subject</span> &nbsp;
+              <span class="legend-motion">■ Motion</span> &nbsp;
+              <span class="legend-style">■ Style</span>
+            </p>
+          </div>
+        </details>
       </div>
     </section>
 
-    <section id="sources" aria-labelledby="sources-heading">
+    <!-- ── Section 4: Lab ── -->
+    <section class="lesson-section" id="lab" aria-labelledby="lab-heading">
       <div class="shell">
-        <div class="section-head"><div><div class="section-index">Sources</div><h2 id="sources-heading">Ranh giới model và workflow</h2></div><p>Nguồn chính chủ xác nhận task/input. Mô phỏng của bài không tự nhận là interface hay benchmark của nguồn.</p></div>
-        <ul class="source-list">
-          <li><a href="https://github.com/Wan-Video/Wan2.1" rel="noreferrer">Wan2.1 official repository — phát hành FLF2V, code và weights.</a></li>
-          <li><a href="https://github.com/Wan-Video/Wan2.1/blob/main/generate.py" rel="noreferrer">Wan2.1 official `generate.py` — `flf2v` đọc prompt, `first_frame`, `last_frame`, và các sampling arguments.</a></li>
-          <li><a href="https://github.com/Tencent-Hunyuan/OmniWeaving" rel="noreferrer">OmniWeaving official repository — phân biệt first-frame I2V và key-frames-to-video/interpolation.</a></li>
-        </ul>
+        <p class="section-kicker mono-label">04 — Lab tương tác</p>
+        <h2 class="section-heading" id="lab-heading">Ghép Prompt của bạn</h2>
+        <p class="section-intro">
+          Điền vào từng tầng bên dưới rồi nhấn <strong>Ghép Prompt</strong> để tạo prompt hoàn chỉnh. Dùng nút Ví dụ mẫu nếu cần gợi ý.
+        </p>
+
+        <div class="lab-panel" role="region" aria-label="Lab xây dựng prompt">
+          <div class="lab-header">
+            <span class="lab-dot" aria-hidden="true"></span>
+            <span class="lab-title">Prompt Builder</span>
+          </div>
+          <div class="lab-body">
+            <div class="lab-fields">
+              <fieldset class="lab-fieldset">
+                <legend>Ba tầng prompt</legend>
+
+                <div class="lab-field">
+                  <label class="lbl-subject" for="input-subject">01 — Subject Description</label>
+                  <p class="field-hint" id="subject-hint">Ai/cái gì? Ngoại hình, trang phục, vị trí trong khung hình.</p>
+                  <textarea id="input-subject" rows="3" aria-describedby="subject-hint" placeholder="Ví dụ: a young woman in a flowing red dress, standing at the edge of a cliff, full body"></textarea>
+                </div>
+
+                <div class="lab-field lab-field-gap">
+                  <label class="lbl-motion" for="input-motion">02 — Motion Description</label>
+                  <p class="field-hint" id="motion-hint">Hành động, camera movement, tốc độ chuyển động.</p>
+                  <textarea id="input-motion" rows="3" aria-describedby="motion-hint" placeholder="Ví dụ: turns slowly to face the camera, camera dolly in, hair moves gently in the wind"></textarea>
+                </div>
+
+                <div class="lab-field lab-field-gap">
+                  <label class="lbl-style" for="input-style">03 — Style Keywords</label>
+                  <p class="field-hint" id="style-hint">Lighting, mood, look điện ảnh, tone màu.</p>
+                  <textarea id="input-style" rows="2" aria-describedby="style-hint" placeholder="Ví dụ: golden hour, cinematic, shallow depth of field, warm tones"></textarea>
+                </div>
+              </fieldset>
+            </div>
+
+            <div class="lab-actions">
+              <button type="button" class="button primary" id="btn-merge" aria-controls="output-prompt">Ghép Prompt</button>
+              <button type="button" class="button" id="btn-example">Ví dụ mẫu</button>
+              <button type="button" class="button" id="btn-reset">Xoá trắng</button>
+            </div>
+
+            <div class="lab-output-section" id="output-section" aria-live="polite">
+              <p class="lab-output-label">Prompt hoàn chỉnh</p>
+              <div class="lab-output-wrap">
+                <textarea id="output-prompt" class="lab-output" readonly rows="4" aria-label="Kết quả prompt được ghép"></textarea>
+                <button type="button" class="copy-btn" id="btn-copy" aria-label="Sao chép prompt">COPY</button>
+              </div>
+              <div role="status" class="copy-feedback" id="copy-status" aria-live="polite" aria-atomic="true"></div>
+              <div class="diagnostic" aria-live="polite" aria-atomic="true" id="prompt-diagnostic">
+                <div><strong>Chưa đánh giá cấu trúc</strong><p>Điền ba tầng rồi ghép prompt để xem checklist mô phỏng; đây không phải điểm chất lượng hay benchmark model.</p></div>
+                <output class="diagnostic-score" id="diagnostic-score">0 / 3</output>
+              </div>
+            </div>
+            <p class="sim-note">Mô phỏng checklist: phản hồi chỉ kiểm tra xem brief có nêu Subject, Motion và Style; nó không dự đoán chất lượng render.</p>
+          </div>
+        </div>
       </div>
     </section>
+
+    <!-- ── Section 5: Production brief ── -->
+    <section class="lesson-section" id="production-brief" aria-labelledby="production-heading">
+      <div class="shell">
+        <p class="section-kicker mono-label">05 — Production brief</p>
+        <h2 class="section-heading" id="production-heading">A/B một shot dọc, không A/B cả thế giới</h2>
+        <p class="section-intro">Brief giả định dưới đây biến prompt thành một giả thuyết có thể kiểm tra. Các mốc thời gian và giới hạn là ngân sách nội bộ mô phỏng, không phải benchmark Wan2.2 hay cấu hình chung.</p>
+        <div class="brief-grid">
+          <article class="brief-card" aria-labelledby="brief-shot-title">
+            <p class="section-kicker mono-label">Shot giả định · 06 giây</p>
+            <h3 id="brief-shot-title">Mở đầu quảng cáo áo mưa</h3>
+            <p>Mục tiêu đầu ra: video dọc 9:16, một người giao hàng bước qua mưa nhẹ để lộ áo khoác, đủ ổn định để đặt title ở 1/3 trên. Bối cảnh sử dụng: social cut trước khi dựng âm thanh và logo.</p>
+          </article>
+          <article class="brief-card" aria-label="Điều kiện kiểm tra A B">
+            <dl class="brief-facts">
+              <div><dt>Input / workflow</dt><dd>Wan2.2 T2V hoặc checkpoint T2V tương thích, cùng một prompt tiếng Anh; không dùng prompt extension trong vòng A/B này.</dd></div>
+              <div><dt>Giữ cố định</dt><dd>Model revision, task, resolution, số frame, seed, steps, CFG, sampler/scheduler, negative prompt và hậu kỳ.</dd></div>
+              <div><dt>Biến thử nghiệm</dt><dd>Chỉ đổi khối Motion: A = “walks forward”; B = thêm hướng camera và nhịp “camera tracks backward at walking pace”.</dd></div>
+              <div><dt>Giới hạn</dt><dd>Ngân sách mô phỏng: tối đa 6 lượt render hoặc 45 phút GPU. Dừng khi hai seed cho cùng một chẩn đoán.</dd></div>
+              <div><dt>Tiêu chí đánh giá</dt><dd>Đọc được hành động, camera không đổi hướng vô cớ, nhân vật giữ silhouette, có khoảng trống cho title.</dd></div>
+              <div><dt>Dấu hiệu thất bại → bước tiếp</dt><dd>Trượt danh tính, camera giật hoặc motion không đọc được → giữ prompt, kiểm tra seed thứ hai; nếu lặp lại, giản lược hành động/camera hoặc đổi workflow thay vì thêm keyword ngẫu nhiên.</dd></div>
+            </dl>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Section 6: Comparison ── -->
+    <section class="lesson-section" id="compare" aria-labelledby="compare-heading">
+      <div class="shell">
+        <p class="section-kicker mono-label">06 — So sánh kết quả</p>
+        <h2 class="section-heading" id="compare-heading">Lộn xộn vs. Có cấu trúc</h2>
+        <p class="section-intro">
+          Cùng một ý tưởng, hai cách viết tạo ra hai brief có mức độ kiểm tra khác nhau.
+        </p>
+
+        <div class="comparison">
+          <div class="compare-side">
+            <p class="compare-tag bad mono-label">✗ Prompt lộn xộn</p>
+            <h3>Thứ tự ngẫu nhiên</h3>
+            <pre class="compare-prompt">cinematic fog ancient temple, running fast man warrior, dramatic, slow motion armor samurai, camera somewhere, intense</pre>
+            <p class="compare-result">
+              <strong>Vấn đề có thể kiểm tra:</strong> “slow motion” và “running fast” tạo yêu cầu nhịp không rõ; “camera somewhere” không đưa ra hướng có thể chấm. Hãy thay một biến rồi render cùng seed, thay vì gán trước nguyên nhân cho output.
+            </p>
+          </div>
+          <div class="compare-side">
+            <p class="compare-tag good mono-label">✓ Prompt có cấu trúc</p>
+            <h3>Subject → Motion → Style</h3>
+            <pre class="compare-prompt">a samurai warrior in ancient armor, standing at the entrance of a misty temple, walks forward slowly and deliberately, camera tracks from low angle, dramatic fog, cinematic, high contrast, desaturated tones</pre>
+            <p class="compare-result">
+              <strong>Giả thuyết A/B:</strong> hành động và camera ít mâu thuẫn hơn, nên reviewer có tiêu chí rõ để chấm. Nếu output vẫn lỗi, vấn đề có thể thuộc checkpoint, conditioning hoặc giới hạn shot — không suy ra rằng chỉ cần đổi thứ tự từ.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Section 7: Related knowledge ── -->
+    <section class="lesson-section" id="related" aria-labelledby="related-heading">
+      <div class="shell">
+        <p class="section-kicker mono-label">07 — Bài liên quan</p>
+        <h2 class="section-heading" id="related-heading">Từ câu chữ đến conditioning và chẩn đoán</h2>
+        <div class="related-grid">
+          <article class="related-card">
+            <p class="section-kicker mono-label">Nền tảng · Part 1</p>
+            <h3><a href="video-generation-part-1-lesson-6.html">Attention — Self &amp; Cross</a></h3>
+            <p>Hiểu text embedding đi vào cross-attention giúp phân biệt “prompt có ý nghĩa” với lời hứa rằng từ đầu luôn có weight lớn hơn.</p>
+          </article>
+          <article class="related-card">
+            <p class="section-kicker mono-label">Conditioning · Bài 5.1</p>
+            <h3><a href="video-generation-part-5-lesson-1.html">I2V, T2V, FLF2V</a></h3>
+            <p>Chọn T2V hay I2V đổi loại conditioning; vì thế cách brief subject, reference và motion cũng cần đổi theo task.</p>
+          </article>
+          <article class="related-card">
+            <p class="section-kicker mono-label">Conditioning · Bài 5.4</p>
+            <h3><a href="video-generation-part-5-lesson-4.html">IP-Adapter</a></h3>
+            <p>Khi reference lấn prompt hoặc pose bị khoá, hãy chẩn đoán strength và xung đột conditioning trước khi nhồi thêm style keywords.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Section 8: Course completion ── -->
+    <section class="lesson-section" id="finale" aria-labelledby="finale-heading">
+      <div class="shell">
+        <p class="section-kicker mono-label">08 — Handoff</p>
+        <h2 class="section-heading" id="finale-heading">Sẵn sàng tách hai nhánh prompt</h2>
+        <p class="section-intro">
+          Từ brief quay đến prompt có thể kiểm thử — tiếp theo ta sẽ tách positive/negative trước khi chạy baseline.
+        </p>
+
+        <div class="finale-callout" role="complementary" aria-label="Chúc mừng hoàn thành khoá học">
+          <span class="finale-icon" aria-hidden="true">🎓</span>
+          <h3 id="finale-heading-callout">Prompt brief đã sẵn sàng để kiểm thử</h3>
+          <p>
+            Bạn đã biến ý tưởng quay thành Subject → Motion → Style. Bước kế tiếp là tách điều model cần hướng tới và cần tránh trong cùng workflow, rồi mới chạy baseline cố định.
+          </p>
+          <div class="finale-journey" aria-label="Hành trình các Part đã hoàn thành">
+            <span class="journey-chip">Foundation</span>
+            <span class="journey-chip">Training</span>
+            <span class="journey-chip">Workflow</span>
+            <span class="journey-chip journey-chip-accent">Prompt structure</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- HANDOFF CARD -->
+    <section class="content-section" id="handoff" aria-labelledby="handoff-heading">
+      <div class="shell">
+        <div class="handoff-card">
+          <div class="handoff-card-icon" aria-hidden="true">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </div>
+          <div>
+            <p class="handoff-card-label">Bài tiếp theo</p>
+            <h2 class="handoff-card-title" id="handoff-heading">Positive &amp; Negative Prompt</h2>
+            <p class="handoff-card-body">Dùng prompt brief vừa tạo để phân biệt điều kiện tích cực và tiêu cực của pipeline, trước khi chạy baseline T2V.</p>
+            <a class="button primary" href="video-generation-part-4-lesson-5.html" data-curriculum-next>Sang Bài 4.6 →</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Lesson nav ── -->
+    <nav class="lesson-nav shell" aria-label="Điều hướng bài học">
+      <a href="video-generation-part-4-lesson-4.html" class="button" data-curriculum-prev>
+        ← Bài 4.4: Bộ node WanVideo
+      </a>
+      <span class="lesson-nav-label">Tiếp theo: prompt conditioning</span>
+      <a href="video-generation-part-4-lesson-5.html" class="button primary" data-curriculum-next>Bài 4.6: Positive &amp; Negative Prompt →</a>
+    </nav>
+
   </main>
 
-  <footer><div class="shell footer-inner"><p>Video Generation Study · Part 4 / Lesson 7</p><a class="button" href="index.html">Quay lại lộ trình</a></div><nav class="shell lesson-nav" aria-label="Điều hướng bài học"><a class="button" href="video-generation-part-4-lesson-6.html">← Bài 4.6 · ControlNet</a><a class="button primary" href="video-generation-part-5-lesson-1.html">Part 5 · Bài 1: FPS, Frames &amp; Resolution →</a></nav></footer>
+  <footer class="site-footer" role="contentinfo">
+    <div class="shell footer-inner">
+      <span class="footer-brand">Video Generation Study</span>
+      <span class="footer-meta">Generation Setup · Bài 4.5</span>
+    </div>
+  </footer>
 
+  <script src="video-generation-navigation.js"></script>
   <script>
     (() => {
-      const controls = {
-        noise: document.querySelector('#noise'),
-        start: document.querySelector('#start'),
-        end: document.querySelector('#end')
-      };
-      const values = {
-        noise: document.querySelector('#noise-value'),
-        start: document.querySelector('#start-value'),
-        end: document.querySelector('#end-value')
-      };
-      const reset = document.querySelector('#reset-lab');
-      const startAnchor = document.querySelector('#start-anchor');
-      const endAnchor = document.querySelector('#end-anchor');
-      const motionScore = document.querySelector('#motion-score');
-      const zone = document.querySelector('#status-zone');
-      const summary = document.querySelector('#live-summary');
-      const decision = document.querySelector('#decision');
-      const progressFill = document.querySelector('.progress-fill');
-      const meters = {
-        identity: document.querySelector('#identity-meter'),
-        motion: document.querySelector('#motion-meter'),
-        stress: document.querySelector('#stress-meter')
-      };
-      const numbers = {
-        identity: document.querySelector('#identity-number'),
-        motion: document.querySelector('#motion-number'),
-        stress: document.querySelector('#stress-number')
+      // Example values
+      const EXAMPLE = {
+        subject: 'an elderly fisherman in a worn blue raincoat, standing at a wooden dock, full body, centered frame',
+        motion: 'walks slowly forward toward the sea, camera follows from behind at eye level, gentle breeze moves his coat',
+        style: 'cinematic, overcast soft light, muted cool tones, shallow depth of field, 35mm film grain'
       };
 
-      const update = () => {
-        const noise = Number(controls.noise.value);
-        const start = Number(controls.start.value);
-        const end = Number(controls.end.value);
-        const averageAnchor = (start + end) / 2;
-        const preservationFactor = 1 - noise * .45;
-        const startPreservation = Math.round(start * preservationFactor * 100);
-        const endPreservation = Math.round(end * preservationFactor * 100);
-        const identity = Math.round(averageAnchor * (1 - noise * .65) * 100);
-        const motion = Math.round((noise * .58 + (1 - averageAnchor) * .42) * 100);
-        const stress = Math.round(Math.min(100, Math.abs(start - end) * 75 + Math.max(0, averageAnchor - .72) * 55));
+      const inputSubject = document.getElementById('input-subject');
+      const inputMotion  = document.getElementById('input-motion');
+      const inputStyle   = document.getElementById('input-style');
+      const outputPrompt = document.getElementById('output-prompt');
+      const copyStatus   = document.getElementById('copy-status');
+      const btnMerge     = document.getElementById('btn-merge');
+      const btnExample   = document.getElementById('btn-example');
+      const btnReset     = document.getElementById('btn-reset');
+      const btnCopy      = document.getElementById('btn-copy');
+      const diagnostic   = document.getElementById('prompt-diagnostic');
+      const score        = document.getElementById('diagnostic-score');
 
-        Object.entries({noise, start, end}).forEach(([name, amount]) => { values[name].value = amount.toFixed(2); });
-        startAnchor.value = startPreservation;
-        endAnchor.value = endPreservation;
-        motionScore.textContent = String(motion);
-        Object.entries({identity, motion, stress}).forEach(([name, amount]) => {
-          meters[name].value = amount;
-          meters[name].textContent = amount + '%';
-          numbers[name].value = amount;
-        });
+      function buildPrompt() {
+        const parts = [
+          inputSubject.value.trim(),
+          inputMotion.value.trim(),
+          inputStyle.value.trim()
+        ].filter(Boolean);
+        return parts.join(', ');
+      }
 
-        if (Math.abs(start - end) >= .4) {
-          zone.textContent = 'Neo lệch mạnh';
-          summary.textContent = 'Đầu và cuối nhận mức bảo toàn rất khác nhau. Nhịp chuyển tiếp có thể dồn về một phía hoặc khó hội tụ tự nhiên.';
-          decision.innerHTML = '<strong>Đọc output:</strong> Xác nhận sự bất đối xứng là có chủ đích; nếu không, đưa hai anchor gần nhau hơn rồi test lại.';
-        } else if (averageAnchor >= .72 && noise <= .3) {
-          zone.textContent = 'Hai đầu khá ổn';
-          summary.textContent = 'Frame đầu và cuối đều được neo khá rõ. Noise thấp ưu tiên bảo toàn reference; chuyển động có thể dè dặt nếu model hoặc prompt chưa đủ mạnh.';
-          decision.innerHTML = '<strong>Đọc output:</strong> Nếu clip quá tĩnh, thử nới noise hoặc giảm một trong hai anchor từng bước nhỏ; nếu identity trôi, làm ngược lại.';
-        } else if (noise >= .65) {
-          zone.textContent = 'Motion mở · fidelity giảm';
-          summary.textContent = 'Noise augmentation cao tạo nhiều khoảng biến đổi, nhưng chi tiết và identity từ reference dễ bị nới lỏng ở cả timeline.';
-          decision.innerHTML = '<strong>Đọc output:</strong> Giảm noise trước nếu subject trôi; chỉ tăng anchor tương ứng khi lỗi tập trung ở đầu hoặc cuối.';
-        } else if (averageAnchor <= .35) {
-          zone.textContent = 'Timeline tự do';
-          summary.textContent = 'Cả hai anchor đều lỏng. Model có nhiều quyền diễn giải prompt, đổi lại frame đầu/cuối có thể không còn sát reference.';
-          decision.innerHTML = '<strong>Đọc output:</strong> Tăng đúng anchor ở vị trí bị drift thay vì khóa cả hai đầu cùng lúc.';
+      function updateDiagnostic() {
+        const filled = [inputSubject, inputMotion, inputStyle].filter((input) => input.value.trim()).length;
+        const names = ['Subject', 'Motion', 'Style'];
+        const missing = [inputSubject, inputMotion, inputStyle]
+          .map((input, index) => input.value.trim() ? null : names[index])
+          .filter(Boolean);
+        score.value = filled + ' / 3';
+        if (filled === 3) {
+          diagnostic.firstElementChild.innerHTML = '<strong>Checklist đủ ba tầng</strong><p>Prompt đã nêu subject, motion và style. Bước kế tiếp: A/B một biến, giữ model/workflow/seed cố định và chấm output theo brief.</p>';
+        } else if (filled) {
+          diagnostic.firstElementChild.innerHTML = '<strong>Brief còn thiếu: ' + missing.join(', ') + '</strong><p>Điền phần thiếu nếu nó quan trọng cho shot. Đây là kiểm tra cấu trúc mô phỏng, không đánh giá token hay chất lượng video.</p>';
         } else {
-          zone.textContent = 'Cân bằng linh hoạt';
-          summary.textContent = 'Hai đầu còn được định hướng trong khi vùng giữa có khoảng cho motion. Hãy đánh giá riêng đầu, giữa và cuối của render.';
-          decision.innerHTML = '<strong>Đọc output:</strong> Giữ cấu hình nếu motion và identity đều đạt; nếu chưa, thay một biến mỗi lượt.';
+          diagnostic.firstElementChild.innerHTML = '<strong>Chưa đánh giá cấu trúc</strong><p>Điền ba tầng rồi ghép prompt để xem checklist mô phỏng; đây không phải điểm chất lượng hay benchmark model.</p>';
         }
-      };
+      }
 
-      const updateProgress = () => {
-        const distance = document.documentElement.scrollHeight - window.innerHeight;
-        const amount = distance > 0 ? Math.min(100, Math.max(0, window.scrollY / distance * 100)) : 0;
-        progressFill.style.width = amount + '%';
-      };
-
-      Object.values(controls).forEach((control) => control.addEventListener('input', update));
-      reset.addEventListener('click', () => {
-        controls.noise.value = '0.20';
-        controls.start.value = '0.80';
-        controls.end.value = '0.75';
-        update();
-        controls.noise.focus();
+      btnMerge.addEventListener('click', () => {
+        const result = buildPrompt();
+        outputPrompt.value = result || '(Hãy điền ít nhất một tầng bên trên)';
+        outputPrompt.setAttribute('aria-label', result ? 'Kết quả prompt được ghép: ' + result : 'Chưa có nội dung');
+        updateDiagnostic();
       });
-      window.addEventListener('scroll', updateProgress, {passive: true});
-      window.addEventListener('resize', updateProgress);
-      update();
-      updateProgress();
+
+      btnExample.addEventListener('click', () => {
+        inputSubject.value = EXAMPLE.subject;
+        inputMotion.value  = EXAMPLE.motion;
+        inputStyle.value   = EXAMPLE.style;
+        outputPrompt.value = [EXAMPLE.subject, EXAMPLE.motion, EXAMPLE.style].join(', ');
+        copyStatus.textContent = '';
+        updateDiagnostic();
+      });
+
+      btnReset.addEventListener('click', () => {
+        inputSubject.value = '';
+        inputMotion.value  = '';
+        inputStyle.value   = '';
+        outputPrompt.value = '';
+        copyStatus.textContent = '';
+        updateDiagnostic();
+      });
+
+      btnCopy.addEventListener('click', () => {
+        const text = outputPrompt.value;
+        if (!text) return;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(() => {
+            copyStatus.textContent = 'Đã sao chép!';
+            setTimeout(() => { copyStatus.textContent = ''; }, 2200);
+          }).catch(() => {
+            fallbackCopy(text);
+          });
+        } else {
+          fallbackCopy(text);
+        }
+      });
+
+      function fallbackCopy(text) {
+        outputPrompt.select();
+        try {
+          document.execCommand('copy');
+          copyStatus.textContent = 'Đã sao chép!';
+          setTimeout(() => { copyStatus.textContent = ''; }, 2200);
+        } catch (e) {
+          copyStatus.textContent = 'Không thể sao chép.';
+        }
+      }
+
+      // Scroll-driven progress bar
+      const fill = document.querySelector('.progress-fill');
+      if (fill) {
+        function updateProgress() {
+          const doc = document.documentElement;
+          const scrolled = doc.scrollTop || document.body.scrollTop;
+          const total = doc.scrollHeight - doc.clientHeight;
+          fill.style.width = total > 0 ? (scrolled / total * 100) + '%' : '0%';
+        }
+        window.addEventListener('scroll', updateProgress, {passive: true});
+        updateProgress();
+      }
     })();
   </script>
 </body>

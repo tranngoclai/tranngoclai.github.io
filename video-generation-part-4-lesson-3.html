@@ -1,713 +1,1175 @@
-<!doctype html>
-<html lang="vi">
+<!DOCTYPE html>
+<html lang="vi" data-theme="dark" data-curriculum-id="model-loaders">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Bài học trực quan về vị trí IP-Adapter đưa image embedding vào attention và cách cân bằng adapter strength.">
-  <title>IP-Adapter — Inject image embedding | Video Generation Study</title>
-  <link rel="icon" href="video-generation-favicon.svg" type="image/svg+xml">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Checkpoint & Model Loaders — Phase 4 · Bài 4.3 | Video Gen Lab</title>
+  <meta name="description" content="Hiểu Checkpoint là gì, phân biệt các loại model loader trong ComfyUI và biết đặt file model đúng thư mục." />
+
+  <script src="video-generation-curriculum.js"></script>
   <script src="video-generation-theme.js"></script>
-  <link rel="stylesheet" href="video-generation-design-system.css">
+  <link rel="stylesheet" href="video-generation-design-system.css" />
+
   <style>
+    /* ── Hero ── */
     .hero {
-      padding: clamp(68px, 10vw, 124px) 0 70px;
-      border-bottom: 1px solid var(--line);
+      padding: clamp(4rem, 10vw, 7rem) 0 clamp(3rem, 7vw, 5rem);
     }
-
-    .eyebrow,
-    .section-index,
-    .stage-label,
-    .meter-label,
-    .fact-label {
-      font-family: var(--font-mono);
-      font-size: .76rem;
-      font-weight: 800;
-      letter-spacing: .11em;
-      text-transform: uppercase;
-    }
-
-    .eyebrow,
-    .section-index { color: var(--cyan); }
-
     .hero-grid {
       display: grid;
-      grid-template-columns: minmax(0, 1.18fr) minmax(300px, .82fr);
-      gap: clamp(44px, 8vw, 96px);
-      align-items: end;
+      grid-template-columns: 1fr 1fr;
+      gap: clamp(2rem, 5vw, 4rem);
+      align-items: center;
     }
-
-    h1 {
-      max-width: 850px;
-      margin: 18px 0 24px;
-      font-size: clamp(3rem, 8vw, 7.4rem);
-      line-height: .88;
-      letter-spacing: -.075em;
+    .hero-eyebrow {
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--cyan);
+      margin: 0 0 1.1rem;
     }
-
+    .hero-h1 {
+      font-size: clamp(2.6rem, 6.5vw, 5.8rem);
+      font-weight: 900;
+      letter-spacing: -.07em;
+      line-height: 1;
+      margin: 0 0 1.4rem;
+    }
     .hero-lead {
-      max-width: 680px;
-      margin: 0;
       color: var(--muted);
-      font-size: clamp(1.05rem, 2vw, 1.3rem);
+      font-size: clamp(1rem, 1.6vw, 1.18rem);
+      max-width: 52ch;
+      margin: 0 0 2rem;
     }
-
     .hero-actions {
       display: flex;
-      flex-wrap: wrap;
       gap: 12px;
-      margin-top: 32px;
+      flex-wrap: wrap;
     }
 
-    .hero-note {
-      padding: 26px;
+    /* ── Hero visual panel ── */
+    .hero-visual {
       border: 1px solid var(--line);
       border-radius: var(--radius);
       background: var(--panel);
-      box-shadow: 12px 12px 0 color-mix(in srgb, var(--cyan) 16%, transparent);
-    }
-
-    .hero-note p { margin: 10px 0 0; color: var(--muted); }
-    .hero-note strong { color: var(--ink); }
-
-    main section { padding: clamp(72px, 9vw, 112px) 0; }
-    main section + section { border-top: 1px solid var(--line); }
-
-    .section-heading {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(250px, .45fr);
-      gap: 32px;
-      align-items: end;
-      margin-bottom: 44px;
-    }
-
-    .section-heading h2 {
-      max-width: 760px;
-      margin: 8px 0 0;
-      font-size: clamp(2rem, 5vw, 4.4rem);
-      line-height: .98;
-      letter-spacing: -.055em;
-    }
-
-    .section-heading p { margin: 0; color: var(--muted); }
-
-    .definition {
-      border-left: 5px solid var(--acid-fill);
-      padding: 26px 30px;
-      background: var(--panel);
-      font-size: clamp(1.08rem, 2vw, 1.32rem);
-    }
-
-    .definition p { max-width: 900px; margin: 0; }
-
-    .injection-map {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 0;
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      overflow: hidden;
-      background: var(--panel);
-    }
-
-    .stage {
-      position: relative;
-      min-height: 210px;
-      padding: 26px 24px;
-      border-right: 1px solid var(--line);
-    }
-
-    .stage:last-child { border-right: 0; }
-    .stage::after {
-      content: "→";
-      position: absolute;
-      z-index: 1;
-      right: -17px;
-      top: 48%;
-      width: 34px;
-      height: 34px;
-      display: grid;
-      place-items: center;
-      border: 1px solid var(--line);
-      border-radius: 50%;
-      background: var(--night);
-      color: var(--cyan);
+      padding: 1.6rem;
       font-family: var(--font-mono);
-      font-weight: 900;
+      font-size: .82rem;
+    }
+    .hv-title {
+      font-size: .68rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin: 0 0 1rem;
+    }
+    .hv-row {
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+      padding: .45rem .6rem;
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: .8rem;
+    }
+    .hv-row + .hv-row { margin-top: .25rem; }
+    .hv-row.hi { background: color-mix(in srgb, var(--acid) 12%, transparent); color: var(--acid); }
+    .hv-row.hi .dot { background: var(--acid); box-shadow: 0 0 8px var(--acid); }
+    .hv-row .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--line); flex-shrink: 0;
+    }
+    .hv-row .ext { color: var(--dim); margin-left: auto; }
+    .hv-badge {
+      display: inline-block;
+      font-size: .65rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: color-mix(in srgb, var(--cyan) 14%, transparent);
+      color: var(--cyan);
     }
 
-    .stage:last-child::after { content: none; }
-    .stage-label { color: var(--dim); }
-    .stage h3 { margin: 30px 0 10px; font-size: 1.12rem; line-height: 1.2; }
-    .stage p { margin: 0; color: var(--muted); font-size: .92rem; }
-    .stage.inject { background: color-mix(in srgb, var(--cyan) 9%, var(--panel)); }
-    .stage.inject .stage-label { color: var(--cyan); }
-
-    .attention-split {
-      margin-top: 24px;
-      display: grid;
-      grid-template-columns: 1fr auto 1fr;
-      gap: 16px;
-      align-items: stretch;
-    }
-
-    .signal {
-      padding: 22px;
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      background: var(--panel);
-    }
-
-    .signal h3 { margin: 0 0 6px; font-size: 1rem; }
-    .signal p { margin: 0; color: var(--muted); font-size: .92rem; }
-    .merge-mark { align-self: center; color: var(--acid); font-size: 1.7rem; font-weight: 900; }
-
-    .lab {
-      display: grid;
-      grid-template-columns: minmax(0, .85fr) minmax(320px, 1.15fr);
-      gap: clamp(28px, 6vw, 70px);
-      padding: clamp(26px, 5vw, 52px);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      background: var(--panel);
-      box-shadow: 14px 14px 0 color-mix(in srgb, var(--acid-fill) 12%, transparent);
-    }
-
-    .lab-copy h3 { margin: 8px 0 14px; font-size: clamp(1.55rem, 3vw, 2.5rem); line-height: 1.05; }
-    .lab-copy p { margin: 0; color: var(--muted); }
-
-    .control-group { margin-top: 30px; }
-    .control-line { display: flex; justify-content: space-between; gap: 16px; align-items: baseline; }
-    .control-line label { font-weight: 800; }
-    .strength-value { color: var(--acid); font-family: var(--font-mono); font-size: 1.2rem; font-weight: 900; }
-    input[type="range"] { width: 100%; min-height: 44px; margin-top: 10px; accent-color: var(--acid); }
-    .range-ends { display: flex; justify-content: space-between; color: var(--dim); font-family: var(--font-mono); font-size: .74rem; }
-    .reset-button { margin-top: 22px; }
-
-    .lab-result {
-      min-width: 0;
-      padding: 28px;
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      background: var(--night);
-    }
-
-    .result-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; align-items: baseline; }
-    .result-heading h3 { margin: 0; font-size: 1.25rem; }
-    .result-zone { color: var(--cyan); font-family: var(--font-mono); font-size: .78rem; font-weight: 900; letter-spacing: .07em; text-transform: uppercase; }
-    .result-summary { min-height: 54px; margin: 16px 0 24px; color: var(--muted); }
-
-    .meter-list { display: grid; gap: 18px; }
-    .meter-row { display: grid; grid-template-columns: 145px 1fr auto; gap: 14px; align-items: center; }
-    .meter-label { color: var(--muted); }
-    .meter-track { height: 9px; overflow: hidden; border-radius: 999px; background: var(--panel-2); }
-    .meter-fill { height: 100%; width: 50%; border-radius: inherit; background: var(--cyan-fill); transition: width .18s ease; }
-    .meter-row:nth-child(2) .meter-fill { background: var(--acid-fill); }
-    .meter-row:nth-child(3) .meter-fill { background: var(--orange); }
-    .meter-number { width: 3ch; color: var(--ink); font-family: var(--font-mono); text-align: right; }
-
-    .decision-note {
-      margin-top: 24px;
-      padding-top: 22px;
+    /* ── Section scaffolding ── */
+    .section {
+      padding: clamp(3rem, 7vw, 5.5rem) 0;
       border-top: 1px solid var(--line);
+    }
+    .section-index {
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin: 0 0 .6rem;
+    }
+    .section-h2 {
+      font-size: clamp(1.7rem, 3.5vw, 2.6rem);
+      font-weight: 900;
+      letter-spacing: -.05em;
+      line-height: 1.1;
+      margin: 0 0 .9rem;
+    }
+    .section-lead {
+      color: var(--muted);
+      max-width: 64ch;
+      margin: 0 0 2.4rem;
+    }
+
+    /* ── Definition panel ── */
+    .def-panel {
+      border-left: 3px solid var(--acid);
+      background: var(--panel);
+      border-radius: 0 14px 14px 0;
+      padding: 1.4rem 1.6rem;
+      margin-bottom: 1.6rem;
+    }
+    .def-label {
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--acid);
+      margin: 0 0 .5rem;
+    }
+    .def-text {
+      font-size: 1.05rem;
+      margin: 0;
       color: var(--ink);
     }
 
-    .facts {
+    /* ── Comparison: checkpoint vs LoRA ── */
+    .compare-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-bottom: 1.6rem;
+    }
+    .compare-card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 1.4rem;
+      background: var(--panel);
+    }
+    .compare-card.accent { border-color: var(--acid); }
+    .compare-card-label {
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin: 0 0 .5rem;
+    }
+    .compare-card-title {
+      font-size: 1.15rem;
+      font-weight: 800;
+      margin: 0 0 .7rem;
+    }
+    .compare-card.accent .compare-card-title { color: var(--acid); }
+    .compare-card p { color: var(--muted); font-size: .92rem; margin: 0 0 .6rem; }
+    .compare-card p:last-child { margin: 0; }
+    .tag {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: .7rem;
+      padding: 3px 8px;
+      border-radius: 5px;
+      background: var(--panel-2);
+      color: var(--muted);
+      margin: .2rem .2rem 0 0;
+    }
+    .tag.cyan { background: color-mix(in srgb, var(--cyan) 12%, transparent); color: var(--cyan); }
+
+    /* ── Directory tree explorer ── */
+    .tree-shell {
       border: 1px solid var(--line);
       border-radius: var(--radius);
+      background: var(--panel);
       overflow: hidden;
     }
-
-    .fact { padding: 28px; background: var(--panel); border-right: 1px solid var(--line); }
-    .fact:last-child { border-right: 0; }
-    .fact-label { color: var(--cyan); }
-    .fact h3 { margin: 26px 0 8px; font-size: 1.1rem; }
-    .fact p { margin: 0; color: var(--muted); }
-
-    .brief-grid,
-    .related-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-    .brief-card,
-    .related-card,
-    .source-note {
-      min-width: 0;
-      padding: 22px;
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      background: var(--panel);
+    .tree-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: .85rem 1.2rem;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel-2);
     }
-    .brief-card h3,
-    .related-card h3 { margin: 8px 0; font-size: 1.06rem; line-height: 1.25; }
-    .brief-card p,
-    .related-card p,
-    .source-note p { margin: 0; color: var(--muted); font-size: .94rem; }
-    .brief-card .fact-label { color: var(--cyan); }
-    .brief-card.wide { grid-column: 1 / -1; border-left: 5px solid var(--acid-fill); }
-    .experiment-list { margin: 12px 0 0; padding-left: 1.2rem; color: var(--muted); }
-    .experiment-list li + li { margin-top: 6px; }
-
-    .related-card { display: block; min-height: 150px; color: inherit; text-decoration: none; transition: transform .2s ease, border-color .2s ease, background .2s ease; }
-    .related-card:hover { transform: translateY(-3px); border-color: var(--cyan); background: var(--panel-2); }
-    .related-card .section-index { font-size: .7rem; }
-    .source-note { margin-top: 24px; }
-    .source-note a { display: inline-flex; align-items: center; min-height: 44px; color: var(--cyan); font-weight: 800; }
-    .brand { min-height: 44px; align-items: center; }
-
-    .lesson-nav { display: flex; flex-wrap: wrap; gap: 12px; }
-    .lesson-nav .button:last-child { margin-left: auto; }
-
-    details {
-      margin-top: 28px;
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      background: var(--panel);
+    .tree-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .tree-dot:nth-child(1) { background: #ff6b6b; }
+    .tree-dot:nth-child(2) { background: #ff8a4c; }
+    .tree-dot:nth-child(3) { background: var(--acid); }
+    .tree-path {
+      font-family: var(--font-mono);
+      font-size: .75rem;
+      color: var(--dim);
+      margin-left: .4rem;
     }
-
-    summary { min-height: 56px; padding: 16px 20px; cursor: pointer; font-weight: 800; }
-    details p { margin: 0; padding: 0 20px 22px; color: var(--muted); }
-
-    .takeaway {
+    .tree-body {
       display: grid;
-      grid-template-columns: minmax(0, .75fr) minmax(300px, 1.25fr);
-      gap: 40px;
+      grid-template-columns: 1fr 1fr;
+      min-height: 280px;
+    }
+    .tree-left {
+      padding: 1.2rem 1rem;
+      border-right: 1px solid var(--line);
+      font-family: var(--font-mono);
+      font-size: .82rem;
+    }
+    .tree-right {
+      padding: 1.2rem 1.4rem;
+    }
+    .tree-item {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      font: inherit;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      padding: .38rem .55rem;
+      border-radius: 7px;
+      cursor: pointer;
+      color: var(--muted);
+      user-select: none;
+      transition: background .12s, color .12s;
+      min-height: 44px;
+    }
+    .tree-item:hover { background: var(--panel-2); color: var(--ink); }
+    .tree-item.active { background: color-mix(in srgb, var(--acid) 10%, transparent); color: var(--acid); }
+    .tree-item .ti-icon { width: 16px; text-align: center; flex-shrink: 0; }
+    .tree-item .ti-caret {
+      margin-left: auto;
+      color: var(--dim);
+      font-size: .7rem;
+      transition: transform .15s;
+    }
+    .tree-item.expanded .ti-caret { transform: rotate(90deg); }
+    .tree-children {
+      padding-left: 1.4rem;
+      display: none;
+    }
+    .tree-children.open { display: block; }
+    .tree-file {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      padding: .28rem .55rem;
+      border-radius: 6px;
+      color: var(--dim);
+      font-size: .78rem;
+      cursor: default;
+      pointer-events: none;
+      min-height: 36px;
+    }
+    .info-panel {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 1.1rem 1.2rem;
+      background: var(--panel-2);
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: .6rem;
+    }
+    .info-panel-empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--dim);
+      font-size: .85rem;
+      font-family: var(--font-mono);
+      text-align: center;
+    }
+    .info-title {
+      font-family: var(--font-mono);
+      font-size: .7rem;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--cyan);
+      margin: 0;
+    }
+    .info-name {
+      font-weight: 800;
+      font-size: 1rem;
+      margin: 0;
+    }
+    .info-desc { color: var(--muted); font-size: .88rem; margin: 0; }
+    .info-ext {
+      display: flex;
+      gap: .4rem;
+      flex-wrap: wrap;
+      margin-top: .2rem;
+    }
+
+    /* ── Loader comparison table ── */
+    .loader-table-wrap {
+      overflow-x: auto;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+    }
+    .loader-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .88rem;
+    }
+    .loader-table thead th {
+      background: var(--panel-2);
+      padding: .85rem 1.1rem;
+      text-align: left;
+      font-family: var(--font-mono);
+      font-size: .7rem;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--dim);
+      border-bottom: 1px solid var(--line);
+      white-space: nowrap;
+    }
+    .loader-table tbody tr:not(:last-child) td {
+      border-bottom: 1px solid var(--line);
+    }
+    .loader-table tbody td {
+      padding: .85rem 1.1rem;
+      vertical-align: top;
+      color: var(--muted);
+    }
+    .loader-table tbody td:first-child {
+      color: var(--ink);
+      font-weight: 700;
+    }
+    .loader-table tbody tr:hover td { background: var(--panel-2); }
+    .pro { color: var(--cyan); font-weight: 700; }
+    .con { color: var(--orange); font-weight: 700; }
+
+    /* ── Match warning panel ── */
+    .match-list {
+      display: flex;
+      flex-direction: column;
+      gap: .8rem;
+    }
+    .match-item {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: .6rem;
+      align-items: center;
+      padding: .9rem 1rem;
+      border-radius: 12px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+    }
+    .match-item.bad { border-color: var(--red); }
+    .match-item.good { border-color: color-mix(in srgb, var(--acid) 40%, transparent); }
+    .match-src, .match-tgt {
+      font-family: var(--font-mono);
+      font-size: .82rem;
+      padding: .4rem .7rem;
+      border-radius: 7px;
+      background: var(--panel-2);
+      text-align: center;
+    }
+    .match-arrow {
+      font-size: 1.1rem;
+      color: var(--dim);
+      text-align: center;
+    }
+    .match-item.bad .match-arrow { color: var(--red); }
+    .match-item.good .match-arrow { color: var(--acid); }
+    .match-badge {
+      grid-column: 1 / -1;
+      font-size: .72rem;
+      font-family: var(--font-mono);
+      letter-spacing: .1em;
+    }
+    .match-item.bad .match-badge { color: var(--red); }
+    .match-item.good .match-badge { color: var(--acid); }
+
+    /* ── Takeaways ── */
+    .takeaways {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      padding: clamp(1.6rem, 4vw, 2.5rem);
+    }
+    .takeaways-label {
+      font-family: var(--font-mono);
+      font-size: .7rem;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--acid);
+      margin: 0 0 1rem;
+    }
+    .takeaway-item {
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+      padding: .7rem 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .takeaway-item:last-child { border-bottom: none; }
+    .takeaway-num {
+      font-family: var(--font-mono);
+      font-size: .8rem;
+      color: var(--acid);
+      font-weight: 800;
+      min-width: 24px;
+      margin-top: .1rem;
+    }
+    .takeaway-text { color: var(--ink); font-size: .95rem; }
+
+    /* ── FAQ / disclosure ── */
+    .faq-list { display: flex; flex-direction: column; gap: .6rem; }
+    details.faq {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel);
+    }
+    details.faq[open] { border-color: var(--cyan); }
+    summary.faq-q {
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1rem 1.2rem;
+      font-weight: 700;
+      color: var(--ink);
+      font-size: .95rem;
+      min-height: 56px;
+    }
+    summary.faq-q::-webkit-details-marker { display: none; }
+    summary.faq-q::after {
+      content: '+';
+      font-size: 1.2rem;
+      color: var(--dim);
+      flex-shrink: 0;
+      transition: transform .2s;
+    }
+    details.faq[open] summary.faq-q::after {
+      transform: rotate(45deg);
+      color: var(--cyan);
+    }
+    .faq-a {
+      padding: 0 1.2rem 1rem;
+      color: var(--muted);
+      font-size: .92rem;
+      border-top: 1px solid var(--line);
+      padding-top: .85rem;
+    }
+    .faq-a code {
+      font-family: var(--font-mono);
+      background: var(--panel-2);
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-size: .88em;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      border-top: 1px solid var(--line);
+      padding: 2.5rem 0;
+      margin-top: 2rem;
+    }
+    .footer-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .footer-copy {
+      font-size: .78rem;
+      color: var(--dim);
+      font-family: var(--font-mono);
+    }
+    .footer-nav { display: flex; gap: 6px; flex-wrap: wrap; }
+    .footer-nav a {
+      font-size: .8rem;
+      color: var(--muted);
+      text-decoration: none;
+      padding: 6px 10px;
+      border-radius: 7px;
+    }
+    .footer-nav a:hover { color: var(--ink); background: var(--panel-2); }    @media (max-width: 640px) {
+      .hero-grid { grid-template-columns: 1fr; }
+      .hero-visual { order: -1; }
+      .compare-grid, .match-list, .case-grid, .faq-list, .related-list { grid-template-columns: 1fr; }
+      .case-card.wide { grid-column: auto; }
+      .tree-stage { grid-template-columns: 1fr; }
+      .tree-right { border-left: none; border-top: 1px solid var(--line); padding: 24px 20px; }
+      .loader-table-wrap { overflow-x: auto; margin: 0; padding: 0; max-width: 100%; }
+      .footer-inner { flex-direction: column; align-items: flex-start; }
+    }
+
+    /* ── Standardized Phase 5 Blocks ── */
+    .flow-minimap {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 14px 0;
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      color: var(--dim);
+      border-bottom: 1px solid var(--line);
+    }
+    .flow-minimap-label {
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-right: 4px;
+    }
+    .flow-minimap-sep { color: var(--line); }
+    .flow-minimap-item {
+      color: var(--muted);
+      text-decoration: none;
+      padding: 2px 6px;
+      border-radius: 4px;
+      transition: color .15s;
+    }
+    .flow-minimap-item:hover { color: var(--cyan); }
+    .flow-minimap-item.current {
+      color: var(--acid);
+      background: rgba(200,255,61,.1);
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .prereq-callout {
+      display: flex;
+      gap: 16px;
+      padding: 18px 24px;
+      border: 1px solid rgba(98,231,245,.3);
+      border-left: 4px solid var(--cyan);
+      border-radius: var(--radius);
+      background: rgba(98,231,245,.05);
+      margin-bottom: 32px;
+      align-items: flex-start;
+    }
+    .prereq-icon { color: var(--cyan); flex-shrink: 0; margin-top: 2px; }
+    .prereq-title { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--cyan); margin: 0 0 6px; }
+    .prereq-body { color: var(--muted); font-size: .9rem; line-height: 1.55; margin: 0 0 10px; }
+    .prereq-link { color: var(--cyan); font-size: .85rem; text-decoration: none; }
+    .prereq-link:hover { text-decoration: underline; }
+    .output-artifact {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      background: rgba(200,255,61,.08);
+      border: 1px solid rgba(200,255,61,.25);
+      border-radius: 10px;
+      margin-bottom: 20px;
+      font-size: .85rem;
+      flex-wrap: wrap;
+    }
+    .output-artifact svg { color: var(--acid); flex-shrink: 0; }
+    .output-artifact-label { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--acid); }
+    .output-artifact-text { color: var(--muted); }
+    .handoff-card {
+      display: grid;
+      grid-template-columns: 60px 1fr;
+      gap: 24px;
       align-items: start;
+      padding: 40px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      position: relative;
+      overflow: hidden;
     }
-
-    .takeaway h2 { margin: 8px 0 0; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; letter-spacing: -.05em; }
-    .takeaway-list { margin: 0; padding: 0; list-style: none; counter-reset: point; }
-    .takeaway-list li { counter-increment: point; display: grid; grid-template-columns: 42px 1fr; gap: 14px; padding: 20px 0; border-bottom: 1px solid var(--line); }
-    .takeaway-list li::before { content: "0" counter(point); color: var(--cyan); font-family: var(--font-mono); font-weight: 900; }
-
-    footer { padding: 34px 0 50px; border-top: 1px solid var(--line); color: var(--muted); }
-    .footer-inner { display: flex; justify-content: space-between; gap: 20px; align-items: center; }
-    footer p { margin: 0; }
-
-    @media (max-width: 900px) {
-      .hero-grid,
-      .section-heading,
-      .lab,
-      .takeaway { grid-template-columns: 1fr; }
-      .hero-note { max-width: 600px; }
-      .injection-map { grid-template-columns: 1fr 1fr; }
-      .stage:nth-child(2) { border-right: 0; }
-      .stage:nth-child(-n + 2) { border-bottom: 1px solid var(--line); }
-      .stage:nth-child(2)::after { content: none; }
-      .facts { grid-template-columns: 1fr; }
-      .fact { border-right: 0; border-bottom: 1px solid var(--line); }
-      .fact:last-child { border-bottom: 0; }
-      .brief-grid,
-      .related-grid { grid-template-columns: 1fr; }
+    .handoff-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(200,255,61,.05) 0%, transparent 60%);
+      pointer-events: none;
     }
-
-    @media (max-width: 640px) {
-      .topnav { display: none; }
-      .hero { padding-top: 54px; }
-      h1 { font-size: clamp(3rem, 18vw, 5rem); }
-      .hero-actions .button { width: 100%; }
-      .injection-map { grid-template-columns: 1fr; }
-      .stage { min-height: 0; border-right: 0; border-bottom: 1px solid var(--line); }
-      .stage:nth-child(3) { border-bottom: 1px solid var(--line); }
-      .stage::after { content: none; }
-      .attention-split { grid-template-columns: 1fr; }
-      .merge-mark { justify-self: center; transform: rotate(90deg); }
-      .lab { padding: 22px; }
-      .lab-result { padding: 22px 18px; }
-      .meter-row { grid-template-columns: 1fr auto; }
-      .meter-track { grid-column: 1 / -1; grid-row: 2; }
-      .footer-inner { align-items: flex-start; flex-direction: column; }
-      .lesson-nav { width: 100%; }
-      .lesson-nav .button { flex: 1 1 100%; }
-      .lesson-nav .button:last-child { margin-left: 0; }
+    .handoff-card-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: rgba(200,255,61,.1);
+      color: var(--acid);
+      flex-shrink: 0;
     }
-
-    @media (prefers-reduced-motion: reduce) {
-      .related-card { transition: none; }
-      .related-card:hover { transform: none; }
-      .meter-fill { transition: none; }
-    }
+    .handoff-card-label { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin: 0 0 8px; }
+    .handoff-card-title { font-size: clamp(1.6rem, 3vw, 2.4rem); font-weight: 900; letter-spacing: -.04em; margin: 0 0 16px; color: var(--ink); }
+    .handoff-card-body { color: var(--muted); font-size: .95rem; line-height: 1.6; margin: 0 0 24px; }
+    html, body, main, .shell, section { overflow-x: hidden !important; max-width: 100% !important; }
+  .loader-table-wrap { overflow-x: auto !important; max-width: 100% !important; min-width: 0 !important; }
   </style>
 </head>
 <body>
-  <a class="skip-link" href="#main-content">Bỏ qua điều hướng</a>
 
-  <header class="topbar">
-    <div class="topbar-inner">
-      <a class="brand" href="index.html" aria-label="Video Generation Study — Trang chủ">
-        <span class="brand-mark" aria-hidden="true"></span>
-        <span>Video Generation Study</span>
-      </a>
-      <nav class="topnav" aria-label="Điều hướng bài học">
-        <a href="index.html">Lộ trình</a>
-        <a href="#strength-lab">Thử strength</a>
-      </nav>
-      <div class="progress-track" aria-hidden="true"><div class="progress-fill"></div></div>
+<a class="skip-link" href="#main">Bỏ qua điều hướng</a>
+
+<!-- Topbar -->
+<header class="topbar" role="banner">
+  <div class="topbar-inner shell">
+    <a class="brand" href="index.html" aria-label="Video Gen Lab – Trang chủ">
+      <span class="brand-mark" aria-hidden="true"></span>
+      Video Gen Lab
+    </a>
+    <nav class="topnav" aria-label="Điều hướng bài học">
+      <a href="video-generation-part-4-lesson-2.html" data-curriculum-prev>← 4.2</a>
+      <a href="index.html" data-curriculum-home>Trang chủ</a>
+      <a href="video-generation-part-4-lesson-4.html" data-curriculum-next>4.4 →</a>
+    </nav>
+    <!-- theme toggle injected by video-generation-theme.js -->
+  </div>
+  <div class="progress-track" role="progressbar" aria-label="Tiến độ đọc" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+    <div class="progress-fill" id="progressFill"></div>
+  </div>
+</header>
+
+<!-- Main -->
+<main id="main">
+
+  <!-- Hero -->
+  <section class="hero shell" aria-labelledby="hero-heading">
+    <div class="hero-grid">
+      <div class="hero-text">
+        <p class="hero-eyebrow">Phase 4 · Bài 4.3 &mdash; Generation Setup / ComfyUI</p>
+        <h1 class="hero-h1" id="hero-heading">Checkpoint &amp; Model Loaders</h1>
+        <p class="hero-lead">Hiểu Checkpoint là gì, phân biệt các loại model loader trong ComfyUI và biết đặt file model đúng thư mục để workflow chạy được.</p>
+
+        <!-- OUTPUT ARTIFACT BADGE -->
+        <div class="output-artifact" role="note">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          <span class="output-artifact-label">Đầu ra bài học:</span>
+          <span class="output-artifact-text">Hiểu model family compatibility, lựa chọn loader node đúng cho từng component của Wan2.2 (UNet, VAE, CLIP), và xác nhận model loaded thành công</span>
+        </div>
+
+        <div class="hero-actions">
+          <a class="button primary" href="#checkpoint">Bắt đầu học</a>
+          <a class="button" href="#loaders">Xem các loader</a>
+        </div>
+      </div>
+
+      <div class="hero-visual" aria-label="Ví dụ file checkpoint trong ComfyUI">
+        <p class="hv-title">ComfyUI / models / checkpoints /</p>
+        <div class="hv-row hi">
+          <span class="dot" aria-hidden="true"></span>
+          dreamshaper_xl.safetensors
+          <span class="hv-badge">Checkpoint</span>
+        </div>
+        <div class="hv-row">
+          <span class="dot" aria-hidden="true"></span>
+          sd_xl_base_1.0.safetensors
+          <span class="ext">all-in-one (ví dụ)</span>
+        </div>
+        <div class="hv-spacer" aria-hidden="true"></div>
+        <p class="hv-title">ComfyUI / models / diffusion_models /</p>
+        <div class="hv-row">
+          <span class="dot" aria-hidden="true"></span>
+          wan2.2_t2v_1.3B.safetensors
+          <span class="ext">diffusion model (ví dụ)</span>
+        </div>
+        <div class="hv-spacer" aria-hidden="true"></div>
+        <p class="hv-title">ComfyUI / models / loras /</p>
+        <div class="hv-row">
+          <span class="dot" aria-hidden="true"></span>
+          detail_tweaker.safetensors
+          <span class="ext">adapter (ví dụ)</span>
+        </div>
+        <div class="hv-row">
+          <span class="dot" aria-hidden="true"></span>
+          anime_style.safetensors
+          <span class="ext">adapter (ví dụ)</span>
+        </div>
+      </div>
     </div>
-  </header>
+  </section>
 
-  <main id="main-content">
-    <section class="hero">
-      <div class="shell hero-grid">
+  <!-- FLOW POSITION MINI-MAP -->
+  <div class="shell">
+    <nav class="flow-minimap" aria-label="Vị trí trong lộ trình">
+      <span class="flow-minimap-label">LỘ TRÌNH</span>
+      <span class="flow-minimap-sep">›</span>
+      <a class="flow-minimap-item" href="video-generation-part-4-lesson-2.html">4.2: Custom Node</a>
+      <span class="flow-minimap-sep">›</span>
+      <strong class="flow-minimap-item current" aria-current="step">4.3: Model Loaders</strong>
+      <span class="flow-minimap-sep">›</span>
+      <a class="flow-minimap-item" href="video-generation-part-4-lesson-4.html">4.4: Bộ node WanVideo</a>
+    </nav>
+  </div>
+
+  <!-- Section 1: Checkpoint là gì -->
+  <section class="section" id="checkpoint" aria-labelledby="s1-heading">
+    <div class="shell">
+      <p class="section-index">01 &mdash; Khái niệm</p>
+      <h2 class="section-h2" id="s1-heading">Checkpoint là gì?</h2>
+      <p class="section-lead">“Checkpoint” mô tả một gói trọng số đã lưu, nhưng thành phần bên trong phụ thuộc cách model được phát hành. Hãy xác định đúng gói trước khi chọn loader.</p>
+
+      <!-- PREREQUISITE CALLOUT -->
+      <div class="prereq-callout" role="note" aria-label="Yêu cầu trước bài học">
+        <div class="prereq-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 8v4m0 4h.01"/></svg>
+        </div>
         <div>
-          <div class="eyebrow">Part 4 · Bài 03 · Intermediate</div>
-          <h1>IP-Adapter</h1>
-          <p class="hero-lead">Ảnh tham chiếu không đi thẳng vào latent. IP-Adapter biến nó thành một luồng conditioning riêng, rồi đưa luồng đó vào attention để model “nhìn” ảnh trong lúc denoise.</p>
-          <div class="hero-actions">
-            <a class="button primary" href="#injection">Xem điểm inject</a>
-            <a class="button" href="#strength-lab">Thử adapter strength</a>
-          </div>
-        </div>
-        <aside class="hero-note" aria-label="Mục tiêu bài học">
-          <div class="eyebrow">Mục tiêu</div>
-          <p>Sau bài này, bạn có thể <strong>chỉ ra vị trí image conditioning được inject</strong> và giải thích vì sao tăng strength làm ảnh tham chiếu mạnh hơn nhưng giảm tự do của prompt.</p>
-        </aside>
-      </div>
-    </section>
-
-    <section aria-labelledby="definition-title">
-      <div class="shell">
-        <div class="section-heading">
-          <div>
-            <div class="section-index">01 · Vai trò</div>
-            <h2 id="definition-title">Một “cổng phụ” cho ảnh tham chiếu</h2>
-          </div>
-          <p>Text prompt và reference image là hai nguồn tín hiệu khác nhau. IP-Adapter giữ chúng thành hai nhánh conditioning để ta điều chỉnh riêng.</p>
-        </div>
-        <div class="definition">
-          <p><strong>IP-Adapter</strong> nhận image embedding từ vision encoder, chiếu embedding đó thành các token phù hợp với model, rồi bổ sung một nhánh image key/value vào cross-attention của backbone denoising. Trong thiết kế gốc, diffusion model nền được giữ đóng băng; khả năng dùng trong video workflow là hành vi của implementation/model cụ thể, không phải kết luận tự động từ paper T2I.</p>
+          <p class="prereq-title">Cần biết trước</p>
+          <p class="prereq-body">Bài này yêu cầu biết custom nodes đã cài từ Bài 4.2 — loader nodes cho Wan có thể là custom nodes.</p>
+          <a class="prereq-link" href="video-generation-part-4-lesson-2.html">← Xem lại bài trước: 4.2: Custom Node & Manager</a>
         </div>
       </div>
-    </section>
 
-    <section id="injection" aria-labelledby="injection-title">
-      <div class="shell">
-        <div class="section-heading">
-          <div>
-            <div class="section-index">02 · Điểm inject</div>
-            <h2 id="injection-title">Embedding đi vào attention, không đi vào pixel</h2>
+      <div class="def-panel">
+        <p class="def-label">Định nghĩa</p>
+        <p class="def-text">Checkpoint là trạng thái trọng số được lưu tại một thời điểm. Trong ComfyUI, một file trong <code class="inline-code">models/checkpoints/</code> <em>có thể</em> được node <code class="inline-code">CheckpointLoaderSimple</code> tách thành model, text encoder và VAE; các model lớn cũng thường được phát hành thành diffusion model, text encoder và VAE riêng. Định dạng file không tự nói lên kiến trúc hay khả năng tương thích.</p>
+      </div>
+
+      <div class="compare-grid">
+        <div class="compare-card accent">
+          <p class="compare-card-label">Checkpoint</p>
+          <p class="compare-card-title">Toàn bộ model</p>
+          <p>Với checkpoint “all-in-one”, thường đóng gói model chính, text encoder và VAE. Với bản phát hành tách component, từng file phải được load theo hướng dẫn của model card/workflow.</p>
+          <p>Chỉ dùng độc lập khi file và node thực sự khớp; không suy ra điều đó chỉ từ đuôi <code>.safetensors</code>.</p>
+          <div class="card-tags">
+            <span class="tag cyan">.safetensors</span>
+            <span class="tag cyan">.ckpt</span>
+            <span class="tag">2 – 20+ GB</span>
           </div>
-          <p>Đọc sơ đồ từ trái sang phải. Điểm quan trọng là bước 03: projected image tokens tham gia attention khi backbone đang dự đoán noise.</p>
         </div>
-
-        <div class="injection-map" role="img" aria-label="Ảnh tham chiếu được vision encoder mã hóa thành image embedding, adapter projection đổi thành image tokens, rồi các token này được inject vào attention của denoiser.">
-          <article class="stage">
-            <div class="stage-label">01 · Input</div>
-            <h3>Reference image</h3>
-            <p>Ảnh mang subject, bố cục, màu hoặc phong cách cần tham chiếu.</p>
-          </article>
-          <article class="stage">
-            <div class="stage-label">02 · Encode</div>
-            <h3>Vision encoder</h3>
-            <p>Nén đặc trưng thị giác thành image embedding có ý nghĩa ngữ nghĩa.</p>
-          </article>
-          <article class="stage inject">
-            <div class="stage-label">03 · Inject</div>
-            <h3>Adapter projection → attention</h3>
-            <p>Chiếu embedding thành image tokens và thêm nhánh key/value ảnh vào attention.</p>
-          </article>
-          <article class="stage">
-            <div class="stage-label">04 · Denoise</div>
-            <h3>U-Net / DiT backbone</h3>
-            <p>Dự đoán noise với cả tín hiệu text và tín hiệu ảnh ở từng bước sampling.</p>
-          </article>
-        </div>
-
-        <div class="attention-split" aria-label="Hai luồng conditioning cùng tác động lên attention">
-          <div class="signal">
-            <h3>Text tokens</h3>
-            <p>Prompt mô tả điều bạn muốn model tạo.</p>
-          </div>
-          <div class="merge-mark" aria-hidden="true">+</div>
-          <div class="signal">
-            <h3>Image tokens × strength</h3>
-            <p>Reference quy định mức độ model nên bám vào tín hiệu thị giác.</p>
+        <div class="compare-card">
+          <p class="compare-card-label">LoRA</p>
+          <p class="compare-card-title">Delta weights</p>
+          <p>Một adapter trọng số nhỏ, được áp vào model nền tương thích. “Delta” là cách diễn đạt hữu ích, không phải lời hứa rằng mọi LoRA khớp mọi checkpoint.</p>
+          <p>Thường dùng cho style/nhân vật; cần kiểm tra base model, kiến trúc và khuyến nghị strength từ tác giả.</p>
+          <div class="card-tags">
+            <span class="tag">.safetensors</span>
+            <span class="tag">50 – 500 MB</span>
           </div>
         </div>
       </div>
-    </section>
 
-    <section id="strength-lab" aria-labelledby="lab-title">
-      <div class="shell">
-        <div class="section-heading">
-          <div>
-            <div class="section-index">03 · Strength lab</div>
-            <h2 id="lab-title">Strength là núm cân bằng, không phải điểm chất lượng</h2>
-          </div>
-          <p>Dùng phím mũi tên khi range được focus. Đây là <strong>mô phỏng bằng đơn vị tương đối</strong> để đọc trade-off, không phải benchmark hay phạm vi hợp lệ của một checkpoint cụ thể.</p>
+      <details class="faq faq-constrained">
+        <summary class="faq-q">.safetensors khác .ckpt ở điểm nào?</summary>
+        <div class="faq-a">
+          Một số checkpoint <code>.ckpt</code> dựa trên Python pickle nên không nên lấy từ nguồn không tin cậy. Định dạng <code>.safetensors</code> được thiết kế để không thực thi mã tùy ý khi đọc tensor. Vẫn cần xác minh nguồn, checksum và hướng dẫn của model; tốc độ load phụ thuộc phần cứng, kích thước và implementation.
         </div>
+      </details>
+    </div>
+  </section>
 
-        <div class="lab">
-          <div class="lab-copy">
-            <div class="eyebrow">Tình huống</div>
-            <h3>“Nhân vật từ reference chạy dưới mưa neon”</h3>
-            <p>Reference cung cấp diện mạo; prompt yêu cầu hành động và bối cảnh mới. Hãy tăng hoặc giảm strength để xem hai nguồn tín hiệu cạnh tranh ra sao.</p>
-            <div class="control-group">
-              <div class="control-line">
-                <label for="strength">Adapter strength</label>
-                <output class="strength-value" id="strength-value" for="strength">0.60</output>
+  <!-- Section 2: Directory tree explorer -->
+  <section class="section" id="directory" aria-labelledby="s2-heading">
+    <div class="shell">
+      <p class="section-index">02 &mdash; Cấu trúc thư mục</p>
+      <h2 class="section-h2" id="s2-heading">Đặt file model đúng thư mục</h2>
+      <p class="section-lead">ComfyUI nhận diện model dựa trên vị trí thư mục. Đặt sai chỗ, loader sẽ không thấy file. Nhấn vào từng thư mục để xem chi tiết.</p>
+
+      <div class="tree-shell" role="region" aria-label="Cây thư mục ComfyUI — nhấn thư mục để xem mô tả">
+        <div class="tree-toolbar" aria-hidden="true">
+          <span class="tree-dot"></span>
+          <span class="tree-dot"></span>
+          <span class="tree-dot"></span>
+          <span class="tree-path">ComfyUI / models /</span>
+        </div>
+        <div class="tree-body">
+          <div class="tree-left" role="tree" aria-label="Thư mục models">
+            <button id="tree-root" class="tree-item expanded" type="button" role="treeitem" aria-expanded="true" aria-selected="false" data-folder="root">
+              <span class="ti-icon" aria-hidden="true">📁</span>
+              <span>models/</span>
+              <span class="ti-caret" aria-hidden="true">▶</span>
+            </button>
+            <div id="tree-children-root" class="tree-children open" role="group">
+
+              <button class="tree-item" type="button" role="treeitem" aria-expanded="false" aria-selected="false" data-folder="checkpoints">
+                <span class="ti-icon" aria-hidden="true">📂</span>
+                <span>checkpoints/</span>
+                <span class="ti-caret" aria-hidden="true">▶</span>
+              </button>
+              <div id="tree-children-checkpoints" class="tree-children" role="group">
+                <div class="tree-file"><span class="ti-icon" aria-hidden="true">📄</span>dreamshaper_xl.safetensors</div>
+                <div class="tree-file"><span class="ti-icon" aria-hidden="true">📄</span>sd_xl_base_1.0.safetensors</div>
               </div>
-              <input id="strength" type="range" min="0" max="1" step="0.05" value="0.60" aria-describedby="strength-help">
-              <div class="range-ends" aria-hidden="true"><span>0 · prompt tự do</span><span>1 · reference mạnh</span></div>
-              <p id="strength-help">Mô phỏng bằng đơn vị tương đối. Điều chỉnh bằng chuột, chạm, hoặc phím mũi tên; giá trị mặc định 0.60.</p>
-              <button class="button reset-button" id="reset-strength" type="button">Đặt lại 0.60</button>
+
+              <button class="tree-item" type="button" role="treeitem" aria-expanded="false" aria-selected="false" data-folder="loras">
+                <span class="ti-icon" aria-hidden="true">📂</span>
+                <span>loras/</span>
+                <span class="ti-caret" aria-hidden="true">▶</span>
+              </button>
+              <div id="tree-children-loras" class="tree-children" role="group">
+                <div class="tree-file"><span class="ti-icon" aria-hidden="true">📄</span>detail_tweaker.safetensors</div>
+              </div>
+
+              <button class="tree-item" type="button" role="treeitem" aria-expanded="false" aria-selected="false" data-folder="vae">
+                <span class="ti-icon" aria-hidden="true">📂</span>
+                <span>vae/</span>
+                <span class="ti-caret" aria-hidden="true">▶</span>
+              </button>
+              <div id="tree-children-vae" class="tree-children" role="group">
+                <div class="tree-file"><span class="ti-icon" aria-hidden="true">📄</span>vae-ft-mse-840000.safetensors</div>
+              </div>
+
+              <button class="tree-item" type="button" role="treeitem" aria-expanded="false" aria-selected="false" data-folder="clip">
+                <span class="ti-icon" aria-hidden="true">📂</span>
+                <span>clip/</span>
+                <span class="ti-caret" aria-hidden="true">▶</span>
+              </button>
+              <div id="tree-children-clip" class="tree-children" role="group">
+                <div class="tree-file"><span class="ti-icon" aria-hidden="true">📄</span>t5xxl_fp16.safetensors</div>
+                <div class="tree-file"><span class="ti-icon" aria-hidden="true">📄</span>clip_l.safetensors</div>
+              </div>
+
+              <button class="tree-item" type="button" role="treeitem" aria-expanded="false" aria-selected="false" data-folder="unet">
+                <span class="ti-icon" aria-hidden="true">📂</span>
+                <span>unet/ <span class="unet-sub">(diffusion_models/)</span></span>
+                <span class="ti-caret" aria-hidden="true">▶</span>
+              </button>
+              <div id="tree-children-unet" class="tree-children" role="group">
+                <div class="tree-file"><span class="ti-icon" aria-hidden="true">📄</span>wan2.2_t2v_1.3B.safetensors</div>
+              </div>
+
+            </div><!-- /root children -->
+          </div><!-- /tree-left -->
+
+          <div class="tree-right" id="tree-info-panel">
+            <div class="info-panel-empty" id="tree-empty-msg">
+              ← Nhấn vào một thư mục để xem mô tả
+            </div>
+            <div class="info-panel" id="tree-info" hidden aria-live="polite">
+              <p class="info-title" id="info-label">Thư mục</p>
+              <p class="info-name" id="info-name"></p>
+              <p class="info-desc" id="info-desc"></p>
+              <div class="info-ext" id="info-ext"></div>
             </div>
           </div>
-
-          <div class="lab-result">
-            <div class="result-heading">
-              <h3>Kết quả dự kiến</h3>
-              <span class="result-zone" id="result-zone">Cân bằng</span>
-            </div>
-            <p class="result-summary" id="result-summary" aria-live="polite">Đặc trưng thị giác từ reference đủ rõ, trong khi prompt vẫn còn không gian cho chuyển động và bối cảnh mới.</p>
-            <div class="meter-list" aria-label="Ba chỉ báo trade-off">
-              <div class="meter-row">
-                <span class="meter-label">Bám reference</span>
-                <div class="meter-track" aria-hidden="true"><div class="meter-fill" id="reference-meter"></div></div>
-                <span class="meter-number" id="reference-number">60</span>
-              </div>
-              <div class="meter-row">
-                <span class="meter-label">Tự do prompt</span>
-                <div class="meter-track" aria-hidden="true"><div class="meter-fill" id="prompt-meter"></div></div>
-                <span class="meter-number" id="prompt-number">58</span>
-              </div>
-              <div class="meter-row">
-                <span class="meter-label">Rủi ro xung đột</span>
-                <div class="meter-track" aria-hidden="true"><div class="meter-fill" id="risk-meter"></div></div>
-                <span class="meter-number" id="risk-number">24</span>
-              </div>
-            </div>
-            <p class="decision-note" id="decision-note"><strong>Quyết định:</strong> Bắt đầu quanh vùng giữa, rồi chỉ tăng khi đặc trưng reference bị mất.</p>
-          </div>
         </div>
       </div>
-    </section>
+    </div>
+  </section>
 
-    <section aria-labelledby="reasoning-title">
-      <div class="shell">
-        <div class="section-heading">
-          <div>
-            <div class="section-index">04 · Cách suy luận</div>
-            <h2 id="reasoning-title">Chẩn đoán output trước khi xoay núm</h2>
+  <!-- Section 3: Loaders -->
+  <section class="section" id="loaders" aria-labelledby="s3-heading">
+    <div class="shell">
+      <p class="section-index">03 &mdash; Các loại Loader</p>
+      <h2 class="section-h2" id="s3-heading">CheckpointLoaderSimple vs Tách riêng components</h2>
+      <p class="section-lead">Đây là hành vi của node ComfyUI, không phải quy luật chung cho mọi model. Chọn theo layout file mà model phát hành và workflow mẫu của đúng phiên bản node.</p>
+
+      <div class="loader-table-wrap" role="region" aria-label="So sánh các loại loader">
+        <table class="loader-table">
+          <thead>
+            <tr>
+              <th scope="col">Loader</th>
+              <th scope="col">Load những gì</th>
+              <th scope="col">Ưu điểm</th>
+              <th scope="col">Nhược điểm</th>
+              <th scope="col">Dùng khi nào</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>CheckpointLoaderSimple</td>
+              <td>Từ một file trong <code>checkpoints/</code>, xuất model, CLIP và VAE khi checkpoint có các component tương ứng</td>
+              <td><span class="pro">✓</span> Đơn giản, 1 node duy nhất<br><span class="pro">✓</span> Ít lỗi do mismatch</td>
+              <td><span class="con">✗</span> Không phù hợp nếu model được phát hành tách file<br><span class="con">✗</span> Không thay thế việc đọc model card</td>
+              <td>Checkpoint all-in-one mà tài liệu ComfyUI/model card yêu cầu dùng node này</td>
+            </tr>
+            <tr>
+              <td>UNETLoader<br>+ CLIPLoader<br>+ VAELoader</td>
+              <td>Ba thành phần từ ba file riêng biệt</td>
+              <td><span class="pro">✓</span> Phù hợp layout phát hành tách component<br><span class="pro">✓</span> Cho phép thay component khi tài liệu xác nhận tương thích</td>
+              <td><span class="con">✗</span> Phức tạp hơn<br><span class="con">✗</span> Phải đảm bảo compatibility thủ công</td>
+              <td>Các bundle tách diffusion model, text encoder, VAE; ví dụ workflow video chính chủ thường nêu rõ từng file</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="faq-list faq-list-spaced">
+        <details class="faq">
+          <summary class="faq-q">Với Wan2.2, khi nào cần các loader tách component?</summary>
+          <div class="faq-a">
+            Các workflow Wan2.2 thường được phát hành dưới dạng nhiều file cần loader tương ứng cho diffusion model (UNetLoader), text encoder (CLIPLoader) và VAE (VAELoader). Tên node, đường dẫn và precision có thể thay đổi theo bản ComfyUI; dùng workflow chính chủ đi kèm release thay vì suy luận từ việc model là DiT. Nếu node báo thiếu tensor hoặc không nhận file, kiểm tra lại đúng bundle và version trước khi đổi tham số sampler.
           </div>
-          <p>Strength không có một con số “đúng” cho mọi model. Hãy quan sát loại sai lệch rồi chỉnh theo hướng có chủ đích.</p>
-        </div>
-        <div class="facts">
-          <article class="fact">
-            <div class="fact-label">Nếu quá thấp</div>
-            <h3>Subject bị trôi</h3>
-            <p>Output làm đúng prompt nhưng mất màu sắc, silhouette hoặc đặc trưng thị giác quan trọng từ reference. Tăng từng bước nhỏ.</p>
-          </article>
-          <article class="fact">
-            <div class="fact-label">Nếu vừa đủ</div>
-            <h3>Reference rõ, motion còn sống</h3>
-            <p>Đặc trưng thị giác cần giữ vẫn hiện diện, đồng thời prompt còn điều khiển hành động, góc máy và bối cảnh.</p>
-          </article>
-          <article class="fact">
-            <div class="fact-label">Nếu quá cao</div>
-            <h3>Reference lấn prompt</h3>
-            <p>Output bám pose hoặc bố cục cũ quá chặt, chuyển động giảm, hoặc xuất hiện artifact khi hai điều kiện mâu thuẫn.</p>
-          </article>
-        </div>
-        <details>
-          <summary>Tại sao cùng strength nhưng workflow khác lại cho kết quả khác?</summary>
-          <p>Scale thực tế còn phụ thuộc vision encoder, adapter checkpoint, vị trí/lớp attention được áp dụng, model nền, CFG và độ tương thích giữa prompt với reference. Vì vậy hãy xem strength là giá trị tương đối trong cùng một workflow và so sánh bằng các lần chạy có kiểm soát.</p>
+        </details>
+        <details class="faq">
+          <summary class="faq-q">Flux luôn phải dùng loader tách riêng?</summary>
+          <div class="faq-a">
+            Không. ComfyUI có cả checkpoint Flux “easy-to-use” và bundle đầy đủ với text encoder/VAE/diffusion model riêng. Hãy làm theo bundle bạn tải: checkpoint đơn file có thể dùng loader checkpoint; bundle đầy đủ dùng các loader tách component mà workflow chính chủ chỉ định.
+          </div>
         </details>
       </div>
-    </section>
-
-    <section id="production-brief" aria-labelledby="production-title">
-      <div class="shell">
-        <div class="section-heading">
-          <div>
-            <div class="section-index">05 · Production brief</div>
-            <h2 id="production-title">A/B test để giữ “đúng nhân vật”, không khóa cả shot</h2>
-          </div>
-          <p>Case giả định này mô tả quy trình đánh giá, không phải preset phổ quát. Thay adapter, base model hoặc node có thể làm scale và lỗi thay đổi.</p>
-        </div>
-        <div class="brief-grid">
-          <article class="brief-card wide">
-            <div class="fact-label">Mục tiêu · bối cảnh</div>
-            <h3>Teaser 5 giây cho sản phẩm thời trang</h3>
-            <p>Nhân vật phải giữ được áo khoác và bảng màu từ key visual, nhưng cần chạy qua phố mưa neon để biên tập thành một shot dọc cho mạng xã hội.</p>
-          </article>
-          <article class="brief-card">
-            <div class="fact-label">Input / workflow</div>
-            <h3>Reference + prompt motion</h3>
-            <p>Một ảnh key visual đã có quyền sử dụng; workflow I2V có node IP-Adapter tương thích với base model. Prompt mô tả chạy, camera tracking và mưa neon. Kiểm tra model card/node docs để biết đúng encoder và adapter checkpoint.</p>
-          </article>
-          <article class="brief-card">
-            <div class="fact-label">Giữ cố định</div>
-            <h3>Một thay đổi mỗi lần</h3>
-            <p>Giữ reference, seed, prompt, negative prompt, resolution, duration, sampler/steps và CFG cố định trong một lượt so sánh; chỉ đổi adapter strength.</p>
-          </article>
-          <article class="brief-card">
-            <div class="fact-label">Biến thử nghiệm</div>
-            <h3>Ba mức strength</h3>
-            <p>Chạy A/B/C ở ba mức thấp–giữa–cao do workflow đó hỗ trợ; ghi version model, adapter, node và GPU. Không chuyển con số này sang checkpoint khác.</p>
-          </article>
-          <article class="brief-card">
-            <div class="fact-label">Ràng buộc</div>
-            <h3>Ngân sách render</h3>
-            <p>Ví dụ: tối đa 12 phút cho ba preview trên GPU 24 GB VRAM. Đây là giới hạn sản xuất giả định, không phải yêu cầu VRAM hay benchmark của IP-Adapter.</p>
-          </article>
-          <article class="brief-card">
-            <div class="fact-label">Đánh giá / fail signal</div>
-            <h3>Chọn shot, không chọn số</h3>
-            <ul class="experiment-list">
-              <li>Đạt: áo khoác và palette vẫn nhận ra; motion/camera đọc được; không lỗi vùng mặt hoặc tay đáng chú ý.</li>
-              <li>Thất bại thấp: áo hoặc palette trôi. Thất bại cao: pose key visual bám cứng, chuyển động nghèo hoặc prompt bị bỏ qua.</li>
-              <li>Bước tiếp: chỉnh một nấc strength rồi render lại cùng seed; nếu lỗi lặp ở mọi mức, kiểm tra reference, adapter–base model compatibility hoặc giảm mâu thuẫn giữa prompt và ảnh.</li>
-            </ul>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <section aria-labelledby="takeaway-title">
-      <div class="shell takeaway">
-        <div>
-            <div class="section-index">06 · Ghi nhớ</div>
-          <h2 id="takeaway-title">Một mental model đủ dùng</h2>
-        </div>
-        <ol class="takeaway-list">
-          <li><span>IP-Adapter không chép pixel vào latent; nó tạo image tokens từ embedding.</span></li>
-          <li><span>Image tokens được inject vào attention song song với luồng text conditioning.</span></li>
-          <li><span>Strength cao tăng độ bám reference nhưng có thể giảm quyền điều khiển của prompt và tăng xung đột.</span></li>
-        </ol>
-      </div>
-    </section>
-
-    <section id="related-lessons" aria-labelledby="related-title">
-      <div class="shell">
-        <div class="section-heading">
-          <div>
-            <div class="section-index">07 · Bài liên quan</div>
-            <h2 id="related-title">Theo dấu conditioning đến workflow</h2>
-          </div>
-          <p>Ba bài này nối bằng cơ chế hoặc cách chẩn đoán, không chỉ vì có từ khóa giống nhau.</p>
-        </div>
-        <nav class="related-grid" aria-label="Các bài liên quan">
-          <a class="related-card" href="video-generation-part-4-lesson-2.html">
-            <div class="section-index">Nền tảng · Part 4 / Bài 2</div>
-            <h3>CLIP Vision Encode</h3>
-            <p>Hiểu image embedding trước khi xem adapter chiếu nó thành tín hiệu dùng trong attention.</p>
-          </a>
-          <a class="related-card" href="video-generation-part-4-lesson-4.html">
-            <div class="section-index">Ứng dụng tiếp theo · Part 4 / Bài 4</div>
-            <h3>FaceID — giữ khuôn mặt nhất quán</h3>
-            <p>So sánh image conditioning tổng quát với tín hiệu identity và chẩn đoán khi nhân vật bị drift.</p>
-          </a>
-          <a class="related-card" href="video-generation-part-1-lesson-3.html">
-            <div class="section-index">Cùng cơ chế · Part 1 / Bài 3</div>
-            <h3>CLIP Text Encoder</h3>
-            <p>Đối chiếu luồng text token với image token để đọc đúng phần “text compatible” của IP-Adapter.</p>
-          </a>
-        </nav>
-        <aside class="source-note" aria-labelledby="sources-title">
-          <div class="fact-label" id="sources-title">Nguồn chính</div>
-          <p>Paper <a href="https://arxiv.org/abs/2308.06721" rel="noopener noreferrer">IP-Adapter: Text Compatible Image Prompt Adapter</a> mô tả decoupled cross-attention; <a href="https://github.com/tencent-ailab/IP-Adapter" rel="noopener noreferrer">repository chính chủ</a> ghi rõ phạm vi T2I và các biến thể phát hành. Các kết luận video ở bài này được nêu là workflow-dependent.</p>
-        </aside>
-      </div>
-    </section>
-  </main>
-
-  <footer>
-    <div class="shell footer-inner">
-      <p>Video Generation Study · Part 4 / Lesson 3</p>
-      <nav class="lesson-nav" aria-label="Điều hướng tuần tự">
-        <a class="button" href="video-generation-part-4-lesson-2.html">← Bài 2: CLIP Vision Encode</a>
-        <a class="button" href="index.html">Mục lục</a>
-        <a class="button primary" href="video-generation-part-4-lesson-4.html">Bài 4: FaceID →</a>
-      </nav>
     </div>
-  </footer>
+  </section>
 
+  <!-- Section 4: Model type matching -->
+  <section class="section" id="matching" aria-labelledby="s4-heading">
+    <div class="shell">
+      <p class="section-index">04 &mdash; Compatibility</p>
+      <h2 class="section-h2" id="s4-heading">Model type matching</h2>
+      <p class="section-lead">Compatibility là thuộc tính của một bundle và version cụ thể. Trộn component sai có thể làm node từ chối load, tạo output không hợp lệ hoặc giảm chất lượng — không có một triệu chứng duy nhất.</p>
+
+      <div class="match-list" aria-label="Các cặp model tương thích và không tương thích">
+        <div class="match-item bad" role="group" aria-label="Không tương thích">
+          <div class="match-src">SDXL Checkpoint</div>
+          <div class="match-arrow" aria-hidden="true">✕</div>
+          <div class="match-tgt">SD 1.5 VAE</div>
+          <p class="match-badge">❌ Không có bằng chứng bundle hỗ trợ cặp này — dừng và đối chiếu model card/workflow</p>
+        </div>
+        <div class="match-item good" role="group" aria-label="Tương thích">
+          <div class="match-src">SDXL Checkpoint</div>
+          <div class="match-arrow" aria-hidden="true">→</div>
+          <div class="match-tgt">SDXL VAE</div>
+          <p class="match-badge">✅ Ví dụ cặp cùng bundle; vẫn xác nhận version và config trước khi A/B test</p>
+        </div>
+        <div class="match-item bad" role="group" aria-label="Không tương thích">
+          <div class="match-src">Wan2.2 UNet</div>
+          <div class="match-arrow" aria-hidden="true">✕</div>
+          <div class="match-tgt">SDXL CLIP</div>
+          <p class="match-badge">❌ Text encoder từ bundle SDXL không thay thế encoder được workflow Wan yêu cầu</p>
+        </div>
+        <div class="match-item good" role="group" aria-label="Tương thích">
+          <div class="match-src">Wan2.2 UNet</div>
+          <div class="match-arrow" aria-hidden="true">→</div>
+          <div class="match-tgt">WanVideo VAE + T5</div>
+          <p class="match-badge">✅ Chỉ đúng khi là các file cùng release và đúng workflow/version ComfyUI</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="production-case" aria-labelledby="s5-heading">
+    <div class="shell">
+      <p class="section-index">05 &mdash; Production case</p>
+      <h2 class="section-h2" id="s5-heading">Case: chuẩn bị shot video product 5 giây</h2>
+      <p class="section-lead">Một nhóm hậu kỳ cần chọn đúng bundle trước khi đánh giá chuyển động. Đây là brief mô phỏng, không phải benchmark hay preset khuyến nghị cho mọi Wan workflow.</p>
+
+      <div class="case-grid">
+        <article class="case-card"><h3>Mục tiêu &amp; bối cảnh</h3><p><strong>Output:</strong> một shot 5 giây, 16:9 cho trang đích giày chạy bộ. Cần chuyển động camera ổn định để editor ghép với footage thật.</p></article>
+        <article class="case-card"><h3>Input &amp; workflow giả định</h3><p>Image-to-video từ key visual đã duyệt; bundle Wan theo workflow chính chủ: diffusion model + text encoder + VAE tương ứng.</p></article>
+        <article class="case-card"><h3>Giữ cố định</h3><p>Prompt, ảnh đầu vào, seed, số frame, resolution, sampler và môi trường GPU. Chỉ thay <strong>kế hoạch load</strong>.</p></article>
+        <article class="case-card"><h3>Đang thử nghiệm</h3><p>A/B giữa bundle đồng bộ với một cấu hình có text encoder từ bundle khác. Không so sánh tốc độ vì chưa cố định GPU/precision/offload.</p></article>
+        <article class="case-card wide"><h3>Giới hạn, đánh giá &amp; bước tiếp</h3><p><strong>Giới hạn VRAM:</strong> Yêu cầu VRAM phụ thuộc vào model size (1.3B vs 14B), độ phân giải, và số lượng frames. Ở ví dụ này, giới hạn đặt ra là < 24 GB VRAM cho mỗi instance. <strong>Đánh giá:</strong> job load thành công, không báo tensor mismatch, chủ thể bám key visual và chuyển động dùng được. <strong>Thất bại:</strong> loader không thấy file, lỗi thiếu tensor, màu/temporal coherence vỡ. <strong>Tiếp theo:</strong> xác minh path + release/version, quay lại workflow gốc, rồi mới cô lập một component để A/B.</p></article>
+      </div>
+
+      <div class="simulator" aria-labelledby="sim-heading">
+        <p class="simulator-kicker">Mô phỏng quyết định · không phải benchmark</p>
+        <h3 id="sim-heading">Triage kế hoạch load</h3>
+        <p class="section-lead">Chọn cách xử lý cho brief trên rồi kiểm tra. Phản hồi giải thích quan hệ giữa layout file, compatibility và bước chẩn đoán tiếp theo.</p>
+        <fieldset>
+          <legend>Kế hoạch bạn chọn</legend>
+          <label class="plan-option"><input type="radio" name="load-plan" value="single" /> Ép mọi file Wan vào <code>checkpoints/</code> và dùng CheckpointLoaderSimple vì cùng là <code>.safetensors</code>.</label>
+          <label class="plan-option"><input type="radio" name="load-plan" value="bundle" /> Đặt từng file theo đường dẫn bundle/workflow, load component tương ứng, rồi chạy một job kiểm tra trước A/B.</label>
+          <label class="plan-option"><input type="radio" name="load-plan" value="swap" /> Thay text encoder SDXL vào bundle Wan và đánh giá bằng một clip duy nhất.</label>
+        </fieldset>
+        <div class="simulator-actions"><button type="button" id="check-load-plan">Kiểm tra kế hoạch</button></div>
+        <p class="simulator-output" id="load-plan-feedback" role="status" aria-live="polite">Chưa chọn. Dùng Tab để vào các lựa chọn, phím mũi tên để đổi radio, rồi Enter/Space để kiểm tra.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 6: Takeaways -->
+  <section class="section" id="takeaways" aria-labelledby="s6-heading">
+    <div class="shell">
+      <p class="section-index">06 &mdash; Tổng kết</p>
+      <h2 class="section-h2" id="s6-heading">Điều cần nhớ</h2>
+      <p class="section-lead">Những điểm cốt lõi sau bài học này.</p>
+
+      <div class="takeaways">
+        <p class="takeaways-label">Checkpoint & Model Loaders</p>
+        <div class="takeaway-item">
+          <span class="takeaway-num">01</span>
+          <p class="takeaway-text">Đọc layout phát hành trước: checkpoint có thể all-in-one, còn bundle lớn có thể tách diffusion model, text encoder và VAE.</p>
+        </div>
+        <div class="takeaway-item">
+          <span class="takeaway-num">02</span>
+          <p class="takeaway-text">ComfyUI mặc định map <code>text_encoders/</code> và legacy <code>clip/</code>, cũng như <code>diffusion_models/</code> và legacy <code>unet/</code>; custom path có thể đổi các vị trí này.</p>
+        </div>
+        <div class="takeaway-item">
+          <span class="takeaway-num">03</span>
+          <p class="takeaway-text">Loader là hành vi ComfyUI: dùng checkpoint loader cho checkpoint phù hợp; dùng loader tách component khi bundle/workflow của đúng release yêu cầu.</p>
+        </div>
+        <div class="takeaway-item">
+          <span class="takeaway-num">04</span>
+          <p class="takeaway-text">Không đổi component chỉ vì cùng đuôi file. Cố định input/seed/setting, kiểm tra load rồi mới A/B một biến có giả thuyết rõ ràng.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="related" aria-labelledby="related-heading">
+    <div class="shell">
+      <p class="section-index">Liên kết kiến thức</p>
+      <h2 class="section-h2" id="related-heading">Bài liên quan</h2>
+      <p class="section-lead">Đi theo mối quan hệ workflow thực tế: từ JSON/node, sang bundle Wan, rồi đến giới hạn hạ tầng khi chạy production.</p>
+      <div class="related-grid">
+        <article class="related-card"><h3>Node &amp; Workflow JSON</h3><p>Hiểu graph, input/output và cách một workflow ghi lại node configuration trước khi thay loader.</p><a href="video-generation-part-4-lesson-1.html">Mở Bài 4.1 →</a></article>
+        <article class="related-card"><h3>Bộ node WanVideo</h3><p>Áp dụng bundle đã load đúng vào các node video cụ thể; dùng làm bước tiếp theo cho case Wan ở bài này.</p><a href="video-generation-part-4-lesson-4.html">Mở Bài 4.4 →</a></article>
+        <article class="related-card"><h3>Tùy chọn: Chạy Workflow trên RunPod</h3><p>Dùng nhánh này khi cần GPU cloud, vận hành từ xa hoặc Network Volume; không phải tiền đề bắt buộc của journey cốt lõi.</p><a href="video-generation-part-7-lesson-4.html">Mở tùy chọn 7.4 →</a></article>
+        <article class="related-card"><h3>LoRA là gì</h3><p>Làm rõ adapter phụ thuộc model nền thế nào, để không nhầm LoRA với một checkpoint tự chạy độc lập.</p><a href="video-generation-part-2-lesson-3.html">Mở Bài 2.3 →</a></article>
+      </div>
+    </div>
+  </section>
+
+  <!-- HANDOFF CARD -->
+  <section class="content-section" id="handoff" aria-labelledby="handoff-heading">
+    <div class="shell">
+      <div class="handoff-card">
+        <div class="handoff-card-icon" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </div>
+        <div>
+          <p class="handoff-card-label">Bài tiếp theo</p>
+          <h2 class="handoff-card-title" id="handoff-heading">Bộ node WanVideo</h2>
+          <p class="handoff-card-body">Sau khi hiểu từng loader riêng lẻ, bài tiếp theo giới thiệu WanVideo node set — bộ nodes chuyên biệt ghép tất cả lại thành inference pipeline hoàn chỉnh cho Wan2.2.</p>
+          <a class="button primary" href="video-generation-part-4-lesson-4.html" data-curriculum-next>Sang Bài 4.4 →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="shell footer-inner">
+    <p class="footer-copy">© 2025 Video Gen Lab — Phase 4 · Bài 4.3</p>
+    <nav class="footer-nav" aria-label="Điều hướng bài học">
+      <a href="video-generation-part-4-lesson-2.html">← Bài trước: Custom Node &amp; Manager</a>
+      <a href="video-generation-part-4-lesson-4.html">Bài tiếp: Bộ node WanVideo →</a>
+    </nav>
+  </div>
+</footer>
+
+<script src="video-generation-navigation.js"></script>
   <script>
-    (() => {
-      const strength = document.querySelector('#strength');
-      const valueOutput = document.querySelector('#strength-value');
-      const zoneOutput = document.querySelector('#result-zone');
-      const summaryOutput = document.querySelector('#result-summary');
-      const decisionOutput = document.querySelector('#decision-note');
-      const resetButton = document.querySelector('#reset-strength');
-      const progressFill = document.querySelector('.progress-fill');
-      const meters = {
-        reference: document.querySelector('#reference-meter'),
-        prompt: document.querySelector('#prompt-meter'),
-        risk: document.querySelector('#risk-meter')
-      };
-      const numbers = {
-        reference: document.querySelector('#reference-number'),
-        prompt: document.querySelector('#prompt-number'),
-        risk: document.querySelector('#risk-number')
-      };
+  // ── Progress bar ──
+  (function () {
+    const fill = document.getElementById('progressFill');
+    const track = fill && fill.closest('[role="progressbar"]');
+    if (!fill) return;
+    const update = () => {
+      const scrolled = window.scrollY;
+      const total = document.documentElement.scrollHeight - window.innerHeight;
+      const pct = total > 0 ? Math.min(100, (scrolled / total) * 100) : 0;
+      fill.style.width = pct + '%';
+      if (track) track.setAttribute('aria-valuenow', Math.round(pct));
+    };
+    window.addEventListener('scroll', update, { passive: true });
+    update();
+  })();
 
-      const getReading = (value) => {
-        if (value <= 0.25) {
-          return {
-            zone: 'Gợi ý nhẹ',
-            summary: 'Prompt gần như dẫn dắt toàn bộ. Reference chỉ để lại dấu vết phong cách hoặc đặc trưng rất nhẹ; subject dễ bị trôi.',
-            decision: 'Tăng strength nếu mục tiêu cần màu sắc, chất liệu hoặc silhouette từ reference rõ hơn.'
-          };
-        }
-        if (value <= 0.55) {
-          return {
-            zone: 'Linh hoạt',
-            summary: 'Reference đã góp tín hiệu thị giác nhưng prompt vẫn chiếm ưu thế, phù hợp khi cần đổi pose, góc máy hoặc bối cảnh mạnh.',
-            decision: 'Giữ vùng này khi motion và tự do bố cục quan trọng hơn độ giống tuyệt đối.'
-          };
-        }
-        if (value <= 0.80) {
-          return {
-            zone: 'Cân bằng',
-            summary: 'Đặc trưng thị giác từ reference đủ rõ, trong khi prompt vẫn còn không gian cho chuyển động và bối cảnh mới.',
-            decision: 'Bắt đầu quanh vùng giữa, rồi chỉ tăng khi đặc trưng reference bị mất.'
-          };
-        }
-        return {
-          zone: 'Bám rất mạnh',
-          summary: 'Image conditioning đang lấn át. Subject bám reference tốt hơn, nhưng pose và bố cục cũ có thể khóa chuyển động hoặc xung đột với prompt.',
-          decision: 'Giảm strength nếu output cứng, ít motion, bỏ qua prompt hoặc xuất hiện artifact.'
-        };
-      };
+  // ── Directory tree explorer ──
+  (function () {
+    const INFO = {
+      root: {
+        label: 'Root',
+        name: 'models/',
+        desc: 'Thư mục gốc của các model mặc định. extra_model_paths.yaml có thể bổ sung đường dẫn khác.',
+        exts: []
+      },
+      checkpoints: {
+        label: 'Checkpoint',
+        name: 'checkpoints/',
+        desc: 'Đường dẫn mặc định cho checkpoint. CheckpointLoaderSimple liệt kê file ở đây; kích thước và component trong file phụ thuộc model phát hành.',
+        exts: ['.safetensors', '.ckpt']
+      },
+      loras: {
+        label: 'LoRA',
+        name: 'loras/',
+        desc: 'Chứa LoRA adapter. LoraLoader liệt kê file ở đây; adapter cần model nền tương thích theo hướng dẫn của tác giả.',
+        exts: ['.safetensors', '.pt']
+      },
+      vae: {
+        label: 'VAE',
+        name: 'vae/',
+        desc: 'Chứa VAE riêng. Chỉ thay VAE khi model card/workflow xác nhận cặp tương thích.',
+        exts: ['.safetensors', '.pt']
+      },
+      clip: {
+        label: 'CLIP / Text Encoder',
+        name: 'text_encoders/ (clip/ là legacy)',
+        desc: 'ComfyUI tìm text encoder ở text_encoders/ và legacy clip/. Tên encoder cần khớp workflow của bundle.',
+        exts: ['.safetensors']
+      },
+      unet: {
+        label: 'UNet / Diffusion Model',
+        name: 'diffusion_models/ (unet/ là legacy)',
+        desc: 'ComfyUI tìm diffusion model ở diffusion_models/ và legacy unet/. Dùng đúng đường dẫn mà release/workflow yêu cầu.',
+        exts: ['.safetensors', '.gguf']
+      }
+    };
 
-      const updateStrength = () => {
-        const value = Number(strength.value);
-        const reference = Math.round(value * 100);
-        const prompt = Math.round(100 - value * 70);
-        const risk = Math.round(Math.max(0, (value - .4) * 110));
-        const reading = getReading(value);
+    const items = document.querySelectorAll('[data-folder]');
+    const emptyMsg = document.getElementById('tree-empty-msg');
+    const infoPanel = document.getElementById('tree-info');
+    const infoLabel = document.getElementById('info-label');
+    const infoName = document.getElementById('info-name');
+    const infoDesc = document.getElementById('info-desc');
+    const infoExt = document.getElementById('info-ext');
 
-        valueOutput.value = value.toFixed(2);
-        strength.setAttribute('aria-valuetext', value.toFixed(2) + ' — ' + reading.zone + '. ' + reading.summary);
-        zoneOutput.textContent = reading.zone;
-        summaryOutput.textContent = reading.summary;
-        decisionOutput.innerHTML = '<strong>Quyết định:</strong> ' + reading.decision;
+    function showInfo(key) {
+      const d = INFO[key];
+      if (!d) return;
+      emptyMsg.hidden = true;
+      infoPanel.hidden = false;
+      infoLabel.textContent = d.label;
+      infoName.textContent = d.name;
+      infoDesc.textContent = d.desc;
+      infoExt.innerHTML = d.exts.map(e =>
+        `<span class="tag cyan">${e}</span>`
+      ).join('');
+    }
 
-        Object.entries({reference, prompt, risk}).forEach(([name, amount]) => {
-          meters[name].style.width = amount + '%';
-          numbers[name].textContent = String(amount);
-        });
-      };
+    function toggleFolder(item) {
+      const key = item.dataset.folder;
+      const childrenId = 'tree-children-' + key;
+      const childrenEl = document.getElementById(childrenId);
 
-      const updateProgress = () => {
-        const scrollable = document.documentElement.scrollHeight - window.innerHeight;
-        const progress = scrollable > 0 ? Math.min(100, Math.max(0, window.scrollY / scrollable * 100)) : 0;
-        progressFill.style.width = progress + '%';
-      };
-
-      strength.addEventListener('input', updateStrength);
-      resetButton.addEventListener('click', () => {
-        strength.value = '0.60';
-        updateStrength();
-        strength.focus();
+      // deactivate all
+      items.forEach(i => {
+        i.classList.remove('active');
+        i.setAttribute('aria-selected', 'false');
       });
-      window.addEventListener('scroll', updateProgress, {passive: true});
-      window.addEventListener('resize', updateProgress);
 
-      updateStrength();
-      updateProgress();
-    })();
-  </script>
+      item.classList.add('active');
+      item.setAttribute('aria-selected', 'true');
+
+      if (childrenEl) {
+        const isOpen = childrenEl.classList.toggle('open');
+        item.classList.toggle('expanded', isOpen);
+        item.setAttribute('aria-expanded', String(isOpen));
+      }
+
+      showInfo(key);
+    }
+
+    items.forEach(item => item.addEventListener('click', () => toggleFolder(item)));
+  })();
+
+  // ── Load-plan triage simulator ──
+  (function () {
+    const checkButton = document.getElementById('check-load-plan');
+    const feedback = document.getElementById('load-plan-feedback');
+    if (!checkButton || !feedback) return;
+
+    const responses = {
+      single: ['warn', 'Chưa an toàn: đuôi .safetensors không xác nhận layout. Đọc workflow/model card, đặt từng file ở path phù hợp, rồi kiểm tra loader nhận đủ component.'],
+      bundle: ['pass', 'Đúng hướng chẩn đoán: giữ nguyên bundle đồng bộ, xác nhận job load thành công trước. Sau đó chỉ thay một biến và lưu điều kiện A/B để phân biệt lỗi bundle với lỗi generation.'],
+      swap: ['warn', 'Chưa có cơ sở compatibility: một clip duy nhất không cô lập nguyên nhân. Quay về encoder trong bundle, xác nhận version/path, rồi A/B chỉ khi nguồn chính chủ nói cặp đó được hỗ trợ.']
+    };
+
+    checkButton.addEventListener('click', () => {
+      const selected = document.querySelector('input[name="load-plan"]:checked');
+      if (!selected) {
+        feedback.dataset.state = 'warn';
+        feedback.textContent = 'Hãy chọn một kế hoạch trước; radio dùng được với Tab và phím mũi tên.';
+        return;
+      }
+      const [state, message] = responses[selected.value];
+      feedback.dataset.state = state;
+      feedback.textContent = message;
+    });
+  })();
+</script>
 </body>
 </html>

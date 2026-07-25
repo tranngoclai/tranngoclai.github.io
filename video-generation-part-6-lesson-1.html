@@ -1,770 +1,682 @@
 <!DOCTYPE html>
-<html lang="vi" data-theme="dark">
+<html lang="vi" data-theme="dark" data-curriculum-id="timestep-sigma">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Node &amp; Workflow JSON — Phần 6 Bài 1 | Video Gen Lab</title>
-  <meta name="description" content="Hiểu ComfyUI hoạt động theo mô hình node-graph, biết Workflow JSON là gì và cách dùng API Format để chạy inference tự động." />
-
+  <title>Timestep &amp; Sigma — Trục thời gian của diffusion | VIDEO GEN LAB</title>
+  <meta name="description" content="Hiểu timestep và sigma trong diffusion model — cách trục thời gian nhiễu hoạt động từ T về 0 trong quá trình denoising." />
+  <script src="video-generation-curriculum.js"></script>
   <script src="video-generation-theme.js"></script>
-  <link rel="icon" href="video-generation-favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="video-generation-design-system.css" />
-
   <style>
-    /* ── Hero ── */
+    /* ── Hero ─────────────────────────────────────────────────── */
     .hero {
-      padding: clamp(64px, 10vw, 120px) 0 clamp(48px, 8vw, 96px);
+      position: relative;
+      overflow: hidden;
+      padding: 80px 0 64px;
+      border-bottom: 1px solid var(--line);
+      background:
+        radial-gradient(circle at 78% 30%, color-mix(in srgb, var(--cyan) 12%, transparent), transparent 30%),
+        linear-gradient(120deg, transparent 0 58%, color-mix(in srgb, var(--acid-fill) 5%, transparent) 58% 59%, transparent 59%);
     }
-    .hero-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 48px;
-      align-items: center;
+    .hero::after {
+      content: "";
+      position: absolute;
+      width: 18rem;
+      height: 18rem;
+      right: max(4vw, 1rem);
+      top: 50%;
+      border: 1px solid color-mix(in srgb, var(--cyan) 24%, transparent);
+      border-radius: 50%;
+      opacity: .5;
+      transform: translateY(-50%);
+      animation: sigma-orbit 9s ease-in-out infinite alternate;
+      pointer-events: none;
     }
-    .hero-eyebrow {
+    .hero .shell { position: relative; z-index: 1; }
+    @keyframes sigma-orbit {
+      from { opacity: .25; transform: translateY(-50%) scale(.88); }
+      to { opacity: .62; transform: translateY(-50%) scale(1.04); }
+    }
+    .hero-meta {
       font-family: var(--font-mono);
       font-size: .72rem;
-      font-weight: 700;
-      letter-spacing: .18em;
-      text-transform: uppercase;
-      color: var(--cyan);
-      margin: 0 0 20px;
-    }
-    .hero-h1 {
-      font-size: clamp(2.8rem, 6.5vw, 5.6rem);
-      font-weight: 900;
-      letter-spacing: -.07em;
-      line-height: 1;
-      margin: 0 0 24px;
-      color: var(--ink);
-    }
-    .hero-lead {
-      font-size: clamp(1rem, 1.8vw, 1.15rem);
-      color: var(--muted);
-      max-width: 480px;
-      margin: 0 0 36px;
-      line-height: 1.7;
-    }
-    .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; }
-
-    /* Hero visual panel */
-    .hero-panel {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      padding: 28px 24px;
-      font-family: var(--font-mono);
-      font-size: .75rem;
-      color: var(--muted);
-      overflow: hidden;
-    }
-    .hero-panel-label {
-      font-size: .65rem;
       letter-spacing: .14em;
       text-transform: uppercase;
-      color: var(--dim);
-      margin-bottom: 16px;
-    }
-    .mini-flow {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .mini-node {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 8px 12px;
-      background: var(--panel-2);
-      border: 1px solid var(--line);
-      border-radius: 10px;
-    }
-    .mini-node-dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-    .mini-node-dot--orange { background: var(--orange); }
-    .mini-node-dot--cyan   { background: var(--cyan); }
-    .mini-node-dot--acid   { background: var(--acid); }
-    .mini-node-dot--muted  { background: var(--muted); }
-    .mini-node-name { color: var(--ink); font-size: .73rem; font-weight: 700; }
-    .mini-node-type { color: var(--dim); font-size: .66rem; margin-left: auto; }
-    .mini-arrow {
-      padding-left: 26px;
-      color: var(--line);
-      font-size: .7rem;
-      line-height: 1;
-    }
-
-    /* ── Section chrome ── */
-    .section-index {
-      font-family: var(--font-mono);
-      font-size: .65rem;
-      font-weight: 700;
-      letter-spacing: .16em;
-      text-transform: uppercase;
-      color: var(--dim);
-      margin-bottom: 12px;
-    }
-    .section-h2 {
-      font-size: clamp(1.6rem, 3.2vw, 2.4rem);
-      font-weight: 900;
-      letter-spacing: -.05em;
-      line-height: 1.1;
-      margin: 0 0 16px;
-      color: var(--ink);
-    }
-    .section-lead {
-      font-size: 1rem;
       color: var(--muted);
-      max-width: 560px;
-      margin: 0 0 40px;
-      line-height: 1.7;
+      margin: 0 0 18px;
     }
-
-    /* ── Content sections ── */
-    .content-section {
-      padding: clamp(56px, 8vw, 96px) 0;
-      border-top: 1px solid var(--line);
-    }
-
-    /* Definition panel */
-    .def-panel {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-left: 4px solid var(--cyan);
-      border-radius: var(--radius);
-      padding: 28px 32px;
-      margin-bottom: 32px;
-    }
-    .def-panel-title {
-      font-family: var(--font-mono);
-      font-size: .68rem;
-      letter-spacing: .14em;
-      text-transform: uppercase;
-      color: var(--cyan);
-      margin: 0 0 10px;
-    }
-    .def-panel-text {
-      font-size: 1rem;
-      color: var(--ink);
-      margin: 0;
-      line-height: 1.7;
-    }
-
-    /* Node type grid */
-    .node-types {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 16px;
-      margin-top: 32px;
-    }
-    .node-type-card {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 20px;
-    }
-    .node-type-badge {
+    .hero-meta span + span::before { content: " / "; color: var(--dim); }
+    .hero-kw {
       display: inline-block;
+      padding: 2px 8px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
       font-family: var(--font-mono);
-      font-size: .62rem;
-      font-weight: 700;
-      letter-spacing: .12em;
-      text-transform: uppercase;
-      padding: 4px 10px;
-      border-radius: 999px;
-      margin-bottom: 12px;
-    }
-    .badge--orange {
-      background: color-mix(in srgb, var(--orange) 18%, var(--panel-2));
-      color: var(--orange);
-      border: 1px solid color-mix(in srgb, var(--orange) 35%, transparent);
-    }
-    .badge--cyan {
-      background: color-mix(in srgb, var(--cyan) 18%, var(--panel-2));
-      color: var(--cyan);
-      border: 1px solid color-mix(in srgb, var(--cyan) 35%, transparent);
-    }
-    .badge--acid {
-      background: color-mix(in srgb, var(--acid) 18%, var(--panel-2));
-      color: var(--acid);
-      border: 1px solid color-mix(in srgb, var(--acid) 35%, transparent);
-    }
-    .badge--muted {
-      background: color-mix(in srgb, var(--muted) 14%, var(--panel-2));
-      color: var(--muted);
-      border: 1px solid color-mix(in srgb, var(--muted) 30%, transparent);
-    }
-    .node-type-card h3 {
-      font-size: .95rem;
-      font-weight: 800;
-      margin: 0 0 8px;
-      color: var(--ink);
-    }
-    .node-type-card p {
-      font-size: .82rem;
-      color: var(--muted);
-      margin: 0;
-      line-height: 1.6;
-    }
-
-    /* Edge/datatype table */
-    .dtype-table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 24px;
-      font-size: .88rem;
-    }
-    .dtype-table th {
-      text-align: left;
-      padding: 12px 16px;
-      border-bottom: 1px solid var(--line);
-      font-family: var(--font-mono);
-      font-size: .68rem;
+      font-size: .72rem;
       letter-spacing: .1em;
       text-transform: uppercase;
-      color: var(--dim);
-      font-weight: 600;
+      color: var(--cyan);
+      margin-right: 6px;
     }
-    .dtype-table td {
-      padding: 12px 16px;
-      border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent);
+    .hero h1 {
+      font-size: clamp(2rem, 5vw, 3.4rem);
+      font-weight: 900;
+      letter-spacing: -.025em;
+      line-height: 1.05;
+      margin: 0 0 22px;
+    }
+    .hero-lead {
+      max-width: 620px;
       color: var(--muted);
-      vertical-align: top;
+      font-size: 1.05rem;
+      margin: 0 0 36px;
     }
-    .dtype-table tr:last-child td { border-bottom: none; }
-    .dtype-tag {
-      display: inline-block;
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+
+    /* ── Sections ─────────────────────────────────────────────── */
+    .lesson-body { padding: 72px 0; display: flex; flex-direction: column; gap: 72px; }
+
+    .section-label {
       font-family: var(--font-mono);
-      font-size: .72rem;
-      font-weight: 700;
-      padding: 3px 10px;
-      border-radius: 6px;
+      font-size: .68rem;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin: 0 0 10px;
+    }
+    .section-heading {
+      font-size: clamp(1.4rem, 3.5vw, 2rem);
+      font-weight: 800;
+      letter-spacing: -.02em;
+      margin: 0 0 14px;
+    }
+    .section-lead {
+      color: var(--muted);
+      max-width: 680px;
+      margin: 0 0 32px;
+    }
+
+    /* ── Definition panel ─────────────────────────────────────── */
+    .def-panel {
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--acid-fill);
+      border-radius: var(--radius);
+      background: var(--panel);
+      padding: 24px 28px;
+      margin-bottom: 20px;
+    }
+    .def-panel + .def-panel { border-left-color: var(--cyan); }
+    .def-panel h3 {
+      font-family: var(--font-mono);
+      font-size: .82rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 600;
+      margin: 0 0 8px;
+    }
+    .def-panel p { margin: 0; line-height: 1.7; }
+    .def-panel strong { color: var(--ink); }
+    .token {
+      font-family: var(--font-mono);
+      font-size: .9em;
+      padding: 1px 5px;
+      border-radius: 4px;
       background: var(--panel-2);
       border: 1px solid var(--line);
     }
-    .dtype-tag--orange { color: var(--orange); }
-    .dtype-tag--cyan   { color: var(--cyan); }
-    .dtype-tag--acid   { color: var(--acid); }
-    .dtype-tag--muted  { color: var(--muted); }
+    .accent-acid { color: var(--acid); font-weight: 700; }
+    .accent-cyan { color: var(--cyan); font-weight: 700; }
 
-    /* Disclosure */
-    .disclosure { margin-top: 28px; }
-    .disclosure-summary {
-      cursor: pointer;
+    /* ── Mapping table ────────────────────────────────────────── */
+    .map-table {
+      width: 100%;
+      border-collapse: collapse;
       font-size: .9rem;
+    }
+    .map-table thead th {
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--dim);
+      text-align: left;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+    }
+    .map-table tbody td {
+      padding: 11px 14px;
+      border-bottom: 1px solid var(--line);
       color: var(--muted);
-      padding: 8px 0;
-      list-style: none;
+      vertical-align: middle;
+    }
+    .map-table tbody td:first-child { font-family: var(--font-mono); color: var(--ink); }
+    .map-table tbody tr:last-child td { border-bottom: none; }
+    .map-table tbody tr:hover td { background: var(--panel-2); }
+    .table-wrap {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      overflow: hidden;
+    }
+
+    /* ── Sigma bar indicator ──────────────────────────────────── */
+    .sigma-bar-wrap {
       display: flex;
       align-items: center;
       gap: 8px;
     }
-    .disclosure-arrow {
-      font-family: var(--font-mono);
-      font-size: .8rem;
-      color: var(--dim);
-    }
-    .disclosure-body {
-      margin-top: 16px;
-      padding: 20px 24px;
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      color: var(--muted);
-      font-size: .9rem;
-      line-height: 1.7;
-    }
-
-    /* Prose helpers */
-    .prose-note {
-      color: var(--muted);
-      font-size: .9rem;
-      line-height: 1.7;
-      max-width: 640px;
-      margin-top: 16px;
-    }
-    .prose-note--spaced { margin-top: 28px; }
-    .inline-mono {
-      font-family: var(--font-mono);
-      color: var(--cyan);
-    }
-    .prose-strong { color: var(--ink); }
-    kbd.key-badge {
-      font-family: var(--font-mono);
+    .sigma-bar {
+      flex: 1;
+      height: 6px;
+      border-radius: 3px;
       background: var(--panel-2);
-      border: 1px solid var(--line);
-      border-radius: 5px;
-      padding: 2px 7px;
-      font-size: .8rem;
+      overflow: hidden;
+    }
+    .sigma-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      background: linear-gradient(90deg, var(--acid), var(--cyan));
     }
 
-    /* Code block */
-    .code-block {
-      background: var(--panel);
+    /* ── Lab / Interactive ────────────────────────────────────── */
+    .lab-panel {
       border: 1px solid var(--line);
-      border-radius: 14px;
+      border-radius: var(--radius);
+      background: var(--panel);
       overflow: hidden;
-      margin: 24px 0;
     }
-    .code-block--spaced { margin-top: 32px; }
-    .code-block-header {
+    .lab-header {
+      padding: 20px 28px 16px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: baseline;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .lab-header .button { margin-left: auto; min-height: 44px; padding: 8px 16px; }
+    .lab-header h3 {
+      font-size: 1rem;
+      font-weight: 800;
+      margin: 0;
+    }
+    .lab-badge {
+      font-family: var(--font-mono);
+      font-size: .66rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--acid);
+      border: 1px solid var(--acid);
+      border-radius: 4px;
+      padding: 2px 7px;
+    }
+    .lab-body { padding: 28px; }
+
+    /* Timeline vis */
+    .vis-timeline {
+      position: relative;
+      margin-bottom: 32px;
+    }
+    .vis-track {
+      position: relative;
+      height: 72px;
       display: flex;
       align-items: center;
-      gap: 12px;
-      padding: 12px 20px;
-      border-bottom: 1px solid var(--line);
-      background: var(--panel-2);
     }
-    .code-block-label {
+    .vis-axis {
+      position: absolute;
+      left: 0; right: 0;
+      height: 2px;
+      background: var(--line);
+      border-radius: 1px;
+    }
+    .vis-fill {
+      position: absolute;
+      left: 0;
+      height: 2px;
+      border-radius: 1px;
+      background: linear-gradient(90deg, var(--acid), var(--cyan));
+      transition: width .1s linear;
+    }
+    .vis-label-t {
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translate(-50%, -44px);
       font-family: var(--font-mono);
-      font-size: .66rem;
-      letter-spacing: .12em;
-      text-transform: uppercase;
+      font-size: .7rem;
       color: var(--dim);
-      flex: 1;
+      white-space: nowrap;
     }
-    .code-block-badge {
+    .vis-label-0 {
+      position: absolute;
+      right: 0;
+      top: 50%;
+      transform: translate(50%, -44px);
       font-family: var(--font-mono);
-      font-size: .62rem;
-      font-weight: 700;
-      padding: 3px 8px;
-      border-radius: 6px;
-      background: var(--panel);
-      border: 1px solid var(--line);
-      color: var(--muted);
+      font-size: .7rem;
+      color: var(--dim);
+      white-space: nowrap;
     }
-    .code-block pre {
-      margin: 0;
-      padding: 24px 20px;
-      overflow-x: auto;
-      font-family: var(--font-mono);
-      font-size: .8rem;
-      line-height: 1.7;
-      color: var(--muted);
+    .vis-thumb {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--acid-fill);
+      border: 2px solid var(--night);
+      box-shadow: 0 0 12px rgba(200,255,61,.5);
+      transform: translate(-50%, -50%);
+      top: 50%;
+      pointer-events: none;
+      transition: left .1s linear;
     }
-    .tok-key { color: var(--cyan); }
-    .tok-str { color: var(--acid); }
-    .tok-num { color: var(--orange); }
-    .tok-brace { color: var(--dim); }
-    .tok-comment { color: var(--dim); font-style: italic; }
 
-    /* Comparison: Workflow vs API Format */
-    .compare-grid {
+    /* Noise canvas */
+    .noise-wrap {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 24px;
-      margin-top: 32px;
+      gap: 20px;
+      margin-bottom: 28px;
     }
-    .compare-col {
-      background: var(--panel);
+    .noise-panel {
       border: 1px solid var(--line);
-      border-radius: var(--radius);
+      border-radius: 12px;
       overflow: hidden;
+      aspect-ratio: 16 / 10;
+      position: relative;
+      background: #08161d;
     }
-    .compare-col-header {
-      padding: 16px 20px;
-      border-bottom: 1px solid var(--line);
-      background: var(--panel-2);
+    .noise-panel canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      image-rendering: auto;
     }
-    .compare-col-title {
-      font-size: .88rem;
-      font-weight: 800;
-      margin: 0 0 4px;
-      color: var(--ink);
+    .noise-panel.is-transitioning canvas { animation: scene-resolve .42s ease-out; }
+    @keyframes scene-resolve {
+      0% { opacity: .5; transform: scale(1.015); filter: contrast(1.45); }
+      100% { opacity: 1; transform: scale(1); filter: contrast(1); }
     }
-    .compare-col-sub {
-      font-family: var(--font-mono);
-      font-size: .66rem;
-      color: var(--dim);
-    }
-    .compare-col-body { padding: 20px; }
-    .compare-col-body ul {
-      margin: 0;
-      padding-left: 18px;
-      color: var(--muted);
-      font-size: .88rem;
-      line-height: 1.75;
-    }
-    .compare-col-body li + li { margin-top: 6px; }
-
-    /* Production brief + controlled experiment */
-    .production-brief {
-      margin-top: 32px;
-      padding: clamp(22px, 4vw, 36px);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      background: linear-gradient(135deg, color-mix(in srgb, var(--cyan) 8%, var(--panel)), var(--panel));
-    }
-    .brief-kicker { margin: 0 0 8px; color: var(--cyan); font: 700 .66rem var(--font-mono); letter-spacing: .14em; text-transform: uppercase; }
-    .brief-title { margin: 0 0 10px; color: var(--ink); font-size: clamp(1.25rem, 2.5vw, 1.75rem); line-height: 1.2; }
-    .brief-intro { margin: 0; color: var(--muted); max-width: 72ch; }
-    .brief-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 24px 0; }
-    .brief-item { min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in srgb, var(--panel) 88%, transparent); }
-    .brief-item dt { color: var(--dim); font: 700 .63rem var(--font-mono); letter-spacing: .11em; text-transform: uppercase; }
-    .brief-item dd { margin: 6px 0 0; color: var(--ink); font-size: .88rem; line-height: 1.55; }
-    .experiment-lab { border-top: 1px solid var(--line); padding-top: 20px; }
-    .experiment-lab h3 { margin: 0 0 6px; color: var(--ink); font-size: 1rem; }
-    .experiment-lab p { margin: 0; color: var(--muted); font-size: .88rem; }
-    .experiment-controls { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0; }
-    .experiment-button { min-height: 44px; border: 1px solid var(--line); border-radius: 999px; padding: 9px 14px; background: var(--panel-2); color: var(--ink); font-weight: 750; }
-    .experiment-button[aria-pressed="true"] { border-color: var(--acid); background: color-mix(in srgb, var(--acid) 13%, var(--panel)); }
-    .experiment-output { margin: 0; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--muted); font: .78rem/1.65 var(--font-mono); }
-
-    /* Knowledge routing */
-    .related-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 30px; }
-    .related-card { min-height: 164px; display: flex; flex-direction: column; padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: inherit; text-decoration: none; transition: transform .2s ease, border-color .2s ease, background .2s ease; }
-    .related-card:hover { transform: translateY(-3px); border-color: var(--cyan); background: var(--panel-2); }
-    .related-tag { color: var(--cyan); font: 700 .63rem var(--font-mono); letter-spacing: .11em; text-transform: uppercase; }
-    .related-card strong { margin: 13px 0 7px; color: var(--ink); font-size: .98rem; line-height: 1.35; }
-    .related-card small { color: var(--muted); font-size: .82rem; line-height: 1.55; }
-    .source-list { margin: 22px 0 0; padding-left: 20px; color: var(--muted); font-size: .84rem; }
-    .source-list a { color: var(--cyan); }
-
-    /* ── Interactive node graph ── */
-    .graph-section {
-      padding: clamp(56px, 8vw, 96px) 0;
-      border-top: 1px solid var(--line);
-    }
-    .graph-stage {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 32px;
-      align-items: start;
-      margin-top: 32px;
-    }
-    .graph-canvas {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      padding: 28px 24px;
-    }
-    .graph-canvas-label {
+    .noise-panel-label {
+      position: absolute;
+      bottom: 8px;
+      left: 8px;
       font-family: var(--font-mono);
       font-size: .65rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: color-mix(in srgb, var(--night) 75%, transparent);
+      color: var(--muted);
+    }
+
+    /* Controls */
+    .lab-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+    .ctrl-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .ctrl-row label {
+      font-family: var(--font-mono);
+      font-size: .75rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      min-width: 80px;
+      flex: 0 0 auto;
+    }
+    .ctrl-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      flex: 1;
+      min-width: 160px;
+      height: 6px;
+      border-radius: 3px;
+      background: var(--panel-2);
+      outline: none;
+      cursor: pointer;
+      direction: rtl;
+    }
+    .ctrl-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--acid-fill);
+      border: 2px solid var(--night);
+      box-shadow: 0 0 8px rgba(200,255,61,.4);
+      cursor: pointer;
+    }
+    .ctrl-slider::-moz-range-thumb {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--acid-fill);
+      border: 2px solid var(--night);
+      cursor: pointer;
+    }
+    .ctrl-slider:focus-visible { outline: 3px solid var(--cyan); outline-offset: 4px; border-radius: 4px; }
+
+    .ctrl-value {
+      font-family: var(--font-mono);
+      font-size: .88rem;
+      color: var(--ink);
+      min-width: 120px;
+      flex: 0 0 auto;
+    }
+    .ctrl-value .val-sigma { color: var(--acid); }
+    .ctrl-value .val-step  { color: var(--cyan); }
+
+    .readout {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--panel-2);
+      padding: 14px 18px;
+      font-size: .88rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .readout strong { color: var(--ink); }
+
+    .stage-rail {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+    .stage-button {
+      min-height: 54px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--panel-2);
+      color: var(--muted);
+      padding: 9px 10px;
+      text-align: left;
+      transition: border-color .2s ease, background .2s ease, color .2s ease;
+    }
+    .stage-button:hover { color: var(--ink); border-color: var(--dim); }
+    .stage-button[aria-pressed="true"] {
+      color: var(--ink);
+      border-color: var(--acid);
+      background: color-mix(in srgb, var(--acid-fill) 10%, var(--panel));
+    }
+    .stage-button span { display: block; }
+    .stage-step { font-family: var(--font-mono); font-size: .67rem; color: var(--dim); }
+    .stage-name { font-size: .78rem; font-weight: 800; margin-top: 2px; }
+
+    .scene-caption {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin: -10px 0 24px;
+      color: var(--muted);
+      font-size: .82rem;
+    }
+    .scene-caption svg { flex: 0 0 auto; margin-top: 3px; color: var(--cyan); }
+
+    .checkpoint {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      padding: 28px;
+    }
+    .checkpoint fieldset { border: 0; padding: 0; margin: 0; }
+    .checkpoint legend { font-size: 1.05rem; font-weight: 800; padding: 0; margin-bottom: 8px; }
+    .checkpoint-hint { color: var(--muted); margin: 0 0 20px; }
+    .answer-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .answer-button {
+      min-height: 72px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel-2);
+      color: var(--ink);
+      padding: 12px 14px;
+      text-align: left;
+      font-weight: 700;
+      transition: border-color .2s ease, background .2s ease;
+    }
+    .answer-button:hover { border-color: var(--dim); }
+    .answer-button[data-state="correct"] { border-color: var(--acid); background: color-mix(in srgb, var(--acid-fill) 10%, var(--panel)); }
+    .answer-button[data-state="wrong"] { border-color: var(--red); }
+    .answer-feedback { min-height: 52px; margin: 16px 0 0; color: var(--muted); }
+    .answer-feedback strong { color: var(--ink); }
+
+    .takeaway-icon {
+      width: 24px;
+      height: 24px;
+      color: var(--cyan);
+    }
+
+    /* ── Production brief ─────────────────────────────────────── */
+    .production-brief {
+      display: grid;
+      grid-template-columns: minmax(220px, .72fr) minmax(0, 1.28fr);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      overflow: hidden;
+      background: var(--panel);
+    }
+    .brief-slate {
+      padding: 28px;
+      background:
+        linear-gradient(145deg, color-mix(in srgb, var(--cyan) 11%, var(--panel-2)), var(--panel-2));
+      border-right: 1px solid var(--line);
+    }
+    .brief-kicker,
+    .brief-meta dt {
+      font-family: var(--font-mono);
+      font-size: .66rem;
       letter-spacing: .14em;
       text-transform: uppercase;
       color: var(--dim);
-      margin-bottom: 20px;
     }
-    .graph-nodes {
+    .brief-slate h3 { margin: 9px 0 12px; font-size: 1.2rem; line-height: 1.2; }
+    .brief-slate > p { color: var(--muted); font-size: .9rem; margin: 0; }
+    .brief-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 24px 0 0; }
+    .brief-meta div { min-width: 0; }
+    .brief-meta dd { margin: 4px 0 0; color: var(--ink); font-weight: 800; }
+    .brief-phases { padding: 12px 28px; }
+    .brief-phase {
+      display: grid;
+      grid-template-columns: 78px 1fr;
+      gap: 18px;
+      padding: 18px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .brief-phase:last-child { border-bottom: 0; }
+    .brief-phase code { color: var(--acid); font-family: var(--font-mono); font-size: .76rem; }
+    .brief-phase strong { display: block; margin-bottom: 4px; }
+    .brief-phase p { color: var(--muted); margin: 0; font-size: .9rem; }
+
+    /* ── Related knowledge ────────────────────────────────────── */
+    .related-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .related-card {
+      min-height: 156px;
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--panel);
+      color: var(--ink);
+      text-decoration: none;
+      transition: transform .2s ease, border-color .2s ease, background .2s ease;
     }
-    .graph-node {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px 16px;
-      background: var(--panel-2);
-      border: 2px solid var(--line);
-      border-radius: 12px;
-      cursor: pointer;
-      transition: border-color .18s, background .18s;
-      text-align: left;
-      width: 100%;
-      color: inherit;
-    }
-    .graph-node:hover {
-      border-color: var(--dim);
-      background: color-mix(in srgb, var(--panel-2) 80%, var(--line));
-    }
-    .graph-node[aria-pressed="true"] {
+    .related-card:hover {
+      transform: translateY(-3px);
       border-color: var(--cyan);
-      background: color-mix(in srgb, var(--panel) 60%, transparent);
+      background: color-mix(in srgb, var(--cyan) 5%, var(--panel));
     }
-    .graph-node-icon {
-      width: 32px; height: 32px;
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: .85rem;
-      flex-shrink: 0;
-    }
-    .node-icon--orange {
-      background: color-mix(in srgb, var(--orange) 20%, var(--panel-2));
-      color: var(--orange);
-    }
-    .node-icon--cyan {
-      background: color-mix(in srgb, var(--cyan) 20%, var(--panel-2));
+    .related-card:focus-visible { outline: 3px solid var(--cyan); outline-offset: 3px; }
+    .related-tag {
+      font-family: var(--font-mono);
+      font-size: .65rem;
+      letter-spacing: .12em;
+      text-transform: uppercase;
       color: var(--cyan);
     }
-    .node-icon--acid {
-      background: color-mix(in srgb, var(--acid) 20%, var(--panel-2));
-      color: var(--acid);
-    }
-    .node-icon--muted {
-      background: color-mix(in srgb, var(--muted) 16%, var(--panel-2));
-      color: var(--muted);
-    }
-    .graph-node-text { flex: 1; min-width: 0; }
-    .graph-node-name {
-      font-size: .88rem;
-      font-weight: 800;
-      color: var(--ink);
-      display: block;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .graph-node-sub {
-      font-family: var(--font-mono);
-      font-size: .62rem;
-      color: var(--dim);
-    }
-    .graph-node-id {
-      font-family: var(--font-mono);
-      font-size: .62rem;
-      color: var(--dim);
-      flex-shrink: 0;
-    }
-    .graph-edge {
-      display: flex;
-      align-items: center;
-      padding: 0 0 0 28px;
-      height: 22px;
-      position: relative;
-    }
-    .graph-edge::before {
-      content: '';
-      position: absolute;
-      left: 38px;
-      top: 0; bottom: 0;
-      width: 2px;
-      background: var(--line);
-    }
-    .graph-edge-label {
-      font-family: var(--font-mono);
-      font-size: .62rem;
-      color: var(--dim);
-      padding-left: 24px;
-    }
+    .related-card strong { margin: 12px 0 6px; }
+    .related-card span:last-child { color: var(--muted); font-size: .84rem; line-height: 1.5; }
 
-    /* JSON detail panel */
-    .json-panel {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      overflow: hidden;
-      min-height: 280px;
+    /* ── Relationship diagram ─────────────────────────────────── */
+    .flow {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      flex-wrap: wrap;
     }
-    .json-panel-header {
+    .flow-node {
+      flex: 1;
+      min-width: 130px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      padding: 20px 18px;
+      text-align: center;
+    }
+    .flow-node:first-child { border-radius: 12px 0 0 12px; }
+    .flow-node:last-child  { border-radius: 0 12px 12px 0; }
+    .flow-arrow {
       display: flex;
       align-items: center;
-      gap: 12px;
-      padding: 16px 20px;
-      border-bottom: 1px solid var(--line);
-      background: var(--panel-2);
-    }
-    .json-panel-title {
-      font-size: .88rem;
-      font-weight: 800;
-      color: var(--ink);
-      flex: 1;
-    }
-    .json-panel-hint {
-      font-family: var(--font-mono);
-      font-size: .62rem;
+      justify-content: center;
+      padding: 0 4px;
       color: var(--dim);
+      font-size: 1.4rem;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
     }
-    .json-panel-body {
-      padding: 20px;
-      font-family: var(--font-mono);
-      font-size: .78rem;
-      line-height: 1.75;
-      color: var(--muted);
-      min-height: 240px;
-    }
-    .json-panel-body pre {
-      margin: 0;
-      white-space: pre-wrap;
-      word-break: break-all;
-    }
-    .json-panel-note {
-      margin: 16px 0 0;
+    .flow-node-label {
       font-family: var(--font-mono);
       font-size: .66rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
       color: var(--dim);
-      line-height: 1.6;
+      margin-bottom: 6px;
     }
-    .json-panel-empty {
+    .flow-node-val {
+      font-size: 1.35rem;
+      font-weight: 900;
+      letter-spacing: -.02em;
+    }
+    .flow-node-desc { font-size: .78rem; color: var(--muted); margin-top: 4px; }
+
+    /* ── Takeaways ────────────────────────────────────────────── */
+    .takeaway-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 220px;
-      color: var(--dim);
-      font-size: .82rem;
-      text-align: center;
       gap: 12px;
     }
-    .json-panel-empty-icon {
-      font-size: 2rem;
-      opacity: .4;
+    .takeaway-list li {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      padding: 16px 20px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel);
+    }
+    .takeaway-icon {
+      flex: 0 0 auto;
+      font-size: 1.1rem;
+      line-height: 1.65;
     }
 
-    /* Checkpoint */
-    .checkpoint-section {
-      padding: clamp(56px, 8vw, 96px) 0;
-      border-top: 1px solid var(--line);
-    }
-    .quiz-card {
-      background: var(--panel);
+    /* ── Disclosure ───────────────────────────────────────────── */
+    details {
       border: 1px solid var(--line);
-      border-radius: var(--radius);
-      padding: 32px;
-      margin-bottom: 20px;
-    }
-    .quiz-q {
-      font-size: 1rem;
-      font-weight: 700;
-      color: var(--ink);
-      margin: 0 0 20px;
-    }
-    .quiz-options {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      margin-bottom: 20px;
-    }
-    .quiz-option {
-      display: flex;
-      align-items: flex-start;
-      gap: 14px;
-      padding: 14px 18px;
-      background: var(--panel-2);
-      border: 2px solid var(--line);
       border-radius: 12px;
-      cursor: pointer;
-      transition: border-color .18s, background .18s;
-      text-align: left;
-      width: 100%;
-      color: inherit;
-    }
-    .quiz-option:hover { border-color: var(--dim); }
-    .quiz-option[data-state="correct"] {
-      border-color: var(--acid);
-      background: color-mix(in srgb, var(--acid) 8%, var(--panel-2));
-    }
-    .quiz-option[data-state="wrong"] {
-      border-color: var(--red);
-      background: color-mix(in srgb, var(--red) 8%, var(--panel-2));
-    }
-    .quiz-option-letter {
-      font-family: var(--font-mono);
-      font-size: .72rem;
-      font-weight: 700;
-      width: 24px;
-      height: 24px;
-      border-radius: 6px;
       background: var(--panel);
-      border: 1px solid var(--line);
+    }
+    summary {
+      cursor: pointer;
+      padding: 16px 20px;
+      font-weight: 700;
+      font-size: .92rem;
+      list-style: none;
       display: flex;
       align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
+      gap: 10px;
+    }
+    summary::after {
+      content: "›";
+      margin-left: auto;
       color: var(--dim);
+      font-size: 1.2rem;
+      transition: transform .2s ease;
     }
-    .quiz-option[data-state="correct"] .quiz-option-letter {
-      background: var(--acid); color: #111; border-color: var(--acid);
-    }
-    .quiz-option[data-state="wrong"] .quiz-option-letter {
-      background: var(--red); color: #fff; border-color: var(--red);
-    }
-    .quiz-option-text { font-size: .9rem; color: var(--muted); line-height: 1.5; }
-    .quiz-feedback {
-      font-size: .88rem;
-      padding: 14px 18px;
-      border-radius: 10px;
-      border: 1px solid transparent;
-      display: none;
-    }
-    .quiz-feedback.show { display: block; }
-    .quiz-feedback.correct {
-      border-color: var(--acid);
-      background: color-mix(in srgb, var(--acid) 10%, var(--panel));
-      color: var(--ink);
-    }
-    .quiz-feedback.wrong {
-      border-color: var(--red);
-      background: color-mix(in srgb, var(--red) 10%, var(--panel));
-      color: var(--ink);
-    }
-    .quiz-reset { display: none; margin-top: 14px; }
-    .quiz-reset.show { display: inline-flex; }
+    details[open] summary::after { transform: rotate(90deg); }
+    details > :not(summary) { padding: 0 20px 20px; color: var(--muted); line-height: 1.7; }
+    details > :not(summary) p:first-child { margin-top: 0; }
 
-    /* Key takeaways */
-    .takeaway-section {
-      padding: clamp(56px, 8vw, 96px) 0;
+    /* ── Nav footer ───────────────────────────────────────────── */
+    .lesson-nav {
       border-top: 1px solid var(--line);
-    }
-    .takeaway-list {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      margin-top: 32px;
-    }
-    .takeaway-item { display: flex; gap: 20px; align-items: flex-start; }
-    .takeaway-num {
-      font-family: var(--font-mono);
-      font-size: .72rem;
-      font-weight: 700;
-      color: var(--acid);
-      width: 28px;
-      flex-shrink: 0;
-      margin-top: 2px;
-    }
-    .takeaway-text { color: var(--muted); font-size: .95rem; line-height: 1.7; }
-    .takeaway-text strong { color: var(--ink); font-weight: 700; }
-
-    /* Footer */
-    .page-footer {
-      border-top: 1px solid var(--line);
-      padding: 48px 0;
-    }
-    .page-footer-inner {
+      padding: 40px 0;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 24px;
+      gap: 16px;
       flex-wrap: wrap;
     }
-    .footer-meta {
+    .lesson-nav-meta {
       font-family: var(--font-mono);
-      font-size: .68rem;
+      font-size: .7rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
       color: var(--dim);
     }
-    .button--sm {
-      font-size: .8rem;
-      min-height: 40px;
-      padding: 8px 16px;
+    .site-footer {
+      border-top: 1px solid var(--line);
+      padding: 32px 0;
+      text-align: center;
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--dim);
     }
 
-    /* ── Responsive ── */
-    @media (max-width: 860px) {
-      .hero-grid { grid-template-columns: 1fr; }
-      .hero-panel { display: none; }
-      .compare-grid { grid-template-columns: 1fr; }
-      .graph-stage { grid-template-columns: 1fr; }
-      .related-grid { grid-template-columns: 1fr; }
-    }
+    /* ── Responsive ───────────────────────────────────────────── */
     @media (max-width: 640px) {
-      .node-types { grid-template-columns: 1fr 1fr; }
-      .hero-actions { flex-direction: column; }
-      .hero-actions .button { width: 100%; justify-content: center; }
-      .brief-grid { grid-template-columns: 1fr; }
-      .experiment-button { width: 100%; justify-content: flex-start; }
-    }
-    @media (max-width: 400px) {
-      .node-types { grid-template-columns: 1fr; }
+      .hero { padding: 48px 0 44px; }
+      .lesson-body { gap: 52px; }
+      .noise-wrap { grid-template-columns: 1fr; }
+      .flow { flex-direction: column; }
+      .flow-node:first-child { border-radius: 12px 12px 0 0; }
+      .flow-node:last-child  { border-radius: 0 0 12px 12px; }
+      .flow-arrow { flex-direction: column; padding: 4px 0; border: none;
+                    border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
+      .ctrl-row { flex-direction: column; align-items: flex-start; }
+      .ctrl-slider { min-width: 100%; }
+      .lab-header .button { width: 100%; margin-left: 0; }
+      .stage-rail { grid-template-columns: 1fr 1fr; }
+      .stage-button:last-child { grid-column: 1 / -1; }
+      .answer-grid { grid-template-columns: 1fr; }
+      .production-brief { grid-template-columns: 1fr; }
+      .brief-slate { border-right: 0; border-bottom: 1px solid var(--line); }
+      .related-grid { grid-template-columns: 1fr; }
+      .checkpoint, .lab-body { padding: 20px; }
     }
     @media (prefers-reduced-motion: reduce) {
-      .related-card { transition: none; }
-      .related-card:hover { transform: none; }
+      .hero::after,
+      .noise-panel.is-transitioning canvas { animation: none; }
+      .related-card,
+      .vis-fill,
+      .vis-thumb { transition: none; }
     }
   </style>
 </head>
@@ -774,15 +686,15 @@
   <!-- Topbar -->
   <header class="topbar" role="banner">
     <div class="topbar-inner">
-      <a href="index.html" class="brand" aria-label="Video Gen Lab – trang chủ">
+      <a class="brand" href="index.html" aria-label="VIDEO GEN LAB — Trang chủ">
         <span class="brand-mark" aria-hidden="true"></span>
-        Video Gen Lab
+        VIDEO GEN LAB
       </a>
-      <nav class="topnav" aria-label="Phần học">
-        <a href="index.html">Tổng quan</a>
-        <a href="#node-graph" aria-current="true">Phần 6</a>
+      <nav class="topnav" aria-label="Điều hướng bài học">
+        <a href="video-generation-part-5-lesson-8.html" data-curriculum-prev>← Bài 5.8</a>
+        <a href="index.html" data-curriculum-home>Trang chủ</a>
+        <a href="video-generation-part-6-lesson-2.html" data-curriculum-next>Bài 6.2 →</a>
       </nav>
-      <!-- theme toggle injected by video-generation-theme.js -->
     </div>
     <div class="progress-track" aria-hidden="true">
       <div class="progress-fill" id="progress-fill"></div>
@@ -790,784 +702,640 @@
   </header>
 
   <main id="main">
-    <!-- ── Hero ── -->
-    <section class="hero shell" aria-label="Giới thiệu bài học">
-      <div class="hero-grid">
-        <div class="hero-copy">
-          <p class="hero-eyebrow">Phần 6 · Bài 1 &nbsp;/&nbsp; ComfyUI / Workflow</p>
-          <h1 class="hero-h1">Node &amp;&nbsp;Workflow JSON</h1>
-          <p class="hero-lead">
-            Hiểu ComfyUI hoạt động theo mô hình node-graph, Workflow JSON là gì,
-            và cách dùng <em>API Format</em> để chạy inference hoàn toàn tự động.
+    <!-- Hero -->
+    <section class="hero" aria-labelledby="hero-heading">
+      <div class="shell">
+        <p class="hero-meta" data-curriculum-hero-label>
+          <span>SAMPLING</span>
+          <span>BÀI 6.1 / SCHEDULE</span>
+        </p>
+        <p style="margin:0 0 16px;">
+          <span class="hero-kw">Timestep</span>
+          <span class="hero-kw">Sigma σ</span>
+        </p>
+        <h1 id="hero-heading">Timestep &amp; Sigma —<br>Trục thời gian của diffusion</h1>
+        <p class="hero-lead">
+          Diffusion model không hoạt động theo "thời gian thực". Nó di chuyển dọc theo một trục nhiễu — từ hỗn loạn tối đa đến ảnh sạch — bằng hai đại lượng chính: <strong>timestep</strong> và <strong>sigma</strong>.
+        </p>
+        <p class="hero-meta">Sau bài này: nhìn một bước sampling và giải thích được model đang khử bao nhiêu nhiễu.</p>
+        <div class="hero-actions">
+          <a class="button primary" href="#lab">Thử ngay → Lab tương tác</a>
+          <a class="button" href="#concepts">Đọc khái niệm</a>
+        </div>
+        <!-- OUTPUT ARTIFACT BADGE -->
+        <div role="note" style="display:flex;align-items:center;gap:10px;padding:10px 16px;background:rgba(200,255,61,.08);border:1px solid rgba(200,255,61,.25);border-radius:10px;margin-top:24px;font-size:.85rem;flex-wrap:wrap;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          <span style="font-family:var(--font-mono);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--acid);">Đầu ra bài học:</span>
+          <span style="color:var(--muted);">Giải thích timestep/sigma schedule và phân biệt nó với Wan training objective</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="lesson-body shell">
+
+      <!-- Section 1: Timestep -->
+      <section id="concepts" aria-labelledby="heading-timestep">
+        <p class="section-label">Khái niệm 01</p>
+        <h2 class="section-heading" id="heading-timestep">Timestep là gì?</h2>
+        <p class="section-lead">
+          Một nhãn chỉ "vị trí" trên trục nhiễu, không phải đơn vị thời gian thực.
+        </p>
+
+        <div class="def-panel">
+          <h3>Định nghĩa</h3>
+          <p>
+            Trong diffusion, quá trình <em>forward</em> thêm nhiễu vào ảnh qua <strong>T</strong> bước, mỗi bước được đánh số từ <span class="token">T</span> (nhiễu cực đại) xuống <span class="token">0</span> (ảnh gốc). Khi <em>inference</em>, model chạy <strong>ngược chiều</strong> — từ <span class="token">t = T</span> về <span class="token">t = 0</span> — khử dần nhiễu.
           </p>
-          <div class="hero-actions">
-            <a href="#node-graph" class="button primary">Bắt đầu học</a>
-            <a href="#interactive-graph" class="button">Thử sơ đồ tương tác</a>
-          </div>
+          <p style="margin-top:10px;">
+            <span class="accent-acid">Timestep không phải giây, phút, hay frame.</span> Nó chỉ là một <strong>chỉ số nguyên</strong> xác định model đang ở đâu trên trục đó.
+          </p>
         </div>
 
-        <!-- Hero visual: mini node flow -->
-        <div class="hero-panel" aria-hidden="true">
-          <div class="hero-panel-label">Workflow đơn giản</div>
-          <div class="mini-flow">
-            <div class="mini-node">
-              <span class="mini-node-dot mini-node-dot--orange"></span>
-              <span class="mini-node-name">Load Checkpoint</span>
-              <span class="mini-node-type">MODEL</span>
-            </div>
-            <div class="mini-arrow">↓ MODEL / CLIP / VAE</div>
-            <div class="mini-node">
-              <span class="mini-node-dot mini-node-dot--cyan"></span>
-              <span class="mini-node-name">CLIP Text Encode</span>
-              <span class="mini-node-type">CONDITIONING</span>
-            </div>
-            <div class="mini-arrow">↓ CONDITIONING</div>
-            <div class="mini-node">
-              <span class="mini-node-dot mini-node-dot--acid"></span>
-              <span class="mini-node-name">KSampler</span>
-              <span class="mini-node-type">LATENT</span>
-            </div>
-            <div class="mini-arrow">↓ LATENT</div>
-            <div class="mini-node">
-              <span class="mini-node-dot mini-node-dot--cyan"></span>
-              <span class="mini-node-name">VAE Decode</span>
-              <span class="mini-node-type">IMAGE</span>
-            </div>
-            <div class="mini-arrow">↓ IMAGE</div>
-            <div class="mini-node">
-              <span class="mini-node-dot mini-node-dot--muted"></span>
-              <span class="mini-node-name">Save Image</span>
-              <span class="mini-node-type">—</span>
-            </div>
-          </div>
+        <div class="table-wrap" style="margin-top:20px;">
+          <table class="map-table">
+            <caption style="font-family:var(--font-mono);font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);padding:12px 14px 8px;text-align:left;caption-side:top;">
+              Ví dụ trục timestep (T = 1000)
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Timestep t</th>
+                <th scope="col">Vị trí trên trục</th>
+                <th scope="col">Ý nghĩa</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>1000</td>
+                <td>
+                  <div class="sigma-bar-wrap"><div class="sigma-bar"><div class="sigma-bar-fill" style="width:100%"></div></div></div>
+                </td>
+                <td>Noise tối đa — thuần nhiễu Gaussian</td>
+              </tr>
+              <tr>
+                <td>750</td>
+                <td>
+                  <div class="sigma-bar-wrap"><div class="sigma-bar"><div class="sigma-bar-fill" style="width:75%"></div></div></div>
+                </td>
+                <td>Nhiều noise, hình dạng mờ xuất hiện</td>
+              </tr>
+              <tr>
+                <td>500</td>
+                <td>
+                  <div class="sigma-bar-wrap"><div class="sigma-bar"><div class="sigma-bar-fill" style="width:50%"></div></div></div>
+                </td>
+                <td>Cân bằng — cấu trúc tổng thể rõ hơn</td>
+              </tr>
+              <tr>
+                <td>250</td>
+                <td>
+                  <div class="sigma-bar-wrap"><div class="sigma-bar"><div class="sigma-bar-fill" style="width:25%"></div></div></div>
+                </td>
+                <td>Ít noise, chi tiết bắt đầu tinh chỉnh</td>
+              </tr>
+              <tr>
+                <td>0</td>
+                <td>
+                  <div class="sigma-bar-wrap"><div class="sigma-bar"><div class="sigma-bar-fill" style="width:2%"></div></div></div>
+                </td>
+                <td>Ảnh sạch — đích đến cuối cùng</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- ── Section 1: Node & Node-graph ── -->
-    <section id="node-graph" class="content-section shell">
-      <p class="section-index">01 / 04</p>
-      <h2 class="section-h2">Node là gì?</h2>
-      <p class="section-lead">
-        ComfyUI biểu diễn pipeline bằng <strong>node-graph</strong>: mỗi node khai báo inputs,
-        outputs và thao tác của nó; bạn nối chúng lại để tạo pipeline có thể kiểm tra và tái sử dụng.
-      </p>
-
-      <div class="def-panel">
-        <p class="def-panel-title">Định nghĩa</p>
-        <p class="def-panel-text">
-          <strong>Node</strong> là một hộp chức năng có <em>cổng vào</em> (inputs) và
-          <em>cổng ra</em> (outputs). Dữ liệu chảy từ node này sang node kia
-          qua các đường kết nối gọi là <em>edges</em>.
-          Toàn bộ chuỗi node đó tạo thành một <strong>workflow</strong>.
+      <!-- Section 2: Sigma -->
+      <section aria-labelledby="heading-sigma">
+        <p class="section-label">Khái niệm 02</p>
+        <h2 class="section-heading" id="heading-sigma">Sigma (σ) là gì?</h2>
+        <p class="section-lead">
+          Mức độ nhiễu thực tế tại một timestep — đo bằng độ lệch chuẩn của nhiễu Gaussian.
         </p>
-      </div>
 
-      <div class="node-types">
-        <div class="node-type-card">
-          <span class="node-type-badge badge--orange">Loader</span>
-          <h3>Load Checkpoint</h3>
-          <p>Ví dụ node lõi cho checkpoint tương thích; outputs cụ thể phụ thuộc node và gói model đang cài.</p>
+        <div class="def-panel" style="border-left-color: var(--cyan);">
+          <h3>Định nghĩa</h3>
+          <p>
+            Nếu timestep là <em>nhãn số</em>, thì sigma (<span class="token">σ</span>) là <strong>giá trị đo lường thực tế</strong> của lượng nhiễu tại timestep đó. Cụ thể, sigma là <strong>độ lệch chuẩn</strong> (standard deviation) của phân phối nhiễu Gaussian được thêm vào ảnh.
+          </p>
+          <p style="margin-top:10px;">
+            <span class="accent-cyan">σ lớn → nhiều noise → timestep lớn (gần T).</span><br>
+            <span class="accent-cyan">σ nhỏ → ít noise → timestep nhỏ (gần 0).</span>
+          </p>
         </div>
-        <div class="node-type-card">
-          <span class="node-type-badge badge--cyan">Encoder</span>
-          <h3>CLIP Text Encode</h3>
-          <p>Ví dụ node lõi: mã hoá prompt thành CONDITIONING. Video model có thể dùng text encoder/node khác.</p>
-        </div>
-        <div class="node-type-card">
-          <span class="node-type-badge badge--acid">Sampler</span>
-          <h3>KSampler</h3>
-          <p>Chạy quá trình denoising. Nhận MODEL + CONDITIONING + LATENT, trả về LATENT mới.</p>
-        </div>
-        <div class="node-type-card">
-          <span class="node-type-badge badge--cyan">Decoder</span>
-          <h3>VAE Decode</h3>
-          <p>Chuyển LATENT thành ảnh pixel (IMAGE) bằng Variational Autoencoder.</p>
-        </div>
-        <div class="node-type-card">
-          <span class="node-type-badge badge--muted">Output</span>
-          <h3>Save Image</h3>
-          <p>Lưu IMAGE ra file. Không có cổng ra — đây là điểm cuối của pipeline.</p>
-        </div>
-      </div>
-    </section>
 
-    <!-- ── Section 2: Edges & Data Types ── -->
-    <section id="edges" class="content-section shell">
-      <p class="section-index">02 / 04</p>
-      <h2 class="section-h2">Kết nối &amp; Kiểu dữ liệu</h2>
-      <p class="section-lead">
-        Mỗi edge (đường nối) mang một kiểu dữ liệu cụ thể.
-        Hai cổng chỉ kết nối được khi kiểu dữ liệu <em>khớp nhau</em>.
-      </p>
-
-      <table class="dtype-table" aria-label="Các kiểu dữ liệu trong ComfyUI">
-        <thead>
-          <tr>
-            <th scope="col">Kiểu</th>
-            <th scope="col">Từ node</th>
-            <th scope="col">Đến node</th>
-            <th scope="col">Mô tả ngắn</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><span class="dtype-tag dtype-tag--orange">MODEL</span></td>
-            <td>Load Checkpoint</td>
-            <td>KSampler</td>
-            <td>Weights của UNet / Diffusion model</td>
-          </tr>
-          <tr>
-            <td><span class="dtype-tag dtype-tag--cyan">CLIP</span></td>
-            <td>Load Checkpoint</td>
-            <td>CLIP Text Encode</td>
-            <td>Encoder ngôn ngữ để xử lý prompt</td>
-          </tr>
-          <tr>
-            <td><span class="dtype-tag dtype-tag--acid">CONDITIONING</span></td>
-            <td>CLIP Text Encode</td>
-            <td>KSampler</td>
-            <td>Embeddings điều hướng denoising</td>
-          </tr>
-          <tr>
-            <td><span class="dtype-tag dtype-tag--orange">LATENT</span></td>
-            <td>Empty Latent / KSampler</td>
-            <td>KSampler / VAE Decode</td>
-            <td>Biểu diễn nén trong không gian latent</td>
-          </tr>
-          <tr>
-            <td><span class="dtype-tag dtype-tag--cyan">VAE</span></td>
-            <td>Load Checkpoint</td>
-            <td>VAE Decode / VAE Encode</td>
-            <td>Encoder–Decoder nén/giải nén pixel</td>
-          </tr>
-          <tr>
-            <td><span class="dtype-tag dtype-tag--muted">IMAGE</span></td>
-            <td>VAE Decode / Load Image</td>
-            <td>Save Image / Preview</td>
-            <td>Tensor ảnh pixel [B,H,W,C]</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <details class="disclosure">
-        <summary class="disclosure-summary">
-          <span class="disclosure-arrow" aria-hidden="true">▸</span>
-          Tại sao kiểu dữ liệu quan trọng?
-        </summary>
-        <div class="disclosure-body">
-          ComfyUI kiểm tra type tại runtime. Nếu bạn cắm nhầm cổng (ví dụ: nối IMAGE vào chỗ cần LATENT),
-          workflow sẽ báo lỗi ngay thay vì chạy sai âm thầm. Màu sắc của dây nối trong giao diện
-          phản ánh kiểu dữ liệu — <em>cùng màu = kết nối được</em>.
+        <!-- Relationship flow -->
+        <div class="flow" style="margin-top:24px;" role="img" aria-label="Sơ đồ: Timestep ánh xạ sang Sigma, rồi Sampler dùng Sigma để khử noise">
+          <div class="flow-node">
+            <div class="flow-node-label">Đầu vào</div>
+            <div class="flow-node-val" style="color:var(--acid);">t</div>
+            <div class="flow-node-desc">Timestep<br>(chỉ số nguyên)</div>
+          </div>
+          <div class="flow-arrow" aria-hidden="true">→</div>
+          <div class="flow-node">
+            <div class="flow-node-label">Ánh xạ</div>
+            <div class="flow-node-val" style="color:var(--cyan);">σ(t)</div>
+            <div class="flow-node-desc">Hàm scheduler<br>cho ra sigma</div>
+          </div>
+          <div class="flow-arrow" aria-hidden="true">→</div>
+          <div class="flow-node">
+            <div class="flow-node-label">Sử dụng</div>
+            <div class="flow-node-val" style="font-size:1rem;font-weight:800;padding-top:6px;">Sampler</div>
+            <div class="flow-node-desc">Biết cần khử<br>bao nhiêu noise</div>
+          </div>
         </div>
-      </details>
-    </section>
 
-    <!-- ── Section 3: Workflow JSON ── -->
-    <section id="workflow-json" class="content-section shell">
-      <p class="section-index">03 / 04</p>
-      <h2 class="section-h2">Workflow JSON</h2>
-      <p class="section-lead">
-        Frontend lưu graph canvas trong JSON để chia sẻ hoặc tái sử dụng. Để chạy qua API,
-        hãy export riêng <em>Save (API Format)</em>; hai định dạng phục vụ hai mục đích khác nhau.
-      </p>
+        <details style="margin-top:16px;">
+          <summary>Tại sao các scheduler cho sigma khác nhau?</summary>
+          <p>
+            Mỗi <strong>noise schedule</strong> có quy tắc riêng để ánh xạ timestep → sigma: tuyến tính, cosine, Karras hoặc lịch trình dành cho flow matching. Sampler sau đó dùng chuỗi sigma này để cập nhật latent. Hai lựa chọn phối hợp với nhau nhưng không phải cùng một khái niệm.
+          </p>
+          <p>
+            Vì vậy không nên so sigma chỉ bằng nhãn <span class="token">t = 500</span> giữa hai pipeline. Cách kiểm chứng thực tế là giữ model, prompt, seed, sampler và số bước cố định, chỉ đổi schedule rồi so toàn bộ clip.
+          </p>
+        </details>
+      </section>
 
-      <div class="def-panel">
-        <p class="def-panel-title">Cấu trúc</p>
-        <p class="def-panel-text">
-          Trong API format, node thường được đặt dưới key id và dùng <code>class_type</code>
-          cùng <code>inputs</code>. Giá trị input có thể là hằng số hoặc tham chiếu output khác.
-          Trường metadata/canvas là dữ liệu của frontend, không phải contract để automation dựa vào.
+      <!-- Section 3: Lab -->
+      <section id="lab" aria-labelledby="heading-lab">
+        <p class="section-label">Lab tương tác</p>
+        <h2 class="section-heading" id="heading-lab">Trục thời gian nhiễu</h2>
+        <p class="section-lead">
+          Di chuyển slider để thấy sigma giảm dần và "hình ảnh" trở nên rõ hơn khi model tiến từ T → 0.
         </p>
-      </div>
 
-      <div class="code-block">
-        <div class="code-block-header">
-          <span class="code-block-label">workflow.json — cấu trúc cơ bản</span>
-          <span class="code-block-badge">JSON</span>
-        </div>
-        <pre aria-label="Ví dụ Workflow JSON"><span class="tok-brace">{</span>
-  <span class="tok-key">"1"</span><span class="tok-brace">:</span> <span class="tok-brace">{</span>                          <span class="tok-comment">// id của node</span>
-    <span class="tok-key">"class_type"</span><span class="tok-brace">:</span> <span class="tok-str">"CheckpointLoaderSimple"</span><span class="tok-brace">,</span>
-    <span class="tok-key">"inputs"</span><span class="tok-brace">:</span> <span class="tok-brace">{</span>
-      <span class="tok-key">"ckpt_name"</span><span class="tok-brace">:</span> <span class="tok-str">"v1-5-pruned.safetensors"</span>
-    <span class="tok-brace">}</span><span class="tok-brace">,</span>
-    <span class="tok-key">"_meta"</span><span class="tok-brace">:</span> <span class="tok-brace">{</span> <span class="tok-key">"title"</span><span class="tok-brace">:</span> <span class="tok-str">"Load Checkpoint"</span> <span class="tok-brace">}</span>
-  <span class="tok-brace">}</span><span class="tok-brace">,</span>
-  <span class="tok-key">"6"</span><span class="tok-brace">:</span> <span class="tok-brace">{</span>
-    <span class="tok-key">"class_type"</span><span class="tok-brace">:</span> <span class="tok-str">"CLIPTextEncode"</span><span class="tok-brace">,</span>
-    <span class="tok-key">"inputs"</span><span class="tok-brace">:</span> <span class="tok-brace">{</span>
-      <span class="tok-key">"text"</span><span class="tok-brace">:</span> <span class="tok-str">"a cat in a forest"</span><span class="tok-brace">,</span>
-      <span class="tok-key">"clip"</span><span class="tok-brace">:</span> <span class="tok-brace">[</span><span class="tok-str">"1"</span><span class="tok-brace">,</span> <span class="tok-num">1</span><span class="tok-brace">]</span>   <span class="tok-comment">// [node_id, output_index]</span>
-    <span class="tok-brace">}</span>
-  <span class="tok-brace">}</span><span class="tok-brace">,</span>
-  <span class="tok-comment">// ... thêm các node khác</span>
-<span class="tok-brace">}</span></pre>
-      </div>
-
-      <p class="prose-note">
-        Tham chiếu đến output của node khác được viết dạng
-        <code class="inline-mono">["node_id", output_index]</code>.
-        Ví dụ <code class="inline-mono">["1", 1]</code> nghĩa là
-        "lấy output thứ 2 (index 1) của node có id là 1" — tức là cổng CLIP từ Load Checkpoint.
-      </p>
-
-      <details class="disclosure">
-        <summary class="disclosure-summary">
-          <span class="disclosure-arrow" aria-hidden="true">▸</span>
-          Cách Export và Import Workflow JSON
-        </summary>
-        <div class="disclosure-body">
-          <strong class="prose-strong">Export:</strong> Dùng <kbd class="key-badge">Save</kbd>
-          để lưu workflow cho canvas; dùng <em>Save (API Format)</em> khi cần payload thực thi.<br /><br />
-          <strong class="prose-strong">Import:</strong> Kéo thả file <code>.json</code> vào canvas,
-          hoặc dùng nút <em>Load</em>. ComfyUI sẽ tái tạo toàn bộ sơ đồ node chính xác.
-        </div>
-      </details>
-    </section>
-
-    <!-- ── Section 4: API Format ── -->
-    <section id="api-format" class="content-section shell">
-      <p class="section-index">04 / 04</p>
-      <h2 class="section-h2">API Format</h2>
-      <p class="section-lead">
-        API Format là graph thực thi mà frontend xuất ra để gửi tới endpoint prompt của server.
-        Nó phù hợp với automation, nhưng node khả dụng và input hợp lệ vẫn phụ thuộc phiên bản ComfyUI,
-        custom node và model đã cài trên máy đích.
-      </p>
-
-      <div class="compare-grid">
-        <div class="compare-col">
-          <div class="compare-col-header">
-            <p class="compare-col-title">Workflow JSON thông thường</p>
-            <p class="compare-col-sub">Dùng trong giao diện / chia sẻ</p>
-          </div>
-          <div class="compare-col-body">
-            <ul>
-              <li>Lưu trực tiếp từ canvas</li>
-              <li>Giữ thông tin để frontend dựng lại canvas</li>
-              <li>Import/Export qua giao diện ComfyUI</li>
-              <li>Không nên coi là payload API ổn định</li>
-            </ul>
-          </div>
-        </div>
-        <div class="compare-col">
-          <div class="compare-col-header">
-            <p class="compare-col-title">API Format</p>
-            <p class="compare-col-sub">Dùng để chạy tự động / lập trình</p>
-          </div>
-          <div class="compare-col-body">
-            <ul>
-              <li>Export bằng cách bật <em>Dev mode</em> → <em>Save (API Format)</em></li>
-              <li>Tập trung vào node id, <code>class_type</code> và <code>inputs</code></li>
-              <li>Gửi qua HTTP POST tới <code>/prompt</code></li>
-              <li>Phù hợp cho script, queue worker và automation</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      <div class="code-block code-block--spaced">
-        <div class="code-block-header">
-          <span class="code-block-label">Gửi request API — Python</span>
-          <span class="code-block-badge">Python</span>
-        </div>
-        <pre aria-label="Ví dụ gửi request API ComfyUI bằng Python"><span class="tok-key">import</span> requests, json
-
-workflow_api = json.load(<span class="tok-key">open</span>(<span class="tok-str">"workflow_api.json"</span>))
-
-payload = <span class="tok-brace">{</span>
-    <span class="tok-str">"prompt"</span><span class="tok-brace">:</span> workflow_api<span class="tok-brace">,</span>
-    <span class="tok-str">"client_id"</span><span class="tok-brace">:</span> <span class="tok-str">"my-script-01"</span>
-<span class="tok-brace">}</span>
-
-response = requests.post(
-    <span class="tok-str">"http://127.0.0.1:8188/prompt"</span><span class="tok-brace">,</span>
-    json=payload
-)
-print(response.json())  <span class="tok-comment"># {"prompt_id": "...", "number": ...}</span></pre>
-      </div>
-
-      <p class="prose-note">
-        Khi server nhận job, phản hồi có thể chứa <code class="inline-mono">prompt_id</code> cùng lỗi theo node.
-        Theo dõi bằng WebSocket hoặc history của đúng deployment; đường dẫn/khả năng có thể khác giữa local và Cloud.
-      </p>
-
-      <aside class="production-brief" aria-labelledby="brief-heading">
-        <p class="brief-kicker">Production brief · mô phỏng quy trình</p>
-        <h3 class="brief-title" id="brief-heading">Batch hero shot cho landing page: đừng đổi prompt, seed và model cùng lúc</h3>
-        <p class="brief-intro">Một team cần 12 frame mở đầu nhất quán cho teaser sản phẩm. Mục đích của workflow API là tạo biến thể có thể truy vết, không phải tìm một preset “tốt nhất”.</p>
-        <dl class="brief-grid">
-          <div class="brief-item"><dt>Mục tiêu / bối cảnh</dt><dd>Hero frame 16:9 cho teaser web; cần bố cục lặp lại đủ ổn để art director chọn.</dd></div>
-          <div class="brief-item"><dt>Input / workflow giả định</dt><dd>API-format export của workflow image baseline; script chỉ sửa input <code>seed</code> của sampler.</dd></div>
-          <div class="brief-item"><dt>Giữ cố định</dt><dd>Checkpoint, prompt, negative prompt, resolution, sampler và scheduler. Đây là control của A/B test.</dd></div>
-          <div class="brief-item"><dt>Đang thử nghiệm</dt><dd>Seed theo từng job. Sau khi chọn bố cục, mới mở test thứ hai cho prompt hoặc parameter khác.</dd></div>
-          <div class="brief-item"><dt>Giới hạn</dt><dd>Ngân sách 20 phút trên GPU nội bộ; dừng batch khi queue, VRAM hoặc node validation báo lỗi — không suy diễn tốc độ chung.</dd></div>
-          <div class="brief-item"><dt>Đánh giá / thất bại</dt><dd>So bố cục, đọc được chữ/logo, lỗi anatomy và tính nhất quán thương hiệu. Seed tốt nhưng chữ vỡ là thất bại, không phải “pass”.</dd></div>
-        </dl>
-        <div class="experiment-lab" aria-labelledby="experiment-heading">
-          <h3 id="experiment-heading">A/B switch: thay đúng một biến</h3>
-          <p>Chọn một lượt chạy. Đây là <strong>mô phỏng</strong>: không hiển thị benchmark hay thời gian GPU thật.</p>
-          <div class="experiment-controls" role="group" aria-label="Chọn biến thể workflow mô phỏng">
-            <button class="experiment-button" type="button" data-experiment="baseline" aria-pressed="true">A · baseline seed 1042</button>
-            <button class="experiment-button" type="button" data-experiment="seed">B · chỉ đổi seed 7931</button>
-            <button class="experiment-button" type="button" data-experiment="bad">Sai phương pháp · đổi seed + prompt</button>
-          </div>
-          <output class="experiment-output" id="experiment-output" aria-live="polite">A / baseline — input thay đổi: không có. So với B, mọi field trừ seed phải giống hệt để quy kết khác biệt cho seed.</output>
-        </div>
-      </aside>
-
-      <ul class="source-list" aria-label="Nguồn kỹ thuật chính chủ">
-        <li><a href="https://docs.comfy.org/development/cloud/overview">ComfyUI Cloud API overview</a>: API format do frontend xuất và job chạy bất đồng bộ.</li>
-        <li><a href="https://docs.comfy.org/api-reference/cloud/workflow/submit-a-workflow-for-execution">ComfyUI prompt API reference</a>: payload chứa graph thực thi và phản hồi có prompt id/node errors.</li>
-        <li><a href="https://github.com/Comfy-Org/ComfyUI">ComfyUI repository</a>: dự án node/graph và backend chính chủ.</li>
-      </ul>
-    </section>
-
-    <!-- ── Interactive Node Graph ── -->
-    <section id="interactive-graph" class="graph-section shell">
-      <p class="section-index">Demo tương tác</p>
-      <h2 class="section-h2">Sơ đồ Node &amp; JSON</h2>
-      <p class="section-lead">
-        Chọn bất kỳ node nào bằng chuột, chạm hoặc phím <kbd class="key-badge">Tab</kbd> + <kbd class="key-badge">Enter</kbd> để xem cấu trúc JSON tương ứng.
-        Bạn sẽ thấy ngay cách mỗi node được biểu diễn trong file workflow.
-      </p>
-
-      <div class="graph-stage">
-        <!-- Node graph -->
-        <div class="graph-canvas">
-          <p class="graph-canvas-label">Workflow — chọn node để khám phá</p>
-          <div class="graph-nodes">
-
-            <!-- Node 1 -->
-            <button class="graph-node" aria-pressed="false"
-              data-node-id="1" aria-label="Node: Load Checkpoint, nhấn để xem JSON">
-              <span class="graph-node-icon node-icon--orange" aria-hidden="true">⬡</span>
-              <span class="graph-node-text">
-                <span class="graph-node-name">Load Checkpoint</span>
-                <span class="graph-node-sub">CheckpointLoaderSimple</span>
-              </span>
-              <span class="graph-node-id">#1</span>
+        <div class="lab-panel">
+          <div class="lab-header">
+            <h3>Sigma Timeline Simulator</h3>
+            <span class="lab-badge">Interactive</span>
+            <button class="button" id="play-denoise" type="button" aria-pressed="false">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m8 5 11 7-11 7Z"/></svg>
+              <span id="play-label">Chạy T → 0</span>
             </button>
+          </div>
+          <div class="lab-body">
 
-            <div class="graph-edge" aria-hidden="true">
-              <span class="graph-edge-label">MODEL · CLIP · VAE ↓</span>
+            <!-- Timeline vis -->
+            <div class="vis-timeline" aria-hidden="true">
+              <div class="vis-track">
+                <span class="vis-label-t">T (noise max)</span>
+                <div class="vis-axis"></div>
+                <div class="vis-fill" id="vis-fill"></div>
+                <div class="vis-thumb" id="vis-thumb"></div>
+                <span class="vis-label-0">0 (ảnh sạch)</span>
+              </div>
             </div>
 
-            <!-- Node 6 -->
-            <button class="graph-node" aria-pressed="false"
-              data-node-id="6" aria-label="Node: CLIP Text Encode, nhấn để xem JSON">
-              <span class="graph-node-icon node-icon--cyan" aria-hidden="true">⬡</span>
-              <span class="graph-node-text">
-                <span class="graph-node-name">CLIP Text Encode</span>
-                <span class="graph-node-sub">CLIPTextEncode</span>
-              </span>
-              <span class="graph-node-id">#6</span>
-            </button>
-
-            <div class="graph-edge" aria-hidden="true">
-              <span class="graph-edge-label">CONDITIONING ↓</span>
+            <div class="stage-rail" aria-label="Chọn nhanh giai đoạn denoising">
+              <button class="stage-button" type="button" data-t="1000" aria-pressed="true"><span class="stage-step">t = 1000</span><span class="stage-name">Hỗn loạn</span></button>
+              <button class="stage-button" type="button" data-t="750" aria-pressed="false"><span class="stage-step">t = 750</span><span class="stage-name">Bố cục</span></button>
+              <button class="stage-button" type="button" data-t="500" aria-pressed="false"><span class="stage-step">t = 500</span><span class="stage-name">Chủ thể</span></button>
+              <button class="stage-button" type="button" data-t="250" aria-pressed="false"><span class="stage-step">t = 250</span><span class="stage-name">Bề mặt</span></button>
+              <button class="stage-button" type="button" data-t="0" aria-pressed="false"><span class="stage-step">t = 0</span><span class="stage-name">Ảnh sạch</span></button>
             </div>
 
-            <!-- Node 3 -->
-            <button class="graph-node" aria-pressed="false"
-              data-node-id="3" aria-label="Node: KSampler, nhấn để xem JSON">
-              <span class="graph-node-icon node-icon--acid" aria-hidden="true">⬡</span>
-              <span class="graph-node-text">
-                <span class="graph-node-name">KSampler</span>
-                <span class="graph-node-sub">KSampler</span>
-              </span>
-              <span class="graph-node-id">#3</span>
-            </button>
-
-            <div class="graph-edge" aria-hidden="true">
-              <span class="graph-edge-label">LATENT ↓</span>
+            <!-- Noise canvases -->
+            <div class="noise-wrap">
+              <div class="noise-panel">
+                <canvas id="canvas-current" width="160" height="100" role="img" aria-label="Cảnh hải đăng trong bão tại timestep hiện tại; mức nhiễu thay đổi theo điều khiển">Trình duyệt không hỗ trợ canvas. Hãy dùng phần mô tả giai đoạn bên dưới để theo dõi mức nhiễu.</canvas>
+                <span class="noise-panel-label" id="canvas-current-label">t = 1000</span>
+              </div>
+              <div class="noise-panel">
+                <canvas id="canvas-clean" width="160" height="100" role="img" aria-label="Ảnh đích sạch: hải đăng chiếu sáng trên vách đá giữa biển đêm">Ảnh đích là cảnh hải đăng chiếu sáng trên vách đá giữa biển đêm.</canvas>
+                <span class="noise-panel-label">t = 0 (đích)</span>
+              </div>
             </div>
+            <p class="scene-caption">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/></svg>
+              <span>Quan sát thứ tự xuất hiện: <strong>bố cục trời–biển</strong> → <strong>silhouette hải đăng</strong> → <strong>tia sáng và bọt sóng</strong>. Những bước cuối chủ yếu tinh chỉnh chi tiết, không dựng lại toàn bộ cảnh.</span>
+            </p>
 
-            <!-- Node 8 -->
-            <button class="graph-node" aria-pressed="false"
-              data-node-id="8" aria-label="Node: VAE Decode, nhấn để xem JSON">
-              <span class="graph-node-icon node-icon--cyan" aria-hidden="true">⬡</span>
-              <span class="graph-node-text">
-                <span class="graph-node-name">VAE Decode</span>
-                <span class="graph-node-sub">VAEDecode</span>
-              </span>
-              <span class="graph-node-id">#8</span>
-            </button>
+            <!-- Controls -->
+            <div class="lab-controls">
+              <div class="ctrl-row">
+                <label for="slider-t">Timestep t</label>
+                <input
+                  class="ctrl-slider"
+                  type="range"
+                  id="slider-t"
+                  min="0"
+                  max="1000"
+                  value="1000"
+                  step="10"
+                  aria-valuemin="0"
+                  aria-valuemax="1000"
+                  aria-valuenow="1000"
+                  aria-label="Timestep t — kéo để thay đổi mức noise"
+                />
+                <div class="ctrl-value" aria-live="polite" aria-atomic="true">
+                  t = <span class="val-step" id="out-t">1000</span>
+                  &nbsp;|&nbsp;
+                  σ = <span class="val-sigma" id="out-sigma">14.61</span>
+                </div>
+              </div>
 
-            <div class="graph-edge" aria-hidden="true">
-              <span class="graph-edge-label">IMAGE ↓</span>
-            </div>
-
-            <!-- Node 9 -->
-            <button class="graph-node" aria-pressed="false"
-              data-node-id="9" aria-label="Node: Save Image, nhấn để xem JSON">
-              <span class="graph-node-icon node-icon--muted" aria-hidden="true">⬡</span>
-              <span class="graph-node-text">
-                <span class="graph-node-name">Save Image</span>
-                <span class="graph-node-sub">SaveImage</span>
-              </span>
-              <span class="graph-node-id">#9</span>
-            </button>
-
-          </div>
-        </div>
-
-        <!-- JSON detail panel -->
-        <div class="json-panel" id="json-detail-panel">
-          <div class="json-panel-header">
-            <span class="json-panel-title" id="json-panel-title">JSON Node</span>
-            <span class="json-panel-hint" id="json-panel-hint">Chọn node để xem</span>
-          </div>
-          <div class="json-panel-body" id="json-panel-body" aria-live="polite" aria-label="Chi tiết JSON của node">
-            <div class="json-panel-empty">
-              <span class="json-panel-empty-icon" aria-hidden="true">◈</span>
-              <span>Click vào một node để xem cấu trúc JSON tương ứng</span>
+              <div class="readout" id="readout" aria-live="polite" aria-atomic="true">
+                <strong>Giai đoạn: Noise tối đa.</strong> Model chỉ thấy nhiễu Gaussian thuần. σ rất lớn — sampler cần khử lượng noise khổng lồ ở bước này.
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- ── Checkpoint ── -->
-    <section id="checkpoint" class="checkpoint-section shell">
-      <p class="section-index">Kiểm tra hiểu biết</p>
-      <h2 class="section-h2">Checkpoint</h2>
-      <p class="section-lead">3 câu hỏi nhanh để củng cố những gì vừa học.</p>
+      <section aria-labelledby="heading-production">
+        <p class="section-label">Từ lab ra production</p>
+        <h2 class="section-heading" id="heading-production">Đọc một shot như người vận hành</h2>
+        <p class="section-lead">
+          Với video, mỗi bước không chỉ làm ảnh nét hơn: nó khóa dần bố cục, quỹ đạo chuyển động và texture qua nhiều frame.
+        </p>
+        <div class="production-brief">
+          <div class="brief-slate">
+            <span class="brief-kicker">Shot brief · 5 giây</span>
+            <h3>Hải đăng trong bão, camera dolly-in chậm</h3>
+            <p>Giữ seed và prompt cố định. Quan sát <em>thứ tự</em> model giải quyết cảnh thay vì chỉ nhìn frame cuối.</p>
+            <dl class="brief-meta">
+              <div><dt>Frames</dt><dd>81</dd></div>
+              <div><dt>FPS</dt><dd>16</dd></div>
+              <div><dt>Steps</dt><dd>20</dd></div>
+              <div><dt>Seed</dt><dd>28491</dd></div>
+            </dl>
+          </div>
+          <div class="brief-phases">
+            <div class="brief-phase">
+              <code>σ cao</code>
+              <div><strong>Khóa staging và hướng camera</strong><p>Nếu hải đăng sai phía hoặc đường chân trời lệch, rerun lúc này hợp lý hơn là cố cứu bằng sharpen ở cuối.</p></div>
+            </div>
+            <div class="brief-phase">
+              <code>σ vừa</code>
+              <div><strong>Kiểm tra motion coherence</strong><p>Silhouette, tia sáng và dolly-in phải ổn định xuyên frame; rung hình ở đây thường không tự biến mất.</p></div>
+            </div>
+            <div class="brief-phase">
+              <code>σ thấp</code>
+              <div><strong>Đánh giá bề mặt, không đòi đổi bố cục</strong><p>Bọt sóng, mưa và texture đá được hoàn thiện. Muốn chuyển hải đăng sang bên phải ở pha này là quá muộn.</p></div>
+            </div>
+          </div>
+        </div>
+      </section>
 
-      <!-- Q1 -->
-      <div class="quiz-card" data-quiz="q1">
-        <p class="quiz-q">1. Trong Workflow JSON, cú pháp <code class="inline-mono">["1", 0]</code> trong trường <code>inputs</code> có nghĩa là gì?</p>
-        <div class="quiz-options" role="list">
-          <button class="quiz-option" data-correct="false" aria-label="Đáp án A">
-            <span class="quiz-option-letter" aria-hidden="true">A</span>
-            <span class="quiz-option-text">Lấy input thứ nhất của node 0</span>
-          </button>
-          <button class="quiz-option" data-correct="true" aria-label="Đáp án B">
-            <span class="quiz-option-letter" aria-hidden="true">B</span>
-            <span class="quiz-option-text">Lấy output đầu tiên (index 0) của node có id là "1"</span>
-          </button>
-          <button class="quiz-option" data-correct="false" aria-label="Đáp án C">
-            <span class="quiz-option-letter" aria-hidden="true">C</span>
-            <span class="quiz-option-text">Lấy node id 0 từ group số 1</span>
-          </button>
+      <section aria-labelledby="heading-checkpoint">
+        <p class="section-label">Checkpoint · 30 giây</p>
+        <h2 class="section-heading" id="heading-checkpoint">Bạn sẽ can thiệp ở đâu?</h2>
+        <p class="section-lead">Chọn một đáp án, rồi đối chiếu cách sampler “nhìn” cảnh ở từng mức sigma.</p>
+        <div class="checkpoint">
+          <fieldset>
+            <legend>Muốn đổi bố cục lớn từ “hải đăng bên trái” sang “hải đăng bên phải”, giai đoạn nào có tác động mạnh nhất?</legend>
+            <p class="checkpoint-hint">Đừng chỉ nhớ con số — hãy nghĩ xem lúc nào cấu trúc lớn đang được hình thành.</p>
+            <div class="answer-grid">
+              <button class="answer-button" type="button" data-answer="early" aria-pressed="false">Sigma cao · đầu quá trình</button>
+              <button class="answer-button" type="button" data-answer="middle" aria-pressed="false">Sigma vừa · giữa quá trình</button>
+              <button class="answer-button" type="button" data-answer="late" aria-pressed="false">Sigma thấp · bước cuối</button>
+            </div>
+            <p class="answer-feedback" id="answer-feedback" aria-live="polite">Chọn một phương án để xem giải thích.</p>
+          </fieldset>
         </div>
-        <div class="quiz-feedback correct" id="q1-fb-correct" role="status">
-          ✓ Chính xác! <code>["node_id", output_index]</code> — phần tử đầu là id, phần tử sau là vị trí cổng ra (bắt đầu từ 0).
-        </div>
-        <div class="quiz-feedback wrong" id="q1-fb-wrong" role="status">
-          Chưa đúng. Cú pháp là <code>["node_id", output_index]</code>: "1" là id của node nguồn, 0 là cổng ra đầu tiên của node đó.
-        </div>
-        <button class="button quiz-reset" aria-label="Thử lại câu 1">↺ Thử lại</button>
-      </div>
+      </section>
 
-      <!-- Q2 -->
-      <div class="quiz-card" data-quiz="q2">
-        <p class="quiz-q">2. Điểm khác biệt chính giữa Workflow JSON thông thường và API Format là gì?</p>
-        <div class="quiz-options" role="list">
-          <button class="quiz-option" data-correct="false" aria-label="Đáp án A">
-            <span class="quiz-option-letter" aria-hidden="true">A</span>
-            <span class="quiz-option-text">API Format dùng định dạng YAML thay vì JSON</span>
-          </button>
-          <button class="quiz-option" data-correct="false" aria-label="Đáp án B">
-            <span class="quiz-option-letter" aria-hidden="true">B</span>
-            <span class="quiz-option-text">API Format chứa nhiều metadata hơn về vị trí node trên canvas</span>
-          </button>
-          <button class="quiz-option" data-correct="true" aria-label="Đáp án C">
-            <span class="quiz-option-letter" aria-hidden="true">C</span>
-            <span class="quiz-option-text">API Format là graph thực thi do frontend export để gửi tới server; workflow canvas không nên được coi là payload API ổn định</span>
-          </button>
-        </div>
-        <div class="quiz-feedback correct" id="q2-fb-correct" role="status">
-          ✓ Đúng! API Format tập trung vào graph thực thi. Hãy export lại từ đúng frontend/version thay vì tự suy ra payload từ dữ liệu canvas.
-        </div>
-        <div class="quiz-feedback wrong" id="q2-fb-wrong" role="status">
-          Chưa đúng. Cả hai đều là JSON, nhưng payload API là graph thực thi do frontend export; node và input hợp lệ còn phụ thuộc installation đích.
-        </div>
-        <button class="button quiz-reset" aria-label="Thử lại câu 2">↺ Thử lại</button>
-      </div>
+      <!-- Section 4: Takeaways -->
+      <section aria-labelledby="heading-takeaways">
+        <p class="section-label">Tổng kết</p>
+        <h2 class="section-heading" id="heading-takeaways">Điểm cần nhớ</h2>
 
-      <!-- Q3 -->
-      <div class="quiz-card" data-quiz="q3">
-        <p class="quiz-q">3. Node nào trong workflow chuẩn KHÔNG có cổng ra (output port)?</p>
-        <div class="quiz-options" role="list">
-          <button class="quiz-option" data-correct="false" aria-label="Đáp án A">
-            <span class="quiz-option-letter" aria-hidden="true">A</span>
-            <span class="quiz-option-text">KSampler</span>
-          </button>
-          <button class="quiz-option" data-correct="false" aria-label="Đáp án B">
-            <span class="quiz-option-letter" aria-hidden="true">B</span>
-            <span class="quiz-option-text">VAE Decode</span>
-          </button>
-          <button class="quiz-option" data-correct="true" aria-label="Đáp án C">
-            <span class="quiz-option-letter" aria-hidden="true">C</span>
-            <span class="quiz-option-text">Save Image</span>
-          </button>
-        </div>
-        <div class="quiz-feedback correct" id="q3-fb-correct" role="status">
-          ✓ Chính xác! Save Image là điểm cuối (terminal node) — nhận IMAGE và ghi ra file, không có output cho node nào tiếp theo.
-        </div>
-        <div class="quiz-feedback wrong" id="q3-fb-wrong" role="status">
-          Chưa đúng. Save Image là node cuối cùng, nhận IMAGE từ VAE Decode và không có cổng ra nào. KSampler và VAE Decode đều có outputs.
-        </div>
-        <button class="button quiz-reset" aria-label="Thử lại câu 3">↺ Thử lại</button>
-      </div>
-    </section>
+        <ul class="takeaway-list">
+          <li>
+            <span class="takeaway-icon" aria-hidden="true">01</span>
+            <div>
+              <strong>Timestep là nhãn vị trí</strong> — không phải thời gian thực. Nó chỉ đơn giản cho biết model đang ở bước thứ mấy trên trục nhiễu T → 0.
+            </div>
+          </li>
+          <li>
+            <span class="takeaway-icon" aria-hidden="true">02</span>
+            <div>
+              <strong>Sigma là mức noise thực tế</strong> tại timestep đó, đo bằng độ lệch chuẩn Gaussian. σ lớn = nhiều nhiễu = timestep cao.
+            </div>
+          </li>
+          <li>
+            <span class="takeaway-icon" aria-hidden="true">03</span>
+            <div>
+              <strong>Ánh xạ timestep → sigma</strong> phụ thuộc vào scheduler. Cùng timestep, hai scheduler khác nhau có thể cho sigma khác nhau — ảnh hưởng đến chất lượng với ít bước.
+            </div>
+          </li>
+          <li>
+            <span class="takeaway-icon" aria-hidden="true">04</span>
+            <div>
+              <strong>Sampler dùng sigma</strong> để tính chính xác cần khử bao nhiêu noise ở mỗi bước. Hiểu sigma = hiểu vì sao sampler hoạt động như vậy.
+            </div>
+          </li>
+        </ul>
+      </section>
 
-    <!-- ── Takeaways ── -->
-    <section class="takeaway-section shell">
-      <p class="section-index">Tổng kết</p>
-      <h2 class="section-h2">Những điều cần nhớ</h2>
-      <div class="takeaway-list">
-        <div class="takeaway-item">
-          <span class="takeaway-num">01</span>
-          <p class="takeaway-text"><strong>ComfyUI = node-graph.</strong> Mỗi node là một bước xử lý độc lập; dữ liệu chạy theo chiều các đường kết nối (edges).</p>
+      <section aria-labelledby="heading-related">
+        <p class="section-label">Bài liên quan</p>
+        <h2 class="section-heading" id="heading-related">Nối tiếp trục noise</h2>
+        <p class="section-lead">Các bài dưới đây dùng trực tiếp timestep, sigma hoặc thứ tự hình thành chuyển động.</p>
+        <div class="related-grid">
+          <a class="related-card" href="video-generation-part-1-lesson-1.html">
+            <span class="related-tag">Denoising · nền tảng</span>
+            <strong>Diffusion Model &amp; Denoising</strong>
+            <span>Ôn lại vì sao model học dự đoán và loại bỏ noise.</span>
+          </a>
+          <a class="related-card" href="video-generation-part-6-lesson-2.html">
+            <span class="related-tag">Sigma · bài kế tiếp</span>
+            <strong>Scheduler — lịch trình noise</strong>
+            <span>Biến trục liên tục thành danh sách các điểm sigma thực sự.</span>
+          </a>
+          <a class="related-card" href="video-generation-part-3-lesson-2.html">
+            <span class="related-tag">High / low noise · LoRA</span>
+            <strong>High Noise vs Low Noise LoRA</strong>
+            <span>Liên hệ vùng noise với kiểu kiến thức LoRA học được.</span>
+          </a>
         </div>
-        <div class="takeaway-item">
-          <span class="takeaway-num">02</span>
-          <p class="takeaway-text"><strong>Kiểu dữ liệu phải khớp.</strong> MODEL, CLIP, CONDITIONING, LATENT, VAE, IMAGE — mỗi cổng chỉ chấp nhận đúng một kiểu.</p>
-        </div>
-        <div class="takeaway-item">
-          <span class="takeaway-num">03</span>
-          <p class="takeaway-text"><strong>Workflow JSON</strong> lưu toàn bộ sơ đồ. Tham chiếu giữa node dùng cú pháp <code class="inline-mono">["node_id", output_index]</code>.</p>
-        </div>
-        <div class="takeaway-item">
-          <span class="takeaway-num">04</span>
-          <p class="takeaway-text"><strong>API Format</strong> là graph thực thi do frontend export để gửi tới endpoint prompt. Export lại khi đổi version/node thay vì coi JSON canvas là contract API.</p>
-        </div>
-      </div>
-    </section>
+      </section>
 
-    <section class="takeaway-section shell" aria-labelledby="related-heading">
-      <p class="section-index">Bài liên quan</p>
-      <h2 class="section-h2" id="related-heading">Nối graph với pipeline video và vận hành</h2>
-      <p class="section-lead">Các link dưới đây nối theo cơ chế và workflow thật, không chỉ vì có cùng từ khoá.</p>
-      <nav class="related-grid" aria-label="Các bài học liên quan">
-        <a class="related-card" href="video-generation-part-1-lesson-1.html">
-          <span class="related-tag">Nền tảng · latent diffusion</span>
-          <strong>Phần 1 · Bài 1: Diffusion Model</strong>
-          <small>Giải thích vì sao KSampler thao tác latent và conditioning thay vì pixel trực tiếp.</small>
-        </a>
-        <a class="related-card" href="video-generation-part-1-lesson-3.html">
-          <span class="related-tag">Cùng cơ chế · conditioning</span>
-          <strong>Phần 1 · Bài 3: CLIP &amp; Text Encoding</strong>
-          <small>Làm rõ text encoder và embedding trước khi nối output vào sampler của workflow.</small>
-        </a>
-        <a class="related-card" href="video-generation-part-6-lesson-4.html">
-          <span class="related-tag">Ứng dụng tiếp theo · video workflow</span>
-          <strong>Phần 6 · Bài 4: WanVideo trong ComfyUI</strong>
-          <small>Áp dụng cách đọc graph/API format cho workflow video có model và node chuyên biệt.</small>
-        </a>
+      <!-- Lesson nav -->
+      <nav class="lesson-nav" aria-label="Điều hướng bài học">
+        <a class="button" href="video-generation-part-5-lesson-8.html" data-curriculum-prev data-curriculum-title-fallback>← Bài 5.8: Latent Strength &amp; Noise Aug</a>
+        <div class="lesson-nav-meta" data-curriculum-breadcrumb>Sampling / Bài 6.1</div>
+        <a class="button primary" href="video-generation-part-6-lesson-2.html" data-curriculum-next data-curriculum-title-fallback>Bài 6.2: Scheduler →</a>
       </nav>
+    </div><!-- /.lesson-body -->
+
+    <!-- HANDOFF CARD -->
+    <section style="padding:clamp(48px,7vw,80px) 0;border-top:1px solid var(--line);" aria-labelledby="handoff-heading-p2l1">
+      <div class="shell">
+        <div style="display:grid;grid-template-columns:60px 1fr;gap:24px;align-items:start;padding:40px;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);position:relative;overflow:hidden;">
+          <div style="position:absolute;inset:0;background:linear-gradient(135deg,rgba(200,255,61,.05),transparent 60%);pointer-events:none;"></div>
+          <div style="display:flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:50%;background:rgba(200,255,61,.1);color:var(--acid);flex-shrink:0;" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+          <div>
+            <p style="font-family:var(--font-mono);font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin:0 0 8px;">Bài tiếp theo</p>
+            <h2 style="font-size:clamp(1.6rem,3vw,2.4rem);font-weight:900;letter-spacing:-.04em;margin:0 0 16px;color:var(--ink);" id="handoff-heading-p2l1">Scheduler</h2>
+            <p style="color:var(--muted);font-size:.95rem;line-height:1.6;margin:0 0 24px;">Sau khi hiểu timestep/sigma, tiếp theo là Scheduler — thành phần quyết định cách phân bổ các bước trên trajectory noise.</p>
+            <a class="button primary" href="video-generation-part-6-lesson-2.html" data-curriculum-next>Sang Bài 6.2 →</a>
+          </div>
+        </div>
+      </div>
     </section>
   </main>
 
-  <footer class="page-footer shell" role="contentinfo">
-    <div class="page-footer-inner">
-      <span class="footer-meta">Video Gen Lab · Phần 6 — ComfyUI / Workflow · Bài 1</span>
-      <nav class="hero-actions" aria-label="Điều hướng bài học">
-        <a href="index.html" class="button button--sm">← Mục lục</a>
-        <a href="video-generation-part-6-lesson-2.html" class="button button--sm primary">Bài 2 · Custom Node &amp; Manager →</a>
-      </nav>
+  <footer class="site-footer" role="contentinfo">
+    <div class="shell">
+      <span data-curriculum-completion-label>VIDEO GEN LAB &nbsp;·&nbsp; SAMPLING &nbsp;·&nbsp; BÀI 6.1 / TIMESTEP &amp; SIGMA</span>
     </div>
   </footer>
+  <script src="video-generation-navigation.js"></script>
 
   <script>
-    // ── Progress bar ──
-    (function () {
-      var fill = document.getElementById('progress-fill');
-      if (!fill) return;
-      function updateProgress() {
-        var scrollTop = window.scrollY || document.documentElement.scrollTop;
-        var docHeight = document.documentElement.scrollHeight - window.innerHeight;
-        var pct = docHeight > 0 ? Math.min(100, (scrollTop / docHeight) * 100) : 0;
-        fill.style.width = pct + '%';
-      }
-      window.addEventListener('scroll', updateProgress, { passive: true });
+    (() => {
+      'use strict';
+
+      /* ── Reading progress ─────────────────────────────────── */
+      const progressFill = document.getElementById('progress-fill');
+      const updateProgress = () => {
+        const scrollTop = window.scrollY;
+        const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+        progressFill.style.width = docHeight > 0 ? (scrollTop / docHeight * 100) + '%' : '0%';
+      };
+      window.addEventListener('scroll', updateProgress, {passive: true});
       updateProgress();
-    })();
 
-    // ── Controlled API-format experiment (simulation, no GPU request) ──
-    (function () {
-      var output = document.getElementById('experiment-output');
-      var buttons = document.querySelectorAll('.experiment-button');
-      if (!output || !buttons.length) return;
-      var messages = {
-        baseline: 'A / baseline — input thay đổi: không có. So với B, mọi field trừ seed phải giống hệt để quy kết khác biệt cho seed.',
-        seed: 'B / seed test — chỉ sửa inputs.seed: 1042 → 7931. Nếu bố cục khác, ghi seed, prompt hash và version workflow trước khi art direction chọn frame.',
-        bad: 'Không thể quy kết kết quả — seed và prompt cùng đổi. Bước tiếp theo: quay lại baseline, tách thành hai test độc lập rồi so sánh từng biến.'
-      };
-      buttons.forEach(function (button) {
-        button.addEventListener('click', function () {
-          buttons.forEach(function (item) { item.setAttribute('aria-pressed', 'false'); });
-          button.setAttribute('aria-pressed', 'true');
-          output.textContent = messages[button.dataset.experiment];
-        });
-      });
-    })();
+      /* ── Sigma schedule (cosine-like, simplified) ─────────── */
+      // Maps t ∈ [0, 1000] to σ ∈ [0.002, 14.61]
+      const T_MAX = 1000;
+      const SIGMA_MAX = 14.61;
+      const SIGMA_MIN = 0.002;
 
-    // ── Interactive node graph ──
-    (function () {
-      var nodeData = {
-        '1': {
-          name: 'Load Checkpoint',
-          json: {
-            "1": {
-              "class_type": "CheckpointLoaderSimple",
-              "inputs": { "ckpt_name": "v1-5-pruned.safetensors" },
-              "_meta": { "title": "Load Checkpoint" }
-            }
-          },
-          note: 'Outputs: [MODEL, CLIP, VAE] — index 0, 1, 2'
-        },
-        '6': {
-          name: 'CLIP Text Encode',
-          json: {
-            "6": {
-              "class_type": "CLIPTextEncode",
-              "inputs": {
-                "text": "a cat in a forest, photorealistic",
-                "clip": ["1", 1]
-              },
-              "_meta": { "title": "CLIP Text Encode (positive)" }
-            }
-          },
-          note: 'clip: ["1", 1] = output index 1 (CLIP) của node #1'
-        },
-        '3': {
-          name: 'KSampler',
-          json: {
-            "3": {
-              "class_type": "KSampler",
-              "inputs": {
-                "model": ["1", 0],
-                "positive": ["6", 0],
-                "negative": ["7", 0],
-                "latent_image": ["5", 0],
-                "seed": 12345,
-                "steps": 20,
-                "cfg": 7,
-                "sampler_name": "euler",
-                "scheduler": "normal",
-                "denoise": 1.0
-              }
-            }
-          },
-          note: 'model: ["1",0] = MODEL · positive: ["6",0] = CONDITIONING'
-        },
-        '8': {
-          name: 'VAE Decode',
-          json: {
-            "8": {
-              "class_type": "VAEDecode",
-              "inputs": {
-                "samples": ["3", 0],
-                "vae": ["1", 2]
-              }
-            }
-          },
-          note: 'samples: ["3",0] = LATENT từ KSampler · vae: ["1",2] = VAE'
-        },
-        '9': {
-          name: 'Save Image',
-          json: {
-            "9": {
-              "class_type": "SaveImage",
-              "inputs": {
-                "images": ["8", 0],
-                "filename_prefix": "ComfyUI"
-              }
-            }
-          },
-          note: 'Terminal node — không có output. images: ["8",0] = IMAGE'
-        }
-      };
-
-      function syntaxHighlight(obj) {
-        var str = JSON.stringify(obj, null, 2);
-        str = str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        return str.replace(
-          /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
-          function (match) {
-            var cls = 'tok-num';
-            if (/^"/.test(match)) {
-              cls = /:$/.test(match) ? 'tok-key' : 'tok-str';
-            }
-            return '<span class="' + cls + '">' + match + '</span>';
-          }
-        );
+      function tToSigma(t) {
+        // cosine-interpolated schedule
+        const alpha = (t / T_MAX);
+        const sigma = SIGMA_MIN + (SIGMA_MAX - SIGMA_MIN) * Math.sin(alpha * Math.PI / 2);
+        return sigma;
       }
 
-      var panelTitle = document.getElementById('json-panel-title');
-      var panelHint  = document.getElementById('json-panel-hint');
-      var panelBody  = document.getElementById('json-panel-body');
-      var buttons    = document.querySelectorAll('.graph-node');
-      var activeId   = null;
+      /* ── Noise canvas renderer ────────────────────────────── */
+      const SCENE_WIDTH = 160;
+      const SCENE_HEIGHT = 100;
 
-      buttons.forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          var id = btn.dataset.nodeId;
-          if (activeId === id) {
-            btn.setAttribute('aria-pressed', 'false');
-            activeId = null;
-            panelTitle.textContent = 'JSON Node';
-            panelHint.textContent  = 'Chọn node để xem';
-            panelBody.innerHTML    = '<div class="json-panel-empty"><span class="json-panel-empty-icon" aria-hidden="true">◈</span><span>Click vào một node để xem cấu trúc JSON tương ứng</span></div>';
-            return;
-          }
-          buttons.forEach(function (b) { b.setAttribute('aria-pressed', 'false'); });
-          btn.setAttribute('aria-pressed', 'true');
-          activeId = id;
-          var data = nodeData[id];
-          if (!data) return;
-          panelTitle.textContent = data.name;
-          panelHint.textContent  = '#' + id;
-          panelBody.innerHTML    =
-            '<pre>' + syntaxHighlight(data.json) + '</pre>' +
-            '<p class="json-panel-note">' + data.note + '</p>';
+      // Cảnh đích có chủ thể và chiều sâu rõ ràng để người học quan sát
+      // thứ tự hình thành: bố cục → silhouette → ánh sáng/texture.
+      function drawClean(ctx) {
+        const w = ctx.canvas.width;
+        const h = ctx.canvas.height;
+        const sky = ctx.createLinearGradient(0, 0, 0, h);
+        sky.addColorStop(0, '#07131f');
+        sky.addColorStop(.62, '#174052');
+        sky.addColorStop(1, '#d56938');
+        ctx.fillStyle = sky;
+        ctx.fillRect(0, 0, w, h);
+
+        ctx.fillStyle = '#f4d98b';
+        ctx.beginPath();
+        ctx.arc(128, 23, 9, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#0b2631';
+        ctx.beginPath();
+        ctx.moveTo(0, 72); ctx.lineTo(28, 62); ctx.lineTo(55, 69); ctx.lineTo(78, 60);
+        ctx.lineTo(112, 70); ctx.lineTo(w, 63); ctx.lineTo(w, h); ctx.lineTo(0, h); ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = '#121b20';
+        ctx.beginPath();
+        ctx.moveTo(12, 76); ctx.lineTo(48, 50); ctx.lineTo(75, 75); ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = '#e7e0c9';
+        ctx.fillRect(35, 31, 12, 36);
+        ctx.fillStyle = '#c64f32';
+        ctx.fillRect(33, 27, 16, 7);
+        ctx.beginPath();
+        ctx.moveTo(32, 27); ctx.lineTo(41, 20); ctx.lineTo(50, 27); ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#ffe981';
+        ctx.fillRect(36, 28, 10, 4);
+        const beam = ctx.createLinearGradient(45, 30, 122, 43);
+        beam.addColorStop(0, 'rgba(255,235,137,.72)');
+        beam.addColorStop(1, 'rgba(255,235,137,0)');
+        ctx.fillStyle = beam;
+        ctx.beginPath();
+        ctx.moveTo(46, 28); ctx.lineTo(136, 38); ctx.lineTo(46, 34); ctx.closePath();
+        ctx.fill();
+
+        ctx.strokeStyle = 'rgba(196,239,242,.75)';
+        ctx.lineWidth = 1.5;
+        for (let i = 0; i < 4; i++) {
+          ctx.beginPath();
+          ctx.moveTo(66 + i * 21, 76 + (i % 2) * 5);
+          ctx.quadraticCurveTo(76 + i * 21, 69 + (i % 2) * 5, 87 + i * 21, 76 + (i % 2) * 5);
+          ctx.stroke();
+        }
+      }
+
+      // Draw noisy version by blending clean + gaussian noise
+      const cleanBuf = document.createElement('canvas');
+      cleanBuf.width = SCENE_WIDTH; cleanBuf.height = SCENE_HEIGHT;
+      drawClean(cleanBuf.getContext('2d'));
+
+      function drawNoisy(ctx, sigma) {
+        const w = ctx.canvas.width;
+        const h = ctx.canvas.height;
+        ctx.drawImage(cleanBuf, 0, 0, w, h);
+        const imageData = ctx.getImageData(0, 0, w, h);
+        const data = imageData.data;
+        const strength = Math.min(sigma / SIGMA_MAX, 1);
+
+        // Seeded-ish noise using sin for determinism per sigma level
+        const seed = Math.round(sigma * 100);
+        for (let i = 0; i < data.length; i += 4) {
+          // pseudo-random via sin
+          const n = Math.sin(i * 127.1 + seed * 311.7) * 43758.5453;
+          const noise = (n - Math.floor(n)) * 255;
+          data[i]   = data[i] * (1 - strength) + noise * strength;
+          data[i+1] = data[i+1] * (1 - strength) + noise * strength;
+          data[i+2] = data[i+2] * (1 - strength) + noise * strength;
+        }
+        ctx.putImageData(imageData, 0, 0);
+      }
+
+      const ctxCurrent = document.getElementById('canvas-current').getContext('2d');
+      const ctxClean   = document.getElementById('canvas-clean').getContext('2d');
+      drawClean(ctxClean);
+
+      /* ── Timeline vis ─────────────────────────────────────── */
+      const visFill  = document.getElementById('vis-fill');
+      const visThumb = document.getElementById('vis-thumb');
+
+      function updateTimeline(t) {
+        // t = T → left side (noise); t = 0 → right side (clean)
+        const pct = ((T_MAX - t) / T_MAX) * 100;
+        visFill.style.width  = pct + '%';
+        visThumb.style.left  = pct + '%';
+      }
+
+      /* ── Readout descriptions ─────────────────────────────── */
+      function readoutText(t, sigma) {
+        if (t >= 900) return `<strong>Giai đoạn: Noise tối đa.</strong> Model chỉ thấy nhiễu Gaussian thuần. σ = ${sigma} — sampler cần khử lượng noise khổng lồ ở bước này.`;
+        if (t >= 700) return `<strong>Giai đoạn: Nhiều noise.</strong> Hình dạng tổng thể bắt đầu ảnh hưởng đến output nhưng chi tiết hoàn toàn bị che. σ = ${sigma}.`;
+        if (t >= 500) return `<strong>Giai đoạn: Trung gian.</strong> Cấu trúc lớn của ảnh đang hình thành. σ = ${sigma} — sampler cân bằng giữa khử noise và bảo toàn cấu trúc.`;
+        if (t >= 200) return `<strong>Giai đoạn: Ít noise.</strong> Các chi tiết tinh bắt đầu xuất hiện. σ = ${sigma} — mỗi bước giờ tinh chỉnh texture và edge.`;
+        if (t > 0)   return `<strong>Giai đoạn: Hoàn thiện.</strong> Gần như không còn noise. σ = ${sigma} — những bước cuối quyết định sắc nét và chi tiết nhỏ nhất.`;
+        return `<strong>t = 0: Ảnh sạch.</strong> Quá trình denoising hoàn tất. σ ≈ ${sigma} — model đã khử toàn bộ nhiễu.`;
+      }
+
+      /* ── Slider binding ───────────────────────────────────── */
+      const slider   = document.getElementById('slider-t');
+      const outT     = document.getElementById('out-t');
+      const outSigma = document.getElementById('out-sigma');
+      const readout  = document.getElementById('readout');
+      const canvasLabel = document.getElementById('canvas-current-label');
+      const currentPanel = document.getElementById('canvas-current').closest('.noise-panel');
+      const stageButtons = [...document.querySelectorAll('.stage-button')];
+      const playButton = document.getElementById('play-denoise');
+      const playLabel = document.getElementById('play-label');
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+      let animationFrame = 0;
+      let lastStage = '';
+
+      function stageFor(t) {
+        if (t >= 875) return 'noise';
+        if (t >= 625) return 'layout';
+        if (t >= 375) return 'subject';
+        if (t > 0) return 'detail';
+        return 'clean';
+      }
+
+      function syncStageButtons(t) {
+        let closest = stageButtons[0];
+        stageButtons.forEach((button) => {
+          if (Math.abs(Number(button.dataset.t) - t) < Math.abs(Number(closest.dataset.t) - t)) closest = button;
+        });
+        stageButtons.forEach((button) => button.setAttribute('aria-pressed', String(button === closest)));
+      }
+
+      function stopPlayback() {
+        if (animationFrame) cancelAnimationFrame(animationFrame);
+        animationFrame = 0;
+        playButton.setAttribute('aria-pressed', 'false');
+        playLabel.textContent = 'Chạy T → 0';
+      }
+
+      function onSliderChange() {
+        const t     = parseInt(slider.value, 10);
+        const sigma = tToSigma(t).toFixed(2);
+
+        outT.textContent     = t;
+        outSigma.textContent = sigma;
+        slider.setAttribute('aria-valuenow', t);
+        slider.setAttribute('aria-valuetext', `timestep ${t}, sigma ${sigma}`);
+
+        canvasLabel.textContent = `t = ${t}`;
+        readout.innerHTML = readoutText(t, sigma);
+
+        updateTimeline(t);
+        drawNoisy(ctxCurrent, parseFloat(sigma));
+        syncStageButtons(t);
+
+        const nextStage = stageFor(t);
+        if (lastStage && nextStage !== lastStage) {
+          currentPanel.classList.remove('is-transitioning');
+          void currentPanel.offsetWidth;
+          currentPanel.classList.add('is-transitioning');
+        }
+        lastStage = nextStage;
+      }
+
+      slider.addEventListener('input', () => {
+        stopPlayback();
+        onSliderChange();
+      });
+      stageButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+          stopPlayback();
+          slider.value = button.dataset.t;
+          onSliderChange();
         });
       });
-    })();
 
-    // ── Quiz logic ──
-    (function () {
-      document.querySelectorAll('.quiz-card').forEach(function (card) {
-        var options  = card.querySelectorAll('.quiz-option');
-        var fbCorrect = card.querySelector('.quiz-feedback.correct');
-        var fbWrong   = card.querySelector('.quiz-feedback.wrong');
-        var resetBtn  = card.querySelector('.quiz-reset');
-        var answered  = false;
+      playButton.addEventListener('click', () => {
+        if (animationFrame) {
+          stopPlayback();
+          return;
+        }
+        if (reducedMotion.matches) {
+          const milestones = [1000, 750, 500, 250, 0];
+          const currentIndex = milestones.indexOf(Number(slider.value));
+          slider.value = milestones[(currentIndex + 1 + milestones.length) % milestones.length];
+          onSliderChange();
+          playLabel.textContent = 'Mốc tiếp theo';
+          return;
+        }
+        const start = performance.now();
+        const duration = 5200;
+        playButton.setAttribute('aria-pressed', 'true');
+        playLabel.textContent = 'Tạm dừng';
+        slider.value = 1000;
+        const tick = (now) => {
+          const progress = Math.min((now - start) / duration, 1);
+          slider.value = Math.round((1 - progress) * 1000 / 10) * 10;
+          onSliderChange();
+          if (progress < 1) animationFrame = requestAnimationFrame(tick);
+          else stopPlayback();
+        };
+        animationFrame = requestAnimationFrame(tick);
+      });
 
-        options.forEach(function (opt) {
-          opt.addEventListener('click', function () {
-            if (answered) return;
-            answered = true;
-            var isCorrect = opt.dataset.correct === 'true';
-            options.forEach(function (o) {
-              o.disabled = true;
-              if (o.dataset.correct === 'true') {
-                o.dataset.state = 'correct';
-              } else if (o === opt && !isCorrect) {
-                o.dataset.state = 'wrong';
-              }
-            });
-            if (isCorrect) { fbCorrect.classList.add('show'); }
-            else           { fbWrong.classList.add('show'); }
-            resetBtn.classList.add('show');
+      const answerButtons = [...document.querySelectorAll('.answer-button')];
+      const answerFeedback = document.getElementById('answer-feedback');
+      answerButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+          const isCorrect = button.dataset.answer === 'early';
+          answerButtons.forEach((item) => {
+            item.dataset.state = item === button ? (isCorrect ? 'correct' : 'wrong') : '';
+            item.setAttribute('aria-pressed', String(item === button));
           });
-        });
-
-        resetBtn.addEventListener('click', function () {
-          answered = false;
-          options.forEach(function (o) {
-            o.disabled = false;
-            delete o.dataset.state;
-          });
-          fbCorrect.classList.remove('show');
-          fbWrong.classList.remove('show');
-          resetBtn.classList.remove('show');
+          answerFeedback.innerHTML = isCorrect
+            ? '<strong>Chính xác.</strong> Ở sigma cao, sampler đang quyết định khối lớn và vị trí chủ thể; thay đổi lúc này có thể tái bố cục toàn cảnh.'
+            : '<strong>Chưa tối ưu.</strong> Khi sigma đã thấp, cấu trúc lớn gần như khóa lại; các bước còn lại chủ yếu làm rõ cạnh, ánh sáng và texture.';
         });
       });
+      onSliderChange(); // init
     })();
   </script>
 </body>

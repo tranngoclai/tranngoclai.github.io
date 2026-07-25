@@ -1,0 +1,737 @@
+<!doctype html>
+<html lang="vi" data-curriculum-id="ip-adapter">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Bài học trực quan về vị trí IP-Adapter đưa image embedding vào attention và cách cân bằng adapter strength.">
+  <title>IP-Adapter — Inject image embedding | Video Generation Study</title>
+  <link rel="icon" href="video-generation-favicon.svg" type="image/svg+xml">
+  <script src="video-generation-curriculum.js"></script>
+  <script src="video-generation-theme.js"></script>
+  <link rel="stylesheet" href="video-generation-design-system.css">
+  <style>
+    .hero {
+      padding: clamp(68px, 10vw, 124px) 0 70px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .eyebrow,
+    .section-index,
+    .stage-label,
+    .meter-label,
+    .fact-label {
+      font-family: var(--font-mono);
+      font-size: .76rem;
+      font-weight: 800;
+      letter-spacing: .11em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow,
+    .section-index { color: var(--cyan); }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.18fr) minmax(300px, .82fr);
+      gap: clamp(44px, 8vw, 96px);
+      align-items: end;
+    }
+
+    h1 {
+      max-width: 850px;
+      margin: 18px 0 24px;
+      font-size: clamp(3rem, 8vw, 7.4rem);
+      line-height: .88;
+      letter-spacing: -.075em;
+    }
+
+    .hero-lead {
+      max-width: 680px;
+      margin: 0;
+      color: var(--muted);
+      font-size: clamp(1.05rem, 2vw, 1.3rem);
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 32px;
+    }
+
+    .hero-note {
+      padding: 26px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: 12px 12px 0 color-mix(in srgb, var(--cyan) 16%, transparent);
+    }
+
+    .hero-note p { margin: 10px 0 0; color: var(--muted); }
+    .hero-note strong { color: var(--ink); }
+
+    main section { padding: clamp(72px, 9vw, 112px) 0; }
+    main section + section { border-top: 1px solid var(--line); }
+
+    .section-heading {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(250px, .45fr);
+      gap: 32px;
+      align-items: end;
+      margin-bottom: 44px;
+    }
+
+    .section-heading h2 {
+      max-width: 760px;
+      margin: 8px 0 0;
+      font-size: clamp(2rem, 5vw, 4.4rem);
+      line-height: .98;
+      letter-spacing: -.055em;
+    }
+
+    .section-heading p { margin: 0; color: var(--muted); }
+
+    .definition {
+      border-left: 5px solid var(--acid-fill);
+      padding: 26px 30px;
+      background: var(--panel);
+      font-size: clamp(1.08rem, 2vw, 1.32rem);
+    }
+
+    .definition p { max-width: 900px; margin: 0; }
+
+    .injection-map {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--panel);
+    }
+
+    .stage {
+      position: relative;
+      min-height: 210px;
+      padding: 26px 24px;
+      border-right: 1px solid var(--line);
+    }
+
+    .stage:last-child { border-right: 0; }
+    .stage::after {
+      content: "→";
+      position: absolute;
+      z-index: 1;
+      right: -17px;
+      top: 48%;
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      background: var(--night);
+      color: var(--cyan);
+      font-family: var(--font-mono);
+      font-weight: 900;
+    }
+
+    .stage:last-child::after { content: none; }
+    .stage-label { color: var(--dim); }
+    .stage h3 { margin: 30px 0 10px; font-size: 1.12rem; line-height: 1.2; }
+    .stage p { margin: 0; color: var(--muted); font-size: .92rem; }
+    .stage.inject { background: color-mix(in srgb, var(--cyan) 9%, var(--panel)); }
+    .stage.inject .stage-label { color: var(--cyan); }
+
+    .attention-split {
+      margin-top: 24px;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 16px;
+      align-items: stretch;
+    }
+
+    .signal {
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--panel);
+    }
+
+    .signal h3 { margin: 0 0 6px; font-size: 1rem; }
+    .signal p { margin: 0; color: var(--muted); font-size: .92rem; }
+    .merge-mark { align-self: center; color: var(--acid); font-size: 1.7rem; font-weight: 900; }
+
+    .lab {
+      display: grid;
+      grid-template-columns: minmax(0, .85fr) minmax(320px, 1.15fr);
+      gap: clamp(28px, 6vw, 70px);
+      padding: clamp(26px, 5vw, 52px);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: 14px 14px 0 color-mix(in srgb, var(--acid-fill) 12%, transparent);
+    }
+
+    .lab-copy h3 { margin: 8px 0 14px; font-size: clamp(1.55rem, 3vw, 2.5rem); line-height: 1.05; }
+    .lab-copy p { margin: 0; color: var(--muted); }
+
+    .control-group { margin-top: 30px; }
+    .control-line { display: flex; justify-content: space-between; gap: 16px; align-items: baseline; }
+    .control-line label { font-weight: 800; }
+    .strength-value { color: var(--acid); font-family: var(--font-mono); font-size: 1.2rem; font-weight: 900; }
+    input[type="range"] { width: 100%; min-height: 44px; margin-top: 10px; accent-color: var(--acid); }
+    .range-ends { display: flex; justify-content: space-between; color: var(--dim); font-family: var(--font-mono); font-size: .74rem; }
+    .reset-button { margin-top: 22px; }
+
+    .lab-result {
+      min-width: 0;
+      padding: 28px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--night);
+    }
+
+    .result-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; align-items: baseline; }
+    .result-heading h3 { margin: 0; font-size: 1.25rem; }
+    .result-zone { color: var(--cyan); font-family: var(--font-mono); font-size: .78rem; font-weight: 900; letter-spacing: .07em; text-transform: uppercase; }
+    .result-summary { min-height: 54px; margin: 16px 0 24px; color: var(--muted); }
+
+    .meter-list { display: grid; gap: 18px; }
+    .meter-row { display: grid; grid-template-columns: 145px 1fr auto; gap: 14px; align-items: center; }
+    .meter-label { color: var(--muted); }
+    .meter-track { height: 9px; overflow: hidden; border-radius: 999px; background: var(--panel-2); }
+    .meter-fill { height: 100%; width: 50%; border-radius: inherit; background: var(--cyan-fill); transition: width .18s ease; }
+    .meter-row:nth-child(2) .meter-fill { background: var(--acid-fill); }
+    .meter-row:nth-child(3) .meter-fill { background: var(--orange); }
+    .meter-number { width: 3ch; color: var(--ink); font-family: var(--font-mono); text-align: right; }
+
+    .decision-note {
+      margin-top: 24px;
+      padding-top: 22px;
+      border-top: 1px solid var(--line);
+      color: var(--ink);
+    }
+
+    .facts {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .fact { padding: 28px; background: var(--panel); border-right: 1px solid var(--line); }
+    .fact:last-child { border-right: 0; }
+    .fact-label { color: var(--cyan); }
+    .fact h3 { margin: 26px 0 8px; font-size: 1.1rem; }
+    .fact p { margin: 0; color: var(--muted); }
+
+    .brief-grid,
+    .related-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .brief-card,
+    .related-card,
+    .source-note {
+      min-width: 0;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--panel);
+    }
+    .brief-card h3,
+    .related-card h3 { margin: 8px 0; font-size: 1.06rem; line-height: 1.25; }
+    .brief-card p,
+    .related-card p,
+    .source-note p { margin: 0; color: var(--muted); font-size: .94rem; }
+    .brief-card .fact-label { color: var(--cyan); }
+    .brief-card.wide { grid-column: 1 / -1; border-left: 5px solid var(--acid-fill); }
+    .experiment-list { margin: 12px 0 0; padding-left: 1.2rem; color: var(--muted); }
+    .experiment-list li + li { margin-top: 6px; }
+
+    .related-card { display: block; min-height: 150px; color: inherit; text-decoration: none; transition: transform .2s ease, border-color .2s ease, background .2s ease; }
+    .related-card:hover { transform: translateY(-3px); border-color: var(--cyan); background: var(--panel-2); }
+    .related-card .section-index { font-size: .7rem; }
+    .source-note { margin-top: 24px; }
+    .source-note a { display: inline-flex; align-items: center; min-height: 44px; color: var(--cyan); font-weight: 800; }
+    .brand { min-height: 44px; align-items: center; }
+
+    .lesson-nav { display: flex; flex-wrap: wrap; gap: 12px; }
+    .lesson-nav .button:last-child { margin-left: auto; }
+
+    details {
+      margin-top: 28px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--panel);
+    }
+
+    summary { min-height: 56px; padding: 16px 20px; cursor: pointer; font-weight: 800; }
+    details p { margin: 0; padding: 0 20px 22px; color: var(--muted); }
+
+    .takeaway {
+      display: grid;
+      grid-template-columns: minmax(0, .75fr) minmax(300px, 1.25fr);
+      gap: 40px;
+      align-items: start;
+    }
+
+    .takeaway h2 { margin: 8px 0 0; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; letter-spacing: -.05em; }
+    .takeaway-list { margin: 0; padding: 0; list-style: none; counter-reset: point; }
+    .takeaway-list li { counter-increment: point; display: grid; grid-template-columns: 42px 1fr; gap: 14px; padding: 20px 0; border-bottom: 1px solid var(--line); }
+    .takeaway-list li::before { content: "0" counter(point); color: var(--cyan); font-family: var(--font-mono); font-weight: 900; }
+
+    footer { padding: 34px 0 50px; border-top: 1px solid var(--line); color: var(--muted); }
+    .footer-inner { display: flex; justify-content: space-between; gap: 20px; align-items: center; }
+    footer p { margin: 0; }
+
+    @media (max-width: 900px) {
+      .hero-grid,
+      .section-heading,
+      .lab,
+      .takeaway { grid-template-columns: 1fr; }
+      .hero-note { max-width: 600px; }
+      .injection-map { grid-template-columns: 1fr 1fr; }
+      .stage:nth-child(2) { border-right: 0; }
+      .stage:nth-child(-n + 2) { border-bottom: 1px solid var(--line); }
+      .stage:nth-child(2)::after { content: none; }
+      .facts { grid-template-columns: 1fr; }
+      .fact { border-right: 0; border-bottom: 1px solid var(--line); }
+      .fact:last-child { border-bottom: 0; }
+      .brief-grid,
+      .related-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 640px) {
+      .topnav { display: none; }
+      .hero { padding-top: 54px; }
+      h1 { font-size: clamp(3rem, 18vw, 5rem); }
+      .hero-actions .button { width: 100%; }
+      .injection-map { grid-template-columns: 1fr; }
+      .stage { min-height: 0; border-right: 0; border-bottom: 1px solid var(--line); }
+      .stage:nth-child(3) { border-bottom: 1px solid var(--line); }
+      .stage::after { content: none; }
+      .attention-split { grid-template-columns: 1fr; }
+      .merge-mark { justify-self: center; transform: rotate(90deg); }
+      .lab { padding: 22px; }
+      .lab-result { padding: 22px 18px; }
+      .meter-row { grid-template-columns: 1fr auto; }
+      .meter-track { grid-column: 1 / -1; grid-row: 2; }
+      .footer-inner { align-items: flex-start; flex-direction: column; }
+      .lesson-nav { width: 100%; }
+      .lesson-nav .button { flex: 1 1 100%; }
+      .lesson-nav .button:last-child { margin-left: 0; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .related-card { transition: none; }
+      .related-card:hover { transform: none; }
+      .meter-fill { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Bỏ qua điều hướng</a>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="index.html" aria-label="Video Generation Study — Trang chủ">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span>Video Generation Study</span>
+      </a>
+      <nav class="topnav" aria-label="Điều hướng bài học">
+        <a href="video-generation-part-5-lesson-3.html" data-curriculum-prev>← Bài 5.3</a>
+        <a href="index.html" data-curriculum-home>Trang chủ</a>
+        <a href="video-generation-part-5-lesson-5.html" data-curriculum-next>Bài 5.5 →</a>
+      </nav>
+      <div class="progress-track" aria-hidden="true"><div class="progress-fill"></div></div>
+    </div>
+  </header>
+
+  <main id="main-content">
+    <section class="hero">
+      <div class="shell hero-grid">
+        <div>
+          <div class="eyebrow" data-curriculum-hero-label>CONDITIONING · BÀI 5.4 · STYLE/IMAGE</div>
+          <h1>IP-Adapter</h1>
+          <p class="hero-lead">Ảnh tham chiếu không đi thẳng vào latent. IP-Adapter biến nó thành một luồng conditioning riêng, rồi đưa luồng đó vào attention để model “nhìn” ảnh trong lúc denoise.</p>
+          <div class="hero-actions">
+            <a class="button primary" href="#injection">Xem điểm inject</a>
+            <a class="button" href="#strength-lab">Thử adapter strength</a>
+          </div>
+          <!-- OUTPUT ARTIFACT BADGE -->
+          <div role="note" style="display:flex;align-items:center;gap:10px;padding:10px 16px;background:rgba(200,255,61,.08);border:1px solid rgba(200,255,61,.25);border-radius:10px;margin-top:24px;font-size:.85rem;flex-wrap:wrap;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            <span style="font-family:var(--font-mono);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--acid);">Đầu ra bài học:</span>
+            <span style="color:var(--muted);">Giải thích IP-Adapter conditioning mechanism và phân biệt nó với identity conditioning</span>
+          </div>
+        </div>
+        <aside class="hero-note" aria-label="Mục tiêu bài học">
+          <div class="eyebrow">Mục tiêu</div>
+          <p>Sau bài này, bạn có thể <strong>chỉ ra vị trí image conditioning được inject</strong> và giải thích vì sao tăng strength làm ảnh tham chiếu mạnh hơn nhưng giảm tự do của prompt.</p>
+        </aside>
+      </div>
+    </section>
+
+    <section aria-labelledby="definition-title">
+      <div class="shell">
+        <div class="section-heading">
+          <div>
+            <div class="section-index">01 · Vai trò</div>
+            <h2 id="definition-title">Một “cổng phụ” cho ảnh tham chiếu</h2>
+          </div>
+          <p>Text prompt và reference image là hai nguồn tín hiệu khác nhau. IP-Adapter giữ chúng thành hai nhánh conditioning để ta điều chỉnh riêng.</p>
+        </div>
+        <div class="definition">
+          <p><strong>IP-Adapter</strong> nhận image embedding từ vision encoder, chiếu embedding đó thành các token phù hợp với model, rồi bổ sung một nhánh image key/value vào cross-attention của backbone denoising. Trong thiết kế gốc, diffusion model nền được giữ đóng băng; khả năng dùng trong video workflow là hành vi của implementation/model cụ thể, không phải kết luận tự động từ paper T2I.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="injection" aria-labelledby="injection-title">
+      <div class="shell">
+        <div class="section-heading">
+          <div>
+            <div class="section-index">02 · Điểm inject</div>
+            <h2 id="injection-title">Embedding đi vào attention, không đi vào pixel</h2>
+          </div>
+          <p>Đọc sơ đồ từ trái sang phải. Điểm quan trọng là bước 03: projected image tokens tham gia attention khi backbone đang dự đoán noise.</p>
+        </div>
+
+        <div class="injection-map" role="img" aria-label="Ảnh tham chiếu được vision encoder mã hóa thành image embedding, adapter projection đổi thành image tokens, rồi các token này được inject vào attention của denoiser.">
+          <article class="stage">
+            <div class="stage-label">01 · Input</div>
+            <h3>Reference image</h3>
+            <p>Ảnh mang subject, bố cục, màu hoặc phong cách cần tham chiếu.</p>
+          </article>
+          <article class="stage">
+            <div class="stage-label">02 · Encode</div>
+            <h3>Vision encoder</h3>
+            <p>Nén đặc trưng thị giác thành image embedding có ý nghĩa ngữ nghĩa.</p>
+          </article>
+          <article class="stage inject">
+            <div class="stage-label">03 · Inject</div>
+            <h3>Adapter projection → attention</h3>
+            <p>Chiếu embedding thành image tokens và thêm nhánh key/value ảnh vào attention.</p>
+          </article>
+          <article class="stage">
+            <div class="stage-label">04 · Denoise</div>
+            <h3>U-Net / DiT backbone</h3>
+            <p>Dự đoán noise với cả tín hiệu text và tín hiệu ảnh ở từng bước sampling.</p>
+          </article>
+        </div>
+
+        <div class="attention-split" aria-label="Hai luồng conditioning cùng tác động lên attention">
+          <div class="signal">
+            <h3>Text tokens</h3>
+            <p>Prompt mô tả điều bạn muốn model tạo.</p>
+          </div>
+          <div class="merge-mark" aria-hidden="true">+</div>
+          <div class="signal">
+            <h3>Image tokens × strength</h3>
+            <p>Reference quy định mức độ model nên bám vào tín hiệu thị giác.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="strength-lab" aria-labelledby="lab-title">
+      <div class="shell">
+        <div class="section-heading">
+          <div>
+            <div class="section-index">03 · Strength lab</div>
+            <h2 id="lab-title">Strength là núm cân bằng, không phải điểm chất lượng</h2>
+          </div>
+          <p>Dùng phím mũi tên khi range được focus. Đây là <strong>mô phỏng bằng đơn vị tương đối</strong> để đọc trade-off, không phải benchmark hay phạm vi hợp lệ của một checkpoint cụ thể.</p>
+        </div>
+
+        <div class="lab">
+          <div class="lab-copy">
+            <div class="eyebrow">Tình huống</div>
+            <h3>“Nhân vật từ reference chạy dưới mưa neon”</h3>
+            <p>Reference cung cấp diện mạo; prompt yêu cầu hành động và bối cảnh mới. Hãy tăng hoặc giảm strength để xem hai nguồn tín hiệu cạnh tranh ra sao.</p>
+            <div class="control-group">
+              <div class="control-line">
+                <label for="strength">Adapter strength</label>
+                <output class="strength-value" id="strength-value" for="strength">0.60</output>
+              </div>
+              <input id="strength" type="range" min="0" max="1" step="0.05" value="0.60" aria-describedby="strength-help">
+              <div class="range-ends" aria-hidden="true"><span>0 · prompt tự do</span><span>1 · reference mạnh</span></div>
+              <p id="strength-help">Mô phỏng bằng đơn vị tương đối. Điều chỉnh bằng chuột, chạm, hoặc phím mũi tên; giá trị mặc định 0.60.</p>
+              <button class="button reset-button" id="reset-strength" type="button">Đặt lại 0.60</button>
+            </div>
+          </div>
+
+          <div class="lab-result">
+            <div class="result-heading">
+              <h3>Kết quả dự kiến</h3>
+              <span class="result-zone" id="result-zone">Cân bằng</span>
+            </div>
+            <p class="result-summary" id="result-summary" aria-live="polite">Đặc trưng thị giác từ reference đủ rõ, trong khi prompt vẫn còn không gian cho chuyển động và bối cảnh mới.</p>
+            <div class="meter-list" aria-label="Ba chỉ báo trade-off">
+              <div class="meter-row">
+                <span class="meter-label">Bám reference</span>
+                <div class="meter-track" aria-hidden="true"><div class="meter-fill" id="reference-meter"></div></div>
+                <span class="meter-number" id="reference-number">60</span>
+              </div>
+              <div class="meter-row">
+                <span class="meter-label">Tự do prompt</span>
+                <div class="meter-track" aria-hidden="true"><div class="meter-fill" id="prompt-meter"></div></div>
+                <span class="meter-number" id="prompt-number">58</span>
+              </div>
+              <div class="meter-row">
+                <span class="meter-label">Rủi ro xung đột</span>
+                <div class="meter-track" aria-hidden="true"><div class="meter-fill" id="risk-meter"></div></div>
+                <span class="meter-number" id="risk-number">24</span>
+              </div>
+            </div>
+            <p class="decision-note" id="decision-note"><strong>Quyết định:</strong> Bắt đầu quanh vùng giữa, rồi chỉ tăng khi đặc trưng reference bị mất.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="reasoning-title">
+      <div class="shell">
+        <div class="section-heading">
+          <div>
+            <div class="section-index">04 · Cách suy luận</div>
+            <h2 id="reasoning-title">Chẩn đoán output trước khi xoay núm</h2>
+          </div>
+          <p>Strength không có một con số “đúng” cho mọi model. Hãy quan sát loại sai lệch rồi chỉnh theo hướng có chủ đích.</p>
+        </div>
+        <div class="facts">
+          <article class="fact">
+            <div class="fact-label">Nếu quá thấp</div>
+            <h3>Subject bị trôi</h3>
+            <p>Output làm đúng prompt nhưng mất màu sắc, silhouette hoặc đặc trưng thị giác quan trọng từ reference. Tăng từng bước nhỏ.</p>
+          </article>
+          <article class="fact">
+            <div class="fact-label">Nếu vừa đủ</div>
+            <h3>Reference rõ, motion còn sống</h3>
+            <p>Đặc trưng thị giác cần giữ vẫn hiện diện, đồng thời prompt còn điều khiển hành động, góc máy và bối cảnh.</p>
+          </article>
+          <article class="fact">
+            <div class="fact-label">Nếu quá cao</div>
+            <h3>Reference lấn prompt</h3>
+            <p>Output bám pose hoặc bố cục cũ quá chặt, chuyển động giảm, hoặc xuất hiện artifact khi hai điều kiện mâu thuẫn.</p>
+          </article>
+        </div>
+        <details>
+          <summary>Tại sao cùng strength nhưng workflow khác lại cho kết quả khác?</summary>
+          <p>Scale thực tế còn phụ thuộc vision encoder, adapter checkpoint, vị trí/lớp attention được áp dụng, model nền, CFG và độ tương thích giữa prompt với reference. Vì vậy hãy xem strength là giá trị tương đối trong cùng một workflow và so sánh bằng các lần chạy có kiểm soát.</p>
+        </details>
+      </div>
+    </section>
+
+    <section id="production-brief" aria-labelledby="production-title">
+      <div class="shell">
+        <div class="section-heading">
+          <div>
+            <div class="section-index">05 · Production brief</div>
+            <h2 id="production-title">A/B test để giữ “đúng nhân vật”, không khóa cả shot</h2>
+          </div>
+          <p>Case giả định này mô tả quy trình đánh giá, không phải preset phổ quát. Thay adapter, base model hoặc node có thể làm scale và lỗi thay đổi.</p>
+        </div>
+        <div class="brief-grid">
+          <article class="brief-card wide">
+            <div class="fact-label">Mục tiêu · bối cảnh</div>
+            <h3>Teaser 5 giây cho sản phẩm thời trang</h3>
+            <p>Nhân vật phải giữ được áo khoác và bảng màu từ key visual, nhưng cần chạy qua phố mưa neon để biên tập thành một shot dọc cho mạng xã hội.</p>
+          </article>
+          <article class="brief-card">
+            <div class="fact-label">Input / workflow</div>
+            <h3>Reference + prompt motion</h3>
+            <p>Một ảnh key visual đã có quyền sử dụng; workflow I2V có node IP-Adapter tương thích với base model. Prompt mô tả chạy, camera tracking và mưa neon. Kiểm tra model card/node docs để biết đúng encoder và adapter checkpoint.</p>
+          </article>
+          <article class="brief-card">
+            <div class="fact-label">Giữ cố định</div>
+            <h3>Một thay đổi mỗi lần</h3>
+            <p>Giữ reference, seed, prompt, negative prompt, resolution, duration, sampler/steps và CFG cố định trong một lượt so sánh; chỉ đổi adapter strength.</p>
+          </article>
+          <article class="brief-card">
+            <div class="fact-label">Biến thử nghiệm</div>
+            <h3>Ba mức strength</h3>
+            <p>Chạy A/B/C ở ba mức thấp–giữa–cao do workflow đó hỗ trợ; ghi version model, adapter, node và GPU. Không chuyển con số này sang checkpoint khác.</p>
+          </article>
+          <article class="brief-card">
+            <div class="fact-label">Ràng buộc</div>
+            <h3>Ngân sách render</h3>
+            <p>Ví dụ: tối đa 12 phút cho ba preview trên GPU 24 GB VRAM. Đây là giới hạn sản xuất giả định, không phải yêu cầu VRAM hay benchmark của IP-Adapter.</p>
+          </article>
+          <article class="brief-card">
+            <div class="fact-label">Đánh giá / fail signal</div>
+            <h3>Chọn shot, không chọn số</h3>
+            <ul class="experiment-list">
+              <li>Đạt: áo khoác và palette vẫn nhận ra; motion/camera đọc được; không lỗi vùng mặt hoặc tay đáng chú ý.</li>
+              <li>Thất bại thấp: áo hoặc palette trôi. Thất bại cao: pose key visual bám cứng, chuyển động nghèo hoặc prompt bị bỏ qua.</li>
+              <li>Bước tiếp: chỉnh một nấc strength rồi render lại cùng seed; nếu lỗi lặp ở mọi mức, kiểm tra reference, adapter–base model compatibility hoặc giảm mâu thuẫn giữa prompt và ảnh.</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="takeaway-title">
+      <div class="shell takeaway">
+        <div>
+            <div class="section-index">06 · Ghi nhớ</div>
+          <h2 id="takeaway-title">Một mental model đủ dùng</h2>
+        </div>
+        <ol class="takeaway-list">
+          <li><span>IP-Adapter không chép pixel vào latent; nó tạo image tokens từ embedding.</span></li>
+          <li><span>Image tokens được inject vào attention song song với luồng text conditioning.</span></li>
+          <li><span>Strength cao tăng độ bám reference nhưng có thể giảm quyền điều khiển của prompt và tăng xung đột.</span></li>
+        </ol>
+      </div>
+    </section>
+
+    <section id="related-lessons" aria-labelledby="related-title">
+      <div class="shell">
+        <div class="section-heading">
+          <div>
+            <div class="section-index">07 · Bài liên quan</div>
+            <h2 id="related-title">Theo dấu conditioning đến workflow</h2>
+          </div>
+          <p>Ba bài này nối bằng cơ chế hoặc cách chẩn đoán, không chỉ vì có từ khóa giống nhau.</p>
+        </div>
+        <nav class="related-grid" aria-label="Các bài liên quan">
+          <a class="related-card" href="video-generation-part-5-lesson-3.html">
+            <div class="section-index">Nền tảng · Part 4 / Bài 2</div>
+            <h3>CLIP Vision Encode</h3>
+            <p>Hiểu image embedding trước khi xem adapter chiếu nó thành tín hiệu dùng trong attention.</p>
+          </a>
+          <a class="related-card" href="video-generation-part-5-lesson-5.html">
+            <div class="section-index">Ứng dụng tiếp theo · Part 4 / Bài 4</div>
+            <h3>FaceID — giữ khuôn mặt nhất quán</h3>
+            <p>So sánh image conditioning tổng quát với tín hiệu identity và chẩn đoán khi nhân vật bị drift.</p>
+          </a>
+          <a class="related-card" href="video-generation-part-1-lesson-3.html">
+            <div class="section-index">Cùng cơ chế · Part 1 / Bài 3</div>
+            <h3>CLIP Text Encoder</h3>
+            <p>Đối chiếu luồng text token với image token để đọc đúng phần “text compatible” của IP-Adapter.</p>
+          </a>
+        </nav>
+        <aside class="source-note" aria-labelledby="sources-title">
+          <div class="fact-label" id="sources-title">Nguồn chính</div>
+          <p>Paper <a href="https://arxiv.org/abs/2308.06721" rel="noopener noreferrer">IP-Adapter: Text Compatible Image Prompt Adapter</a> mô tả decoupled cross-attention; <a href="https://github.com/tencent-ailab/IP-Adapter" rel="noopener noreferrer">repository chính chủ</a> ghi rõ phạm vi T2I và các biến thể phát hành. Các kết luận video ở bài này được nêu là workflow-dependent.</p>
+        </aside>
+      </div>
+    </section>
+
+  <!-- HANDOFF CARD -->
+  <section style="padding:clamp(48px,7vw,80px) 0;border-top:1px solid var(--line);" aria-labelledby="handoff-heading-p4l3">
+    <div class="shell">
+      <div style="display:grid;grid-template-columns:60px 1fr;gap:24px;align-items:start;padding:40px;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);position:relative;overflow:hidden;">
+        <div style="position:absolute;inset:0;background:linear-gradient(135deg,rgba(200,255,61,.05),transparent 60%);pointer-events:none;"></div>
+        <div style="display:flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:50%;background:rgba(200,255,61,.1);color:var(--acid);flex-shrink:0;" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+        <div>
+          <p style="font-family:var(--font-mono);font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin:0 0 8px;">Bài tiếp theo</p>
+          <h2 style="font-size:clamp(1.6rem,3vw,2.4rem);font-weight:900;letter-spacing:-.04em;margin:0 0 16px;color:var(--ink);" id="handoff-heading-p4l3">FaceID</h2>
+          <p style="color:var(--muted);font-size:.95rem;line-height:1.6;margin:0 0 24px;">IP-Adapter làm việc với đặc trưng hình ảnh; FaceID mở rộng sang nhận dạng khuôn mặt — kèm theo các ràng buộc về đồng thuận và dữ liệu nhạy cảm.</p>
+          <a class="button primary" href="video-generation-part-5-lesson-5.html" data-curriculum-next>Sang Bài 5.5 →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="shell footer-inner">
+      <p data-curriculum-breadcrumb>Conditioning / Bài 5.4: IP-Adapter</p>
+      <nav class="lesson-nav" aria-label="Điều hướng tuần tự">
+        <a class="button" href="video-generation-part-5-lesson-3.html" data-curriculum-prev data-curriculum-title-fallback>← Bài 5.3: CLIP Vision Encode</a>
+        <a class="button" href="index.html" data-curriculum-home>Trang chủ</a>
+        <a class="button primary" href="video-generation-part-5-lesson-5.html" data-curriculum-next data-curriculum-title-fallback>Bài 5.5: FaceID →</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="video-generation-navigation.js"></script>
+
+  <script>
+    (() => {
+      const strength = document.querySelector('#strength');
+      const valueOutput = document.querySelector('#strength-value');
+      const zoneOutput = document.querySelector('#result-zone');
+      const summaryOutput = document.querySelector('#result-summary');
+      const decisionOutput = document.querySelector('#decision-note');
+      const resetButton = document.querySelector('#reset-strength');
+      const progressFill = document.querySelector('.progress-fill');
+      const meters = {
+        reference: document.querySelector('#reference-meter'),
+        prompt: document.querySelector('#prompt-meter'),
+        risk: document.querySelector('#risk-meter')
+      };
+      const numbers = {
+        reference: document.querySelector('#reference-number'),
+        prompt: document.querySelector('#prompt-number'),
+        risk: document.querySelector('#risk-number')
+      };
+
+      const getReading = (value) => {
+        if (value <= 0.25) {
+          return {
+            zone: 'Gợi ý nhẹ',
+            summary: 'Prompt gần như dẫn dắt toàn bộ. Reference chỉ để lại dấu vết phong cách hoặc đặc trưng rất nhẹ; subject dễ bị trôi.',
+            decision: 'Tăng strength nếu mục tiêu cần màu sắc, chất liệu hoặc silhouette từ reference rõ hơn.'
+          };
+        }
+        if (value <= 0.55) {
+          return {
+            zone: 'Linh hoạt',
+            summary: 'Reference đã góp tín hiệu thị giác nhưng prompt vẫn chiếm ưu thế, phù hợp khi cần đổi pose, góc máy hoặc bối cảnh mạnh.',
+            decision: 'Giữ vùng này khi motion và tự do bố cục quan trọng hơn độ giống tuyệt đối.'
+          };
+        }
+        if (value <= 0.80) {
+          return {
+            zone: 'Cân bằng',
+            summary: 'Đặc trưng thị giác từ reference đủ rõ, trong khi prompt vẫn còn không gian cho chuyển động và bối cảnh mới.',
+            decision: 'Bắt đầu quanh vùng giữa, rồi chỉ tăng khi đặc trưng reference bị mất.'
+          };
+        }
+        return {
+          zone: 'Bám rất mạnh',
+          summary: 'Image conditioning đang lấn át. Subject bám reference tốt hơn, nhưng pose và bố cục cũ có thể khóa chuyển động hoặc xung đột với prompt.',
+          decision: 'Giảm strength nếu output cứng, ít motion, bỏ qua prompt hoặc xuất hiện artifact.'
+        };
+      };
+
+      const updateStrength = () => {
+        const value = Number(strength.value);
+        const reference = Math.round(value * 100);
+        const prompt = Math.round(100 - value * 70);
+        const risk = Math.round(Math.max(0, (value - .4) * 110));
+        const reading = getReading(value);
+
+        valueOutput.value = value.toFixed(2);
+        strength.setAttribute('aria-valuetext', value.toFixed(2) + ' — ' + reading.zone + '. ' + reading.summary);
+        zoneOutput.textContent = reading.zone;
+        summaryOutput.textContent = reading.summary;
+        decisionOutput.innerHTML = '<strong>Quyết định:</strong> ' + reading.decision;
+
+        Object.entries({reference, prompt, risk}).forEach(([name, amount]) => {
+          meters[name].style.width = amount + '%';
+          numbers[name].textContent = String(amount);
+        });
+      };
+
+      const updateProgress = () => {
+        const scrollable = document.documentElement.scrollHeight - window.innerHeight;
+        const progress = scrollable > 0 ? Math.min(100, Math.max(0, window.scrollY / scrollable * 100)) : 0;
+        progressFill.style.width = progress + '%';
+      };
+
+      strength.addEventListener('input', updateStrength);
+      resetButton.addEventListener('click', () => {
+        strength.value = '0.60';
+        updateStrength();
+        strength.focus();
+      });
+      window.addEventListener('scroll', updateProgress, {passive: true});
+      window.addEventListener('resize', updateProgress);
+
+      updateStrength();
+      updateProgress();
+    })();
+  </script>
+</body>
+</html>

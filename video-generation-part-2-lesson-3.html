@@ -1,1707 +1,1370 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="vi" data-theme="dark" data-curriculum-id="lora">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Tìm hiểu Sampler là gì, cách Denoising Steps ảnh hưởng đến chất lượng và tốc độ tạo video AI, và cách chọn sampler phù hợp." />
-  <title>Sampler — Thuật toán khử nhiễu | Video Gen Lab</title>
+  <title>Training Design · Bài 2.3 — LoRA Mechanics</title>
+  <meta name="description" content="Hiểu LoRA là gì, cách nó thêm adapter nhỏ vào mô hình đã huấn luyện, và cách LoRA Strength/Weight điều khiển mức độ ảnh hưởng lúc inference." />
+  <link rel="icon" href="video-generation-favicon.svg" type="image/svg+xml" />
   <script src="video-generation-theme.js"></script>
   <link rel="stylesheet" href="video-generation-design-system.css" />
+  <script src="video-generation-curriculum.js"></script>
+  <script src="video-generation-navigation.js"></script>
   <style>
     /* ── Hero ── */
     .hero {
-      padding: 80px 0 60px;
-      border-bottom: 1px solid var(--line);
+      padding-block: 100px 80px;
     }
     .hero-meta {
-      font-family: var(--font-mono);
-      font-size: .72rem;
-      letter-spacing: .1em;
-      text-transform: uppercase;
-      color: var(--dim);
-      margin-bottom: 18px;
       display: flex;
-      flex-wrap: wrap;
-      gap: 18px;
       align-items: center;
-    }
-    .hero-meta .tag {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      padding: 3px 8px;
-      color: var(--muted);
-    }
-    .hero-meta .tag.accent { border-color: var(--acid-fill); color: var(--acid); }
-    .hero-title {
-      font-size: clamp(2.4rem, 5vw, 4rem);
-      font-weight: 900;
-      letter-spacing: -.03em;
-      line-height: 1.05;
-      margin: 0 0 20px;
-    }
-    .hero-lead {
-      font-size: 1.1rem;
-      color: var(--muted);
-      max-width: 600px;
-      margin: 0 0 32px;
-    }
-    .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; }
-
-    /* ── Keyword chips ── */
-    .keyword-strip {
-      display: flex;
-      gap: 8px;
+      gap: 14px;
+      margin-bottom: 28px;
       flex-wrap: wrap;
-      margin-top: 24px;
     }
-    .keyword-chip {
+    .badge {
       font-family: var(--font-mono);
-      font-size: .72rem;
-      letter-spacing: .06em;
-      text-transform: uppercase;
-      padding: 5px 12px;
-      border: 1px solid var(--cyan);
-      border-radius: 999px;
-      color: var(--cyan);
-      background: transparent;
-    }
-
-    /* ── Section frame ── */
-    .section { padding: 64px 0; border-bottom: 1px solid var(--line); }
-    .section:last-of-type { border-bottom: none; }
-    .section-index {
-      font-family: var(--font-mono);
-      font-size: .68rem;
+      font-size: .7rem;
+      font-weight: 700;
       letter-spacing: .12em;
       text-transform: uppercase;
-      color: var(--dim);
-      margin-bottom: 8px;
+      padding: 5px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
     }
-    .section-heading {
-      font-size: clamp(1.6rem, 3vw, 2.4rem);
+    .badge.accent { border-color: var(--acid); color: var(--acid); }
+    .hero-title {
+      font-size: clamp(2.6rem, 7vw, 5.4rem);
+      font-weight: 900;
+      letter-spacing: -.05em;
+      line-height: 1.05;
+      margin: 0 0 24px;
+    }
+    .hero-lead {
+      font-size: clamp(1rem, 2vw, 1.2rem);
+      color: var(--muted);
+      max-width: 620px;
+      margin: 0 0 40px;
+    }
+    .hero-actions {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    /* ── Sections ── */
+    section {
+      padding-block: 100px;
+      border-top: 1px solid var(--line);
+    }
+    .section-label {
+      font-family: var(--font-mono);
+      font-size: .7rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-bottom: 16px;
+    }
+    .section-title {
+      font-size: clamp(1.6rem, 3.5vw, 2.4rem);
       font-weight: 800;
-      letter-spacing: -.025em;
-      line-height: 1.1;
-      margin: 0 0 16px;
+      letter-spacing: -.03em;
+      line-height: 1.15;
+      margin: 0 0 20px;
     }
     .section-lead {
+      font-size: 1rem;
       color: var(--muted);
-      max-width: 640px;
-      margin-bottom: 40px;
+      max-width: 660px;
+      margin: 0 0 48px;
     }
 
     /* ── Definition panel ── */
     .def-panel {
-      border-left: 3px solid var(--acid-fill);
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--acid);
+      border-radius: var(--radius);
       background: var(--panel);
-      border-radius: 0 var(--radius) var(--radius) 0;
-      padding: 24px 28px;
-      margin-bottom: 28px;
+      padding: 32px 36px;
+      max-width: 760px;
     }
     .def-panel .def-term {
       font-family: var(--font-mono);
-      font-size: .8rem;
-      text-transform: uppercase;
-      letter-spacing: .1em;
-      color: var(--acid);
-      margin-bottom: 8px;
-    }
-    .def-panel .def-text {
-      font-size: 1.05rem;
-      margin: 0;
-    }
-
-    /* ── Process flow ── */
-    .denoise-flow {
-      display: flex;
-      align-items: center;
-      gap: 0;
-      overflow-x: auto;
-      padding: 28px 0;
-    }
-    .flow-step {
-      flex: 0 0 auto;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 10px;
-    }
-    .flow-box {
-      width: 72px;
-      height: 72px;
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      background: var(--panel);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 3px;
-      position: relative;
-    }
-    .flow-box .noise-label {
-      font-family: var(--font-mono);
-      font-size: .6rem;
-      color: var(--dim);
-      text-transform: uppercase;
-      letter-spacing: .08em;
-    }
-    .flow-box .t-label {
-      font-family: var(--font-mono);
-      font-size: .7rem;
-      font-weight: 700;
-      color: var(--ink);
-    }
-    .flow-box svg { display: block; }
-    .flow-arrow {
-      flex: 0 0 32px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .flow-arrow svg { color: var(--dim); }
-    .flow-caption {
-      font-family: var(--font-mono);
-      font-size: .65rem;
-      color: var(--dim);
-      text-align: center;
-      max-width: 72px;
-      text-transform: uppercase;
-      letter-spacing: .06em;
-    }
-
-    /* ── Sampler comparison table ── */
-    .sampler-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 1px;
-      background: var(--line);
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      overflow: hidden;
-    }
-    .sampler-card {
-      background: var(--panel);
-      padding: 22px 22px 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .sampler-card:first-child { border-top: 2px solid var(--orange); }
-    .sampler-card:nth-child(2) { border-top: 2px solid var(--acid-fill); }
-    .sampler-card:nth-child(3) { border-top: 2px solid var(--cyan); }
-    .sampler-card:nth-child(4) { border-top: 2px solid color-mix(in srgb, var(--cyan) 55%, var(--acid-fill)); }
-    .sampler-name {
-      font-family: var(--font-mono);
-      font-size: .82rem;
-      font-weight: 700;
-      color: var(--acid);
-      letter-spacing: .04em;
-    }
-    .sampler-tagline {
-      font-size: .88rem;
-      font-weight: 700;
-      color: var(--ink);
-    }
-    .sampler-desc { font-size: .85rem; color: var(--muted); margin: 0; }
-    .sampler-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
-    .badge {
-      font-family: var(--font-mono);
-      font-size: .62rem;
-      letter-spacing: .07em;
-      text-transform: uppercase;
-      padding: 3px 8px;
-      border-radius: 999px;
-    }
-    .badge.fast { background: color-mix(in srgb, var(--acid-fill) 15%, transparent); color: var(--acid); border: 1px solid color-mix(in srgb, var(--acid-fill) 40%, transparent); }
-    .badge.balanced { background: color-mix(in srgb, var(--cyan) 12%, transparent); color: var(--cyan); border: 1px solid color-mix(in srgb, var(--cyan) 35%, transparent); }
-    .badge.deter { background: color-mix(in srgb, var(--orange) 12%, transparent); color: var(--orange); border: 1px solid color-mix(in srgb, var(--orange) 35%, transparent); }
-    .badge.quality { background: color-mix(in srgb, var(--red) 12%, transparent); color: var(--red); border: 1px solid color-mix(in srgb, var(--red) 40%, transparent); }
-
-    /* ── Lab: Denoising Steps slider ── */
-    .lab-panel {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      padding: 32px;
-    }
-    .lab-controls {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      margin-bottom: 32px;
-    }
-    .control-group {
-      margin: 0;
-      padding: 0;
-      border: 0;
-    }
-    .control-group legend,
-    .control-label {
-      font-family: var(--font-mono);
-      font-size: .7rem;
-      font-weight: 700;
+      font-size: .78rem;
       letter-spacing: .1em;
       text-transform: uppercase;
-      color: var(--muted);
+      color: var(--acid);
       margin-bottom: 10px;
     }
-    .choice-row,
-    .preset-row,
-    .lab-actions {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-    .choice-pill { position: relative; }
-    .choice-pill input {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      opacity: 0;
-      pointer-events: none;
-    }
-    .choice-pill span,
-    .preset-button {
-      min-height: 44px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      padding: 9px 14px;
-      background: var(--night);
-      color: var(--muted);
-      font-family: var(--font-mono);
-      font-size: .72rem;
-      font-weight: 700;
-      transition: border-color .2s ease, background .2s ease, color .2s ease;
-      cursor: pointer;
-    }
-    .choice-pill input:focus-visible + span { outline: 3px solid var(--cyan); outline-offset: 3px; }
-    .choice-pill input:checked + span {
-      border-color: var(--acid-fill);
-      background: color-mix(in srgb, var(--acid-fill) 13%, var(--night));
+    .def-panel p {
+      margin: 0;
+      font-size: 1.05rem;
+      line-height: 1.7;
       color: var(--ink);
     }
-    .choice-pill:hover span,
-    .preset-button:hover { border-color: var(--dim); color: var(--ink); }
-    .preset-button[aria-pressed="true"] {
-      border-color: var(--cyan);
-      background: color-mix(in srgb, var(--cyan) 12%, var(--night));
-      color: var(--ink);
-    }
-    .lab-control-row {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
-    .lab-control-row label {
-      font-family: var(--font-mono);
-      font-size: .76rem;
-      text-transform: uppercase;
-      letter-spacing: .1em;
-      color: var(--muted);
-      min-width: 140px;
-      flex: 0 0 auto;
-    }
-    .lab-control-row input[type="range"] {
-      flex: 1;
-      min-width: 0;
-      accent-color: var(--acid-fill);
-      height: 4px;
-      cursor: pointer;
-    }
-    .lab-value {
-      font-family: var(--font-mono);
-      font-size: .9rem;
-      font-weight: 700;
-      color: var(--ink);
-      min-width: 40px;
-      text-align: right;
-    }
+    .def-panel p + p { margin-top: 14px; }
 
-    /* Visual output */
-    .lab-output {
+    /* ── How it works ── */
+    .flow-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 24px;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 20px;
+      margin-bottom: 48px;
     }
-    @media (max-width: 600px) { .lab-output { grid-template-columns: 1fr; } }
-
-    .visual-stage {
-      background: var(--panel-2);
+    .flow-card {
       border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 20px;
+      border-radius: var(--radius);
+      background: var(--panel);
+      padding: 28px 28px 28px 24px;
     }
-    .visual-stage-title {
+    .flow-card-num {
       font-family: var(--font-mono);
       font-size: .68rem;
+      letter-spacing: .14em;
       text-transform: uppercase;
-      letter-spacing: .1em;
       color: var(--dim);
-      margin-bottom: 14px;
+      margin-bottom: 12px;
     }
-    .noise-canvas-wrap {
-      width: 100%;
-      aspect-ratio: 16 / 10;
-      position: relative;
-      border-radius: 10px;
-      overflow: hidden;
-      background: var(--night);
-    }
-    .noise-canvas-wrap canvas {
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
-    .render-hud {
-      position: absolute;
-      inset: 12px 12px auto;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      pointer-events: none;
-    }
-    .render-status,
-    .render-frame {
-      border: 1px solid rgba(255, 255, 255, .22);
-      border-radius: 999px;
-      padding: 5px 9px;
-      background: rgba(7, 12, 15, .76);
-      color: #f6f3ea;
-      font-family: var(--font-mono);
-      font-size: .61rem;
+    .flow-card h3 {
+      font-size: 1rem;
       font-weight: 800;
-      letter-spacing: .08em;
-      text-transform: uppercase;
-      backdrop-filter: blur(8px);
+      margin: 0 0 10px;
     }
-    .phase-track {
-      margin-top: 14px;
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 6px;
-    }
-    .phase-step {
-      position: relative;
-      padding-top: 10px;
-      color: var(--dim);
-      font-family: var(--font-mono);
-      font-size: .61rem;
-      line-height: 1.35;
-      text-align: center;
-    }
-    .phase-step::before {
-      content: '';
-      position: absolute;
-      inset: 0 0 auto;
-      height: 3px;
-      border-radius: 999px;
-      background: var(--line);
-      transition: background .2s ease;
-    }
-    .phase-step.is-active { color: var(--ink); }
-    .phase-step.is-active::before { background: var(--acid-fill); }
-
-    .metrics-panel {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-    .metric-row { display: flex; flex-direction: column; gap: 6px; }
-    .metric-label {
-      font-family: var(--font-mono);
-      font-size: .68rem;
-      text-transform: uppercase;
-      letter-spacing: .1em;
-      color: var(--dim);
-    }
-    .metric-value {
-      font-size: 1.4rem;
-      font-weight: 900;
-      letter-spacing: -.02em;
-    }
-    .metric-value.quality { color: var(--acid); }
-    .metric-value.speed { color: var(--cyan); }
-    .metric-bar-track {
-      height: 6px;
-      background: var(--line);
-      border-radius: 999px;
-      overflow: hidden;
-    }
-    .metric-bar-fill {
-      height: 100%;
-      border-radius: 999px;
-      transition: width .2s ease;
-    }
-    .metric-bar-fill.quality { background: linear-gradient(90deg, var(--acid), var(--cyan)); }
-    .metric-bar-fill.speed { background: var(--cyan); }
-    .metric-note {
-      font-size: .82rem;
+    .flow-card p {
+      font-size: .9rem;
       color: var(--muted);
-      margin-top: 4px;
+      margin: 0;
     }
-    .step-recommendation {
-      padding: 14px 18px;
-      border-radius: 12px;
+    .formula-block {
       border: 1px solid var(--line);
-      background: var(--night);
-      font-size: .88rem;
+      border-radius: var(--radius);
+      background: var(--panel-2);
+      padding: 28px 36px;
+      max-width: 640px;
+    }
+    .formula-block code {
+      font-family: var(--font-mono);
+      font-size: 1.25rem;
+      color: var(--cyan);
+      display: block;
+      letter-spacing: .03em;
+    }
+    .formula-block .formula-note {
+      font-size: .85rem;
+      color: var(--muted);
+      margin-top: 14px;
+    }
+    .formula-block .formula-note span {
+      font-family: var(--font-mono);
       color: var(--ink);
     }
-    .step-recommendation .rec-label {
-      font-family: var(--font-mono);
-      font-size: .65rem;
-      text-transform: uppercase;
-      letter-spacing: .1em;
-      color: var(--dim);
-      margin-bottom: 6px;
-    }
-    .metric-pair {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-    }
-    .mini-metric {
-      padding: 12px 14px;
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      background: var(--night);
-    }
-    .mini-metric strong { display: block; margin-top: 3px; font-size: .94rem; }
-    .mini-metric span {
-      color: var(--dim);
-      font-family: var(--font-mono);
-      font-size: .62rem;
-      letter-spacing: .08em;
-      text-transform: uppercase;
-    }
 
-    /* ── Decision checkpoint ── */
-    .checkpoint {
-      margin-top: 24px;
+    /* ── Parameter microscope ── */
+    .microscope {
+      margin-top: 28px;
       border: 1px solid var(--line);
       border-radius: var(--radius);
       background: var(--panel);
       overflow: hidden;
     }
-    .checkpoint-head {
+    .microscope-head {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
-      gap: 20px;
+      gap: 24px;
       align-items: start;
-      padding: 24px 28px;
+      padding: 26px 30px;
       border-bottom: 1px solid var(--line);
     }
-    .checkpoint-kicker {
-      margin: 0 0 5px;
+    .microscope-kicker {
+      margin: 0 0 6px;
       color: var(--cyan);
       font-family: var(--font-mono);
       font-size: .68rem;
-      letter-spacing: .1em;
+      letter-spacing: .12em;
       text-transform: uppercase;
     }
-    .checkpoint-title { margin: 0; font-size: 1.15rem; line-height: 1.35; }
-    .checkpoint-count {
-      color: var(--dim);
+    .microscope-title { margin: 0; font-size: 1.15rem; line-height: 1.35; }
+    .mode-switch {
+      display: flex;
+      gap: 4px;
+      padding: 4px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--night);
+    }
+    .mode-button,
+    .strength-preset {
+      min-height: 44px;
+      border: 1px solid transparent;
+      border-radius: 999px;
+      padding: 8px 14px;
+      background: transparent;
+      color: var(--muted);
       font-family: var(--font-mono);
       font-size: .7rem;
-      white-space: nowrap;
+      font-weight: 800;
+      transition: background .2s ease, color .2s ease, border-color .2s ease;
     }
-    .checkpoint-body { padding: 24px 28px 28px; }
-    .answer-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-    .answer-button {
-      min-height: 54px;
+    .mode-button:hover, .strength-preset:hover { color: var(--ink); }
+    .mode-button[aria-pressed="true"] {
+      border-color: var(--acid-fill);
+      background: var(--acid-fill);
+      color: #111;
+    }
+    .microscope-body {
+      display: grid;
+      grid-template-columns: minmax(260px, .85fr) 1.15fr;
+      gap: 30px;
+      padding: 30px;
+    }
+    .weight-matrix {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 4px;
+      aspect-ratio: 1;
+      max-width: 380px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--night);
+    }
+    .weight-cell {
+      border-radius: 3px;
+      background: var(--line);
+      transition: background .24s ease, opacity .24s ease, transform .24s ease;
+    }
+    .weight-cell.is-base { opacity: .45; }
+    .weight-cell.is-trainable {
+      background: var(--acid-fill);
+      opacity: 1;
+      transform: scale(.88);
+    }
+    .weight-cell.is-adapter { background: var(--cyan); }
+    .matrix-caption {
+      margin: 10px 0 0;
+      color: var(--dim);
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      text-align: center;
+    }
+    .parameter-story { display: flex; flex-direction: column; gap: 18px; }
+    .mode-summary {
+      margin: 0;
+      font-size: 1.1rem;
+      color: var(--ink);
+    }
+    .mode-summary strong { color: var(--acid); }
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    .parameter-metric {
+      min-width: 0;
+      padding: 14px;
       border: 1px solid var(--line);
       border-radius: 12px;
-      padding: 12px 14px;
       background: var(--night);
-      color: var(--ink);
-      text-align: left;
-      font-weight: 750;
-      transition: border-color .2s ease, background .2s ease;
     }
-    .answer-button:hover { border-color: var(--dim); background: var(--panel-2); }
-    .answer-button.is-correct { border-color: var(--acid-fill); background: color-mix(in srgb, var(--acid-fill) 10%, var(--night)); }
-    .answer-button.is-wrong { border-color: var(--orange); background: color-mix(in srgb, var(--orange) 10%, var(--night)); }
-    .answer-button:disabled { cursor: default; opacity: 1; }
-    .answer-feedback {
-      min-height: 1.65em;
-      margin: 16px 0 0;
-      color: var(--muted);
+    .parameter-metric span {
+      display: block;
+      color: var(--dim);
+      font-family: var(--font-mono);
+      font-size: .62rem;
+      letter-spacing: .08em;
+      text-transform: uppercase;
     }
-    .checkpoint-next { margin-top: 14px; }
-
-    /* ── Trade-off section ── */
-    .tradeoff-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1px;
+    .parameter-metric strong { display: block; margin-top: 5px; font-size: 1rem; }
+    .transfer-line {
+      position: relative;
+      height: 8px;
+      border-radius: 999px;
       background: var(--line);
+      overflow: hidden;
+    }
+    .transfer-fill {
+      height: 100%;
+      width: 2%;
+      border-radius: inherit;
+      background: var(--acid-fill);
+      transition: width .45s ease, background .3s ease;
+    }
+    .microscope-note { margin: 0; color: var(--muted); font-size: .88rem; }
+
+    /* ── Production case / related reading ── */
+    .case-grid,
+    .related-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+    .case-card,
+    .related-card,
+    .source-note {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--panel);
+      padding: 20px;
+    }
+    .case-card h3,
+    .related-card h3 { margin: 0 0 8px; font-size: 1rem; }
+    .case-card p,
+    .related-card p,
+    .source-note p { margin: 0; color: var(--muted); font-size: .9rem; }
+    .case-card strong { color: var(--ink); }
+    .case-grid + .case-grid { margin-top: 16px; }
+    .case-kicker { margin: 0 0 8px; color: var(--cyan); font-family: var(--font-mono); font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; }
+    .source-note { margin-top: 18px; border-left: 3px solid var(--cyan); }
+    .source-note a { color: var(--cyan); font-weight: 700; }
+    .related-card { display: block; min-height: 164px; text-decoration: none; transition: transform .2s ease, border-color .2s ease, background .2s ease; }
+    .related-card:hover { transform: translateY(-2px); border-color: var(--cyan); background: var(--panel-2); }
+    .related-card .related-kicker { color: var(--acid); font-family: var(--font-mono); font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; }
+
+    /* ── LoRA Strength Demo ── */
+    .demo-shell {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      padding: 40px;
+      max-width: none;
+    }
+    .demo-label {
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-bottom: 32px;
+    }
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      margin-bottom: 28px;
+      flex-wrap: wrap;
+    }
+    .slider-row label {
+      font-weight: 800;
+      font-size: .9rem;
+      white-space: nowrap;
+    }
+    #lora-slider {
+      flex: 1 1 200px;
+      min-width: 120px;
+      height: 44px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      cursor: pointer;
+    }
+    #lora-slider::-webkit-slider-runnable-track {
+      height: 6px;
+      border-radius: 999px;
+      background: var(--line);
+    }
+    #lora-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 22px;
+      height: 22px;
+      margin-top: -8px;
+      border-radius: 50%;
+      background: var(--acid-fill);
+      border: 2px solid var(--night);
+      box-shadow: 0 0 0 2px var(--acid-fill);
+    }
+    #lora-slider::-moz-range-track {
+      height: 6px;
+      border-radius: 999px;
+      background: var(--line);
+    }
+    #lora-slider::-moz-range-thumb {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--acid-fill);
+      border: 2px solid var(--night);
+    }
+    #lora-slider:focus-visible { outline: 3px solid var(--cyan); outline-offset: 4px; border-radius: 4px; }
+    .slider-value {
+      font-family: var(--font-mono);
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--acid);
+      min-width: 48px;
+      text-align: right;
+    }
+    .strength-presets {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin: -10px 0 24px;
+    }
+    .strength-preset {
+      border-color: var(--line);
+      background: var(--night);
+    }
+    .strength-preset[aria-pressed="true"] {
+      border-color: var(--cyan);
+      color: var(--ink);
+      background: color-mix(in srgb, var(--cyan) 12%, var(--night));
+    }
+    .strength-layout {
+      display: grid;
+      grid-template-columns: minmax(280px, 1.2fr) minmax(240px, .8fr);
+      gap: 24px;
+      align-items: stretch;
+    }
+    .style-frame {
+      --mix: .5;
+      min-height: 310px;
+      position: relative;
       border: 1px solid var(--line);
       border-radius: 16px;
       overflow: hidden;
+      background: #c8d6d5;
+      isolation: isolate;
     }
-    @media (max-width: 600px) { .tradeoff-row { grid-template-columns: 1fr; } }
-    .tradeoff-cell {
-      background: var(--panel);
-      padding: 24px 28px;
+    .base-scene,
+    .lora-scene { position: absolute; inset: 0; }
+    .base-scene {
+      background:
+        linear-gradient(172deg, transparent 55%, #30424a 56% 62%, transparent 63%),
+        linear-gradient(#b7d0d4 0 55%, #576d69 56% 100%);
     }
-    .tradeoff-cell .tc-label {
-      font-family: var(--font-mono);
-      font-size: .68rem;
-      text-transform: uppercase;
-      letter-spacing: .12em;
-      margin-bottom: 12px;
+    .base-scene::before {
+      content: '';
+      position: absolute;
+      width: 90px;
+      height: 90px;
+      left: 13%;
+      top: 16%;
+      border-radius: 50%;
+      background: #f4e5be;
+      box-shadow: 260px 60px 0 -15px #8ba09f, 390px 22px 0 -24px #8ba09f;
     }
-    .tradeoff-cell .tc-label.few { color: var(--orange); }
-    .tradeoff-cell .tc-label.many { color: var(--acid); }
-    .tradeoff-cell ul {
-      margin: 0;
-      padding: 0 0 0 16px;
-      color: var(--muted);
-      font-size: .9rem;
+    .lora-scene {
+      opacity: min(1, var(--mix));
+      background:
+        repeating-linear-gradient(112deg, transparent 0 28px, rgba(98,231,245,.16) 29px 31px),
+        radial-gradient(circle at 18% 24%, rgba(200,255,61,.9), transparent 16%),
+        linear-gradient(145deg, #142342 0 52%, #8a2858 53% 61%, #111822 62%);
+      mix-blend-mode: multiply;
+      transition: opacity .24s ease;
+    }
+    .city-line {
+      position: absolute;
+      inset: auto 0 0;
+      height: 54%;
+      opacity: calc(.2 + var(--mix) * .8);
+      background:
+        linear-gradient(90deg, transparent 4%, #17222d 4% 13%, transparent 13% 16%, #17222d 16% 30%, transparent 30% 34%, #17222d 34% 49%, transparent 49% 54%, #17222d 54% 69%, transparent 69% 75%, #17222d 75% 92%, transparent 92%);
+      clip-path: polygon(0 42%, 8% 42%, 8% 14%, 18% 14%, 18% 36%, 27% 36%, 27% 4%, 42% 4%, 42% 30%, 55% 30%, 55% 0, 68% 0, 68% 32%, 80% 32%, 80% 12%, 92% 12%, 92% 40%, 100% 40%, 100% 100%, 0 100%);
+    }
+    .rider {
+      position: absolute;
+      left: 46%;
+      bottom: 16%;
+      width: 78px;
+      height: 62px;
+      transform: translateX(-50%) skewX(-2deg);
+      border: 7px solid var(--rider-color, #172126);
+      border-top: 0;
+      border-radius: 8px 8px 30px 30px;
+      transition: transform .24s ease, border-color .24s ease;
+    }
+    .rider::before,
+    .rider::after {
+      content: '';
+      position: absolute;
+      bottom: -21px;
+      width: 31px;
+      height: 31px;
+      border: 5px solid #10191d;
+      border-radius: 50%;
+    }
+    .rider::before { left: -22px; }
+    .rider::after { right: -22px; }
+    .style-hud {
+      position: absolute;
+      inset: 14px 14px auto;
       display: flex;
-      flex-direction: column;
-      gap: 6px;
+      justify-content: space-between;
+      gap: 8px;
+      color: #f6f3ea;
+      font-family: var(--font-mono);
+      font-size: .62rem;
+      letter-spacing: .08em;
+      text-transform: uppercase;
     }
-
-    /* ── Disclosure ── */
-    details {
+    .style-hud span {
+      border: 1px solid rgba(255,255,255,.25);
+      border-radius: 999px;
+      padding: 5px 9px;
+      background: rgba(7,12,15,.76);
+      backdrop-filter: blur(8px);
+    }
+    .strength-side { display: flex; flex-direction: column; gap: 14px; }
+    .blend-stage {
       border: 1px solid var(--line);
       border-radius: 14px;
+      background: var(--panel-2);
+      padding: 28px;
+      margin-bottom: 24px;
+      position: relative;
       overflow: hidden;
-      background: var(--panel);
     }
-    details + details { margin-top: 10px; }
-    summary {
-      cursor: pointer;
+    .blend-bar-track {
+      height: 8px;
+      background: var(--line);
+      border-radius: 999px;
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+    .blend-bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--cyan), var(--acid));
+      transition: width .25s ease;
+      width: 0%;
+    }
+    .blend-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: .78rem;
+      color: var(--dim);
+      font-family: var(--font-mono);
+      letter-spacing: .06em;
+      margin-bottom: 20px;
+    }
+    .blend-output {
+      font-size: 1rem;
+      line-height: 1.7;
+      border-radius: 10px;
       padding: 16px 20px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+    }
+    .blend-output .output-line {
+      margin: 0;
+    }
+    .blend-output .base-text { color: var(--muted); }
+    .blend-output .lora-text { color: var(--acid); font-weight: 700; }
+    .strength-description {
+      font-size: .9rem;
+      color: var(--muted);
+      padding: 12px 16px;
+      background: var(--panel-2);
+      border-radius: 10px;
+      border-left: 3px solid var(--cyan);
+    }
+    .strength-description strong { color: var(--ink); }
+
+    /* ── Comparison table ── */
+    .compare-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .92rem;
+    }
+    .compare-table th,
+    .compare-table td {
+      padding: 16px 20px;
+      text-align: left;
+      border-bottom: 1px solid var(--line);
+    }
+    .compare-table th {
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--dim);
+      background: var(--panel-2);
+    }
+    .compare-table th:first-child { border-radius: 12px 0 0 0; }
+    .compare-table th:last-child { border-radius: 0 12px 0 0; }
+    .compare-table tr:last-child td { border-bottom: none; }
+    .compare-table td:first-child { color: var(--muted); font-weight: 600; }
+    .compare-table .cell-lora { color: var(--acid); font-weight: 700; }
+    .compare-table .cell-full { color: var(--muted); }
+    .compare-table-wrap {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow-x: auto;
+    }
+    .compare-table { min-width: 680px; }
+
+    /* ── Checkpoint ── */
+    .checkpoint-list {
+      display: flex;
+      flex-direction: column;
+      gap: 36px;
+    }
+    .question-block {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      padding: 32px;
+    }
+    .question-num {
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-bottom: 10px;
+    }
+    .question-text {
+      font-size: 1rem;
       font-weight: 700;
-      font-size: .95rem;
+      margin: 0 0 20px;
+    }
+    .options-list {
       list-style: none;
+      padding: 0;
+      margin: 0 0 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .option-btn {
+      width: 100%;
+      text-align: left;
+      padding: 14px 18px;
+      min-height: 48px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel-2);
+      color: var(--ink);
+      font-size: .92rem;
+      transition: border-color .15s ease, background .15s ease;
+    }
+    .option-btn:hover:not(:disabled) { border-color: var(--dim); background: var(--panel); }
+    .option-btn:disabled { cursor: default; opacity: .7; }
+    .option-btn.correct { border-color: var(--acid); background: color-mix(in srgb, var(--acid) 12%, var(--panel)); color: var(--ink); }
+    .option-btn.wrong { border-color: var(--red); background: color-mix(in srgb, var(--red) 10%, var(--panel)); color: var(--ink); }
+    .feedback-msg {
+      font-size: .88rem;
+      padding: 12px 16px;
+      border-radius: 10px;
+      display: none;
+    }
+    .feedback-msg.show { display: block; }
+    .feedback-msg.correct { background: color-mix(in srgb, var(--acid) 12%, var(--panel)); border: 1px solid var(--acid); color: var(--acid); }
+    .feedback-msg.wrong { background: color-mix(in srgb, var(--red) 10%, var(--panel)); border: 1px solid var(--red); color: var(--red); }
+
+    /* ── Footer / Nav ── */
+    .lesson-nav {
+      padding-block: 80px;
+      border-top: 1px solid var(--line);
+    }
+    .lesson-nav-inner {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
+      flex-wrap: wrap;
+      gap: 16px;
     }
-    summary::-webkit-details-marker { display: none; }
-    summary::after {
-      content: '+';
-      font-family: var(--font-mono);
-      font-size: 1.1rem;
-      color: var(--dim);
-      transition: transform .2s ease;
-      flex-shrink: 0;
-    }
-    details[open] summary::after { content: '−'; }
-    .details-body { padding: 0 20px 20px; color: var(--muted); font-size: .92rem; }
-    .details-body p { margin: 0 0 10px; }
-    .details-body p:last-child { margin: 0; }
-
-    /* ── Takeaway ── */
-    .takeaway-panel {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      padding: 36px 40px;
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-    }
-    .takeaway-heading {
+    .lesson-nav-label {
       font-family: var(--font-mono);
       font-size: .72rem;
-      text-transform: uppercase;
       letter-spacing: .12em;
+      text-transform: uppercase;
       color: var(--dim);
-      margin-bottom: 4px;
+      margin-bottom: 8px;
     }
-    .takeaway-list {
-      margin: 0;
-      padding: 0;
-      list-style: none;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
-    .takeaway-list li {
-      display: flex;
-      gap: 12px;
-      align-items: flex-start;
-      font-size: .95rem;
-    }
-    .takeaway-list li .bullet {
-      flex: 0 0 auto;
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: var(--acid-fill);
-      margin-top: .52em;
-    }
-    .takeaway-nav {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      padding-top: 16px;
-      border-top: 1px solid var(--line);
-    }
+    .lesson-nav-next { text-align: right; }
 
-    /* ── Footer ── */
     footer {
       border-top: 1px solid var(--line);
-      padding: 40px 0;
-      color: var(--dim);
-      font-size: .82rem;
+      padding-block: 40px;
     }
     .footer-inner {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 20px;
       flex-wrap: wrap;
+      gap: 16px;
     }
-    .footer-brand {
-      font-family: var(--font-mono);
-      font-size: .72rem;
-      font-weight: 800;
-      letter-spacing: .12em;
-      text-transform: uppercase;
-      color: var(--muted);
-      text-decoration: none;
-      display: flex;
-      align-items: center;
-      gap: 8px;
+    .footer-copy {
+      font-size: .78rem;
+      color: var(--dim);
     }
-    .footer-brand .brand-mark {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--acid-fill);
-    }
-
-    /* ── Inline-style replacements ── */
-    .flow-box-clean {
-      background: color-mix(in srgb, var(--panel) 60%, var(--acid-fill) 5%);
-    }
-    .flow-footnote {
-      color: var(--muted);
-      font-size: .9rem;
-      margin-top: 20px;
-    }
-    .def-panel-cyan { border-left-color: var(--cyan); }
-    .def-term-cyan { color: var(--cyan); }
-    .steps-desc {
+    .footer-mono {
       font-family: var(--font-mono);
       font-size: .7rem;
-      color: var(--dim);
-      margin: 10px 0 0;
-      text-transform: uppercase;
-      letter-spacing: .07em;
-    }
-    .takeaway-title {
-      font-size: 1.5rem;
-      font-weight: 800;
-      margin: 0 0 20px;
-      letter-spacing: -.02em;
     }
 
-    /* ── Sampling route hero ── */
-    .sampling-route {
-      position: relative;
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 10px;
-      margin-top: 38px;
-      padding: 20px;
-      overflow: hidden;
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      background:
-        linear-gradient(120deg, color-mix(in srgb, var(--cyan) 7%, transparent), transparent 48%),
-        var(--panel);
-    }
-    .sampling-route::before {
-      content: "";
-      position: absolute;
-      top: 50%;
-      left: 10%;
-      right: 10%;
-      height: 1px;
-      background: linear-gradient(90deg, var(--orange), var(--cyan), var(--acid-fill));
-      opacity: .55;
-    }
-    .route-stop {
-      position: relative;
-      z-index: 1;
-      min-height: 108px;
-      padding: 15px;
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      background: color-mix(in srgb, var(--panel-2) 90%, transparent);
-    }
-    .route-stop::after {
-      content: "";
-      position: absolute;
-      right: 14px;
-      bottom: 14px;
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--cyan);
-      box-shadow: 0 0 0 5px color-mix(in srgb, var(--cyan) 12%, transparent);
-    }
-    .route-stop:last-child::after { background: var(--acid-fill); }
-    .route-time,
-    .route-note {
-      font-family: var(--font-mono);
-      text-transform: uppercase;
-      letter-spacing: .08em;
-    }
-    .route-time { font-size: .65rem; color: var(--cyan); }
-    .route-stop strong { display: block; margin: 8px 0 4px; font-size: .9rem; }
-    .route-note { font-size: .6rem; color: var(--dim); }
-
-    /* ── Production brief + knowledge links ── */
-    .production-brief {
-      display: grid;
-      grid-template-columns: minmax(0, 1.35fr) repeat(3, minmax(110px, .55fr));
-      gap: 1px;
-      margin: 0 0 24px;
-      overflow: hidden;
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      background: var(--line);
-    }
-    .brief-cell {
-      min-width: 0;
-      padding: 16px 18px;
-      background: var(--panel-2);
-    }
-    .brief-cell span {
-      display: block;
-      margin-bottom: 6px;
-      font: 700 .62rem/1.3 var(--font-mono);
-      letter-spacing: .1em;
-      text-transform: uppercase;
-      color: var(--dim);
-    }
-    .brief-cell strong { font-size: .85rem; line-height: 1.5; }
-    .brief-cell:first-child strong { color: var(--cyan); }
-    .related-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
-    }
-    .related-card {
-      min-height: 154px;
-      padding: 20px;
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      background: var(--panel);
-      color: inherit;
-      text-decoration: none;
-      transition: transform .22s ease, border-color .22s ease, background .22s ease;
-    }
-    .related-card:hover { transform: translateY(-3px); border-color: var(--cyan); background: var(--panel-2); }
-    .related-card:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
-    .related-kicker {
-      display: block;
-      margin-bottom: 12px;
-      font: 700 .64rem/1.3 var(--font-mono);
-      letter-spacing: .1em;
-      text-transform: uppercase;
-      color: var(--cyan);
-    }
-    .related-card strong { display: block; margin-bottom: 7px; }
-    .related-card small { color: var(--muted); line-height: 1.55; }
-    .reveal-item { opacity: 0; transform: translateY(18px); }
-    .reveal-item.is-visible {
-      opacity: 1;
-      transform: translateY(0);
-      transition: opacity .5s ease, transform .5s cubic-bezier(.2,.8,.2,1);
-    }
-
-    /* Mobile adjustments */
-    @media (max-width: 820px) {
-      .production-brief { grid-template-columns: 1fr 1fr; }
-      .related-grid { grid-template-columns: 1fr; }
-    }
+    /* ── Responsive ── */
     @media (max-width: 640px) {
-      .hero { padding: 52px 0 40px; }
-      .section { padding: 44px 0; }
-      .lab-panel { padding: 20px; }
-      .lab-control-row { flex-direction: column; align-items: flex-start; gap: 8px; }
-      .lab-control-row label { min-width: auto; }
-      .lab-control-row input[type="range"] { width: 100%; }
-      .takeaway-panel { padding: 24px 20px; }
-      .tradeoff-cell { padding: 18px 20px; }
-      .choice-row > *, .preset-row > *, .lab-actions > * { flex: 1 1 100%; }
-      .choice-pill span, .preset-button, .lab-actions .button { width: 100%; }
-      .metric-pair, .answer-grid { grid-template-columns: 1fr; }
-      .checkpoint-head { grid-template-columns: 1fr; gap: 8px; padding: 20px; }
-      .checkpoint-body { padding: 20px; }
-      .sampling-route { grid-template-columns: 1fr 1fr; }
-      .sampling-route::before { display: none; }
-      .production-brief { grid-template-columns: 1fr; }
+      .hero { padding-block: 60px 48px; }
+      section { padding-block: 64px; }
+      .def-panel { padding: 24px 20px; }
+      .demo-shell { padding: 24px 20px; }
+      .question-block { padding: 24px 20px; }
+      .compare-table th, .compare-table td { padding: 12px 14px; }
+      .lesson-nav { padding-block: 48px; }
+      .microscope-head, .microscope-body { grid-template-columns: 1fr; }
+      .microscope-head, .microscope-body { padding: 20px; }
+      .mode-switch { width: 100%; }
+      .mode-button { flex: 1; }
+      .metric-grid { grid-template-columns: 1fr; }
+      .strength-layout { grid-template-columns: 1fr; }
+      .strength-preset { flex: 1 1 calc(50% - 8px); }
+      .style-frame { min-height: 250px; }
+      .case-grid, .related-grid { grid-template-columns: 1fr; }
     }
-    @media (prefers-reduced-motion: reduce) {
-      .related-card,
-      .reveal-item,
-      .reveal-item.is-visible {
-        opacity: 1;
-        transform: none;
-        transition: none;
-      }
-    }
+    @media (max-width: 760px) { .topnav { display: none; } }
   </style>
 </head>
 <body>
+  <a class="skip-link" href="#main">Chuyển tới nội dung</a>
 
-<a class="skip-link" href="#main">Bỏ qua điều hướng</a>
-
-<header class="topbar" role="banner">
-  <div class="topbar-inner">
-    <a class="brand" href="index.html" aria-label="Video Gen Lab — Trang chủ">
-      <span class="brand-mark" aria-hidden="true"></span>
-      VIDEO GEN LAB
-    </a>
-    <nav class="topnav" aria-label="Điều hướng chính">
-      <a href="index.html">Trang chủ</a>
-      <a href="video-generation-part-2-lesson-3.html" aria-current="page">Bài 3</a>
-    </nav>
-    <!-- theme toggle injected by video-generation-theme.js -->
-  </div>
-  <div class="progress-track" role="progressbar" aria-label="Tiến trình đọc trang" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-    <div class="progress-fill" id="progress-fill"></div>
-  </div>
-</header>
-
-<main id="main">
-
-  <!-- ── Hero ── -->
-  <section class="hero" aria-labelledby="hero-heading">
-    <div class="shell">
-      <div class="hero-meta">
-        <span>Phần 2 — Sampling / Inference</span>
-        <span class="tag accent">Bài 3 / 6</span>
-        <span class="tag">Trung cấp</span>
-      </div>
-      <h1 class="hero-title" id="hero-heading">Sampler —<br>Thuật toán khử nhiễu</h1>
-      <p class="hero-lead">
-        Tìm hiểu cách sampler di chuyển qua các timestep để biến noise thành hình ảnh,
-        tại sao số bước (steps) ảnh hưởng đến chất lượng và tốc độ, và cách chọn đúng sampler cho công việc.
-      </p>
-      <div class="hero-actions">
-        <a href="#lab" class="button primary">Thử ngay Lab tương tác</a>
-        <a href="#samplers" class="button">Xem so sánh sampler</a>
-      </div>
-      <div class="keyword-strip" aria-label="Từ khoá bài học">
-        <span class="keyword-chip">Sampler</span>
-        <span class="keyword-chip">Denoising Steps</span>
-      </div>
-      <div class="sampling-route" aria-label="Bốn giai đoạn của một lượt sampling">
-        <div class="route-stop">
-          <span class="route-time">T = 1.00</span>
-          <strong>Noise mở cảnh</strong>
-          <span class="route-note">Seed khóa ý tưởng</span>
-        </div>
-        <div class="route-stop">
-          <span class="route-time">T = .66</span>
-          <strong>Khóa bố cục</strong>
-          <span class="route-note">Tàu + đường ray</span>
-        </div>
-        <div class="route-stop">
-          <span class="route-time">T = .33</span>
-          <strong>Giữ chuyển động</strong>
-          <span class="route-note">Camera tracking</span>
-        </div>
-        <div class="route-stop">
-          <span class="route-time">T = 0</span>
-          <strong>Hoàn thiện texture</strong>
-          <span class="route-note">Mưa + phản chiếu</span>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── Section 1: Sampler là gì ── -->
-  <section class="section" id="what-is-sampler" aria-labelledby="s1-heading">
-    <div class="shell">
-      <div class="section-index">01 — Khái niệm</div>
-      <h2 class="section-heading" id="s1-heading">Sampler là gì?</h2>
-      <p class="section-lead">
-        Khi mô hình tạo ảnh/video, nó phải đi từ ảnh nhiễu ngẫu nhiên (timestep T) về ảnh sạch (timestep 0).
-        Sampler là thuật toán quyết định <em>cách di chuyển</em> qua các bước đó.
-      </p>
-
-      <div class="def-panel">
-        <div class="def-term">Định nghĩa</div>
-        <p class="def-text">
-          <strong>Sampler</strong> là thuật toán điều hướng quá trình khử nhiễu (denoising),
-          xác định công thức toán học để ước tính và khấu trừ noise tại mỗi timestep.
-          Mỗi sampler có cách tính khác nhau — ảnh hưởng đến tốc độ, độ ổn định, và phong cách đầu ra.
-        </p>
-      </div>
-
-      <!-- Process flow: T → ... → 0 -->
-      <div class="denoise-flow" role="img" aria-label="Luồng khử nhiễu từ timestep T về 0">
-        <div class="flow-step">
-          <div class="flow-box">
-            <svg width="40" height="40" aria-hidden="true">
-              <filter id="f-noisy"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" seed="1"/><feColorMatrix type="saturate" values="0"/></filter>
-              <rect width="40" height="40" filter="url(#f-noisy)" opacity="1"/>
-            </svg>
-            <span class="t-label">T</span>
-          </div>
-          <span class="flow-caption">Noise thuần</span>
-        </div>
-        <div class="flow-arrow" aria-hidden="true">
-          <svg width="24" height="16" viewBox="0 0 24 16" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M0 8h20M14 2l6 6-6 6"/>
-          </svg>
-        </div>
-        <div class="flow-step">
-          <div class="flow-box">
-            <svg width="40" height="40" aria-hidden="true">
-              <filter id="f-mid"><feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" seed="2"/><feColorMatrix type="saturate" values="0.3"/></filter>
-              <rect width="40" height="40" fill="#2a3d4a"/>
-              <rect width="40" height="40" filter="url(#f-mid)" opacity="0.6"/>
-            </svg>
-            <span class="t-label">T/2</span>
-          </div>
-          <span class="flow-caption">Một nửa khử</span>
-        </div>
-        <div class="flow-arrow" aria-hidden="true">
-          <svg width="24" height="16" viewBox="0 0 24 16" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M0 8h20M14 2l6 6-6 6"/>
-          </svg>
-        </div>
-        <div class="flow-step">
-          <div class="flow-box flow-box-clean">
-            <svg width="40" height="40" aria-hidden="true">
-              <filter id="f-clean"><feTurbulence type="fractalNoise" baseFrequency="0.25" numOctaves="2" seed="3"/><feColorMatrix type="saturate" values="1.4"/></filter>
-              <rect width="40" height="40" fill="#2a4a5e"/>
-              <rect width="40" height="40" filter="url(#f-clean)" opacity="0.2"/>
-            </svg>
-            <span class="t-label">0</span>
-          </div>
-          <span class="flow-caption">Ảnh sạch</span>
-        </div>
-      </div>
-
-      <p class="flow-footnote">
-        Sampler quyết định <strong>đường đi</strong> từ T về 0 — cùng điểm xuất phát nhưng mỗi thuật toán đi theo cách khác nhau, dẫn đến kết quả và tốc độ khác nhau.
-      </p>
-    </div>
-  </section>
-
-  <!-- ── Section 2: Các sampler phổ biến ── -->
-  <section class="section" id="samplers" aria-labelledby="s2-heading">
-    <div class="shell">
-      <div class="section-index">02 — So sánh</div>
-      <h2 class="section-heading" id="s2-heading">Các sampler phổ biến</h2>
-      <p class="section-lead">
-        Không có sampler "tốt nhất" tuyệt đối. Mỗi loại phù hợp với một kịch bản khác nhau.
-      </p>
-
-      <div class="sampler-grid" role="list">
-        <div class="sampler-card" role="listitem">
-          <div class="sampler-name">Euler / Euler&nbsp;A</div>
-          <div class="sampler-tagline">Nhanh, đơn giản</div>
-          <p class="sampler-desc">Phương pháp Euler cổ điển. Euler Ancestral thêm yếu tố ngẫu nhiên cho mỗi bước, cho ảnh phong phú hơn nhưng ít reproducible hơn.</p>
-          <div class="sampler-badges">
-            <span class="badge fast">Nhanh</span>
-            <span class="badge balanced">Phổ thông</span>
-          </div>
-        </div>
-        <div class="sampler-card" role="listitem">
-          <div class="sampler-name">DPM++ / DPM++&nbsp;2M</div>
-          <div class="sampler-tagline">Multistep, cần đúng variant</div>
-          <p class="sampler-desc">DPM++ 2M và DPM++ 2M SDE là hai lựa chọn riêng trong ComfyUI. Hậu tố SDE mới chỉ variant stochastic; chất lượng và số bước phù hợp phụ thuộc model cùng scheduler.</p>
-          <div class="sampler-badges">
-            <span class="badge balanced">Cân bằng</span>
-            <span class="badge quality">Chất lượng cao</span>
-          </div>
-        </div>
-        <div class="sampler-card" role="listitem">
-          <div class="sampler-name">DDIM</div>
-          <div class="sampler-tagline">Đường lấy mẫu có kiểm soát</div>
-          <p class="sampler-desc">DDIM có thể deterministic khi cấu hình eta = 0 và toàn pipeline cố định. Đừng coi tên sampler một mình là cam kết tái lập trên mọi backend.</p>
-          <div class="sampler-badges">
-            <span class="badge deter">Deterministic</span>
-          </div>
-        </div>
-        <div class="sampler-card" role="listitem">
-          <div class="sampler-name">UniPC</div>
-          <div class="sampler-tagline">Predictor–corrector hiệu quả</div>
-          <p class="sampler-desc">UniPC hướng tới lấy mẫu hiệu quả ở ít bước, nhưng không có ngưỡng 5–10 bước bảo đảm cho mọi video model. Hãy benchmark theo model card và workflow đang dùng.</p>
-          <div class="sampler-badges">
-            <span class="badge fast">Ít bước</span>
-            <span class="badge quality">Chất lượng tốt</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── Section 3: Denoising Steps ── -->
-  <section class="section" id="denoising-steps" aria-labelledby="s3-heading">
-    <div class="shell">
-      <div class="section-index">03 — Khái niệm</div>
-      <h2 class="section-heading" id="s3-heading">Denoising Steps</h2>
-      <p class="section-lead">
-        Số bước lặp để khử nhiễu — nhiều hơn không phải lúc nào cũng tốt hơn.
-      </p>
-
-      <div class="def-panel def-panel-cyan">
-        <div class="def-term def-term-cyan">Denoising Steps</div>
-        <p class="def-text">
-          Số lần mô hình tính toán và loại bỏ noise trên đường từ T → 0.
-          Mỗi bước là một lần dự đoán và trừ noise, tốn thời gian tính toán nhưng tăng độ chi tiết của kết quả.
-        </p>
-      </div>
-
-      <div class="tradeoff-row">
-        <div class="tradeoff-cell">
-          <div class="tc-label few">Vùng ít bước trong lab (4–15)</div>
-          <ul>
-            <li>Tạo nhanh — phù hợp thử nghiệm</li>
-            <li>Có thể xuất hiện artifact, mờ nhòe</li>
-            <li>Thiếu chi tiết tinh tế</li>
-            <li>Chọn sampler đã được benchmark cho model hiện tại</li>
-          </ul>
-        </div>
-        <div class="tradeoff-cell">
-          <div class="tc-label many">Vùng nhiều bước trong lab (20–50)</div>
-          <ul>
-            <li>Chi tiết hơn, sắc nét hơn</li>
-            <li>Tốn thời gian và tài nguyên hơn</li>
-            <li>Điểm lợi ích giảm dần phải xác định bằng A/B test</li>
-            <li>Phù hợp kết quả cuối cần chất lượng cao</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── Section 4: Lab tương tác ── -->
-  <section class="section" id="lab" aria-labelledby="lab-heading">
-    <div class="shell">
-      <div class="section-index">04 — Lab tương tác</div>
-      <h2 class="section-heading" id="lab-heading">Thử: Denoising Steps ảnh hưởng thế nào?</h2>
-      <p class="section-lead">
-        Dựng cảnh “tàu đêm xuyên rừng” bằng bốn sampler. Chọn mục tiêu, chạy quá trình khử nhiễu,
-        rồi quan sát lúc bố cục, chuyển động và chi tiết lần lượt xuất hiện.
-      </p>
-
-      <div class="production-brief" aria-label="Thông số shot mô phỏng thực tế">
-        <div class="brief-cell">
-          <span>Production brief</span>
-          <strong>Shot 014 · đoàn tàu xuyên rừng đêm, camera tracking ngang, mưa nhẹ, phản chiếu cyan</strong>
-        </div>
-        <div class="brief-cell">
-          <span>Output</span>
-          <strong>81 frames · 16:9</strong>
-        </div>
-        <div class="brief-cell">
-          <span>Seed</span>
-          <strong>240731 khóa cố định</strong>
-        </div>
-        <div class="brief-cell">
-          <span>Mục tiêu</span>
-          <strong>Preview → final</strong>
-        </div>
-      </div>
-
-      <div class="lab-panel">
-        <div class="lab-controls">
-          <fieldset class="control-group">
-            <legend>1. Chọn sampler</legend>
-            <div class="choice-row">
-              <label class="choice-pill">
-                <input type="radio" name="sampler" value="euler" />
-                <span>Euler A · giàu biến thể</span>
-              </label>
-              <label class="choice-pill">
-                <input type="radio" name="sampler" value="dpm" checked />
-                <span>DPM++ 2M · cân bằng</span>
-              </label>
-              <label class="choice-pill">
-                <input type="radio" name="sampler" value="ddim" />
-                <span>DDIM · ổn định</span>
-              </label>
-              <label class="choice-pill">
-                <input type="radio" name="sampler" value="unipc" />
-                <span>UniPC · ít bước</span>
-              </label>
-            </div>
-          </fieldset>
-
-          <div class="control-group">
-            <div class="control-label">2. Chọn mục tiêu render</div>
-            <div class="preset-row" aria-label="Preset số bước">
-              <button class="preset-button" type="button" data-steps="8" aria-pressed="false">Phác nhanh · 8 bước</button>
-              <button class="preset-button" type="button" data-steps="22" aria-pressed="true">Bản nháp tốt · 22 bước</button>
-              <button class="preset-button" type="button" data-steps="40" aria-pressed="false">Xuất cuối · 40 bước</button>
-            </div>
-          </div>
-
-          <div class="lab-control-row">
-            <label for="steps-slider">3. Tinh chỉnh Steps</label>
-            <input
-              type="range"
-              id="steps-slider"
-              min="4"
-              max="50"
-              value="22"
-              step="1"
-              aria-describedby="steps-desc"
-            />
-            <output class="lab-value" id="steps-val" for="steps-slider">22</output>
-          </div>
-
-          <div class="lab-actions">
-            <button class="button primary" type="button" id="run-render">
-              Chạy khử nhiễu
-            </button>
-            <button class="button" type="button" id="reset-render">Đặt lại Lab</button>
-          </div>
-        </div>
-
-        <div class="lab-output">
-          <div class="visual-stage">
-            <div class="visual-stage-title">Cảnh 014 · Tàu đêm xuyên rừng</div>
-            <div class="noise-canvas-wrap">
-              <canvas id="noise-canvas" width="640" height="400" aria-describedby="canvas-description"></canvas>
-              <div class="render-hud" aria-hidden="true">
-                <span class="render-status" id="render-status">Sẵn sàng</span>
-                <span class="render-frame" id="render-frame">DPM++ · 22 steps</span>
-              </div>
-            </div>
-            <div class="phase-track" aria-hidden="true">
-              <span class="phase-step" data-phase="0">Noise</span>
-              <span class="phase-step" data-phase="1">Bố cục</span>
-              <span class="phase-step" data-phase="2">Chuyển động</span>
-              <span class="phase-step" data-phase="3">Chi tiết</span>
-            </div>
-            <p id="steps-desc" class="steps-desc">
-              Mức noise còn lại: <span id="noise-level-text">thấp</span>
-            </p>
-            <p id="canvas-description" class="metric-note">
-              Bản mô phỏng cho thấy đoàn tàu màu cyan chạy qua rừng đêm; chi tiết tăng dần khi số bước tăng.
-            </p>
-          </div>
-
-          <div class="metrics-panel">
-            <div class="metric-row">
-              <div class="metric-label">Chất lượng ước tính</div>
-              <div class="metric-value quality" id="quality-val" aria-live="polite">80%</div>
-              <div class="metric-bar-track">
-                <div class="metric-bar-fill quality" id="quality-bar"></div>
-              </div>
-            </div>
-            <div class="metric-row">
-              <div class="metric-label">Chi phí tính toán tương đối</div>
-              <div class="metric-value speed" id="time-val" aria-live="polite">2.0×</div>
-              <div class="metric-bar-track">
-                <div class="metric-bar-fill speed" id="time-bar"></div>
-              </div>
-              <div class="metric-note" id="time-note">Đơn vị mô phỏng để so sánh — không phải giây render</div>
-            </div>
-            <div class="metric-pair">
-              <div class="mini-metric">
-                <span>Độ ổn định</span>
-                <strong id="consistency-val">Cao</strong>
-              </div>
-              <div class="mini-metric">
-                <span>Hợp nhất khi</span>
-                <strong id="best-for-val">Render cân bằng</strong>
-              </div>
-            </div>
-            <div class="step-recommendation">
-              <div class="rec-label">Khuyến nghị</div>
-              <span id="rec-text">DPM++ 2M ở 22 bước là cấu hình cân bằng: đủ chi tiết cho bản nháp tốt mà chưa tốn nhiều thời gian.</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="checkpoint" id="checkpoint" aria-labelledby="checkpoint-title">
-        <div class="checkpoint-head">
-          <div>
-            <p class="checkpoint-kicker">Checkpoint · Chọn như một đạo diễn</p>
-            <h3 class="checkpoint-title" id="checkpoint-title">Bạn cần xem nhanh bố cục trước khi chốt prompt. Chọn cấu hình nào?</h3>
-          </div>
-          <span class="checkpoint-count" id="checkpoint-count">Tình huống 1 / 3</span>
-        </div>
-        <div class="checkpoint-body">
-          <div class="answer-grid" id="answer-grid"></div>
-          <p class="answer-feedback" id="answer-feedback" role="status" aria-live="polite">Chọn một phương án, sau đó đọc lý do.</p>
-          <button class="button checkpoint-next" id="checkpoint-next" type="button" hidden>Tình huống tiếp theo</button>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── Section 5: Câu hỏi thường gặp ── -->
-  <section class="section" id="faq" aria-labelledby="faq-heading">
-    <div class="shell">
-      <div class="section-index">05 — Câu hỏi thường gặp</div>
-      <h2 class="section-heading" id="faq-heading">Hỏi đáp nhanh</h2>
-      <p class="section-lead">Những câu hỏi phổ biến khi bắt đầu dùng sampler.</p>
-
-      <details>
-        <summary>Tôi nên dùng bao nhiêu steps là đủ?</summary>
-        <div class="details-body">
-          <p>Không có một khoảng steps đúng cho mọi pipeline. Bắt đầu từ model card hoặc workflow chính chủ; ví dụ Wan2.1 CLI dùng mặc định 40 bước cho I2V và 50 bước cho T2V.</p>
-          <p>Sau đó giữ seed, prompt, resolution, sampler và scheduler cố định, giảm steps theo từng nấc để tìm mức thấp nhất vẫn đạt brief. Preset trong lab này chỉ minh họa trade-off tương đối.</p>
-        </div>
-      </details>
-      <details>
-        <summary>Euler A và Euler khác nhau như thế nào?</summary>
-        <div class="details-body">
-          <p>Euler thường dùng đường cập nhật không ancestral; Euler <strong>Ancestral</strong> (Euler A) thêm noise trong quá trình lấy mẫu. Mức tái lập còn phụ thuộc scheduler, backend và toàn pipeline, không chỉ tên sampler.</p>
-        </div>
-      </details>
-      <details>
-        <summary>Thay sampler có làm thay đổi phong cách ảnh không?</summary>
-        <div class="details-body">
-          <p>Có thể, đặc biệt ở số bước thấp, nhưng không có “phong cách cố định” cho từng sampler. Hãy A/B trên đúng model và scheduler, giữ prompt, seed, resolution cùng các biến còn lại không đổi.</p>
-        </div>
-      </details>
-      <details>
-        <summary>Tôi có nên luôn dùng nhiều bước nhất có thể không?</summary>
-        <div class="details-body">
-          <p>Không. Chi phí tăng theo số bước còn chất lượng có thể bão hòa ở một mức phụ thuộc model và workflow. Hãy A/B để tìm số bước thấp nhất vẫn đạt brief thay vì mặc định một ngưỡng chung.</p>
-        </div>
-      </details>
-    </div>
-  </section>
-
-  <!-- ── Takeaway ── -->
-  <section class="section" id="takeaway" aria-labelledby="takeaway-heading">
-    <div class="shell">
-      <div class="takeaway-panel">
-        <div>
-          <div class="takeaway-heading">Tóm lại</div>
-          <h2 id="takeaway-heading" class="takeaway-title">Những điều cần nhớ</h2>
-        </div>
-        <ul class="takeaway-list">
-          <li>
-            <span class="bullet" aria-hidden="true"></span>
-            <span>Sampler là thuật toán điều hướng quá trình khử nhiễu — mỗi loại có công thức toán học và đặc điểm đầu ra khác nhau.</span>
-          </li>
-          <li>
-            <span class="bullet" aria-hidden="true"></span>
-            <span>Phân biệt đúng variant (ví dụ DPM++ 2M với DPM++ 2M SDE) và chọn sampler theo model, scheduler cùng mục tiêu thử nghiệm.</span>
-          </li>
-          <li>
-            <span class="bullet" aria-hidden="true"></span>
-            <span>Lấy model card/workflow chính chủ làm baseline steps; preset ít bước chỉ dùng preview sau khi đã benchmark.</span>
-          </li>
-          <li>
-            <span class="bullet" aria-hidden="true"></span>
-            <span>Lợi ích chất lượng giảm dần — đừng tăng bước vô hạn. Chọn ít bước nhất đạt kết quả chấp nhận được.</span>
-          </li>
-        </ul>
-        <nav class="takeaway-nav" aria-label="Điều hướng bài học">
-          <a href="video-generation-part-2-lesson-2.html" class="button">← Bài 2: Scheduler</a>
-          <a href="video-generation-part-2-lesson-4.html" class="button primary">Bài 4: CFG →</a>
-        </nav>
-      </div>
-    </div>
-  </section>
-
-  <section class="section" id="related-lessons" aria-labelledby="related-heading">
-    <div class="shell">
-      <div class="section-index">06 — Đi tiếp theo kiến thức</div>
-      <h2 class="section-heading" id="related-heading">Bài liên quan</h2>
-      <p class="section-lead">Sampler chỉ là một nửa quyết định đường khử nhiễu. Học tiếp các mắt xích trực tiếp dưới đây.</p>
-      <nav class="related-grid" aria-label="Các bài học liên quan đến sampler">
-        <a class="related-card" href="video-generation-part-2-lesson-1.html">
-          <span class="related-kicker">Timestep · Sigma</span>
-          <strong>Hiểu tọa độ mà sampler đang đi qua</strong>
-          <small>Kết nối từng bước denoise với mức noise thực tế trong latent.</small>
-        </a>
-        <a class="related-card" href="video-generation-part-2-lesson-2.html">
-          <span class="related-kicker">Scheduler</span>
-          <strong>Phân biệt lịch noise và thuật toán solver</strong>
-          <small>Hiểu vì sao cùng sampler nhưng schedule khác vẫn cho nhịp chuyển động khác.</small>
-        </a>
-        <a class="related-card" href="video-generation-part-2-lesson-6.html">
-          <span class="related-kicker">VRAM · Noise Aug</span>
-          <strong>Đưa cấu hình sampling vào workflow thật</strong>
-          <small>Cân steps, độ phân giải và bộ nhớ GPU khi render clip dài.</small>
-        </a>
-      </nav>
-    </div>
-  </section>
-
-</main>
-
-<footer>
-  <div class="shell">
-    <div class="footer-inner">
-      <a class="footer-brand" href="index.html">
+  <!-- Topbar -->
+  <header class="topbar" role="banner">
+    <div class="topbar-inner">
+      <a class="brand" href="index.html" data-curriculum-home aria-label="Video Generation Study — trang chủ">
         <span class="brand-mark" aria-hidden="true"></span>
-        VIDEO GEN LAB
+        Video Gen Lab
       </a>
-      <span>Phần 2, Bài 3 / 6 — Sampler &amp; Denoising Steps</span>
+      <nav class="topnav" aria-label="Điều hướng bài học">
+        <a href="video-generation-part-2-lesson-2.html" data-curriculum-prev>← Bài 2.2</a>
+        <a href="index.html" data-curriculum-home>Trang chủ</a>
+        <a href="video-generation-part-2-lesson-4.html" data-curriculum-next>Bài 2.4 →</a>
+      </nav>
+      <!-- theme toggle injected by video-generation-theme.js -->
     </div>
+    <div class="progress-track" aria-hidden="true">
+      <div class="progress-fill" id="progress-fill"></div>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- Hero -->
+    <section class="hero shell" aria-labelledby="hero-heading">
+      <div class="hero-meta" data-curriculum-hero-label>
+        TRAINING DESIGN · BÀI 2.3 · ADAPTER
+      </div>
+      <h1 class="hero-title" id="hero-heading">LoRA là gì:<br>Low-Rank Adaptation</h1>
+      <p class="hero-lead">
+        Hiểu cách LoRA thêm một adapter nhỏ vào mô hình đã huấn luyện — không cần huấn luyện lại toàn bộ — và cách LoRA Strength kiểm soát mức ảnh hưởng lúc inference.
+      </p>
+<!-- OUTPUT ARTIFACT BADGE -->
+<div class="output-artifact" role="note">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+  <span class="output-artifact-label">Đầu ra bài học:</span>
+  <span class="output-artifact-text">Hiểu cơ chế low-rank decomposition trong LoRA, tại sao nó hiệu quả với VRAM thấp hơn, và các trade-off thực tế so với full fine-tuning trong Wan2.2</span>
+</div>
+      <div class="hero-actions">
+        <a class="button primary" href="#dinh-nghia">Bắt đầu học</a>
+        <a class="button" href="#checkpoint">Kiểm tra hiểu biết</a>
+      </div>
+    </section>
+
+<!-- FLOW POSITION MINI-MAP -->
+<div class="shell">
+  <nav class="flow-minimap" aria-label="Vị trí trong lộ trình">
+    <span class="flow-minimap-label">LỘ TRÌNH</span>
+    <span class="flow-minimap-sep">›</span>
+    <a class="flow-minimap-item" href="video-generation-part-2-lesson-2.html">2.2: DreamBooth & Trigger</a>
+    <span class="flow-minimap-sep">›</span>
+    <strong class="flow-minimap-item current" aria-current="step">2.3: LoRA Mechanics</strong>
+    <span class="flow-minimap-sep">›</span>
+    <a class="flow-minimap-item" href="video-generation-part-2-lesson-4.html">2.4: Dataset & Captioning</a>
+  </nav>
+</div>
+
+    <!-- 1. Định nghĩa -->
+    <section id="dinh-nghia" class="shell" aria-labelledby="def-heading">
+      <p class="section-label">01 — Định nghĩa</p>
+      <h2 class="section-title" id="def-heading">LoRA là gì?</h2>
+      <p class="section-lead">
+        LoRA — viết tắt của <strong>Low-Rank Adaptation</strong> — là một kỹ thuật fine-tuning hiệu quả: thay vì cập nhật toàn bộ tham số của mô hình gốc, nó chèn một adapter rất nhỏ vào bên trong và chỉ huấn luyện adapter đó.
+      </p>
+<!-- PREREQUISITE CALLOUT -->
+<div class="prereq-callout" role="note" aria-label="Yêu cầu trước bài học">
+  <div class="prereq-icon" aria-hidden="true">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 8v4m0 4h.01"/></svg>
   </div>
-</footer>
+  <div>
+    <p class="prereq-title">Cần biết trước</p>
+    <p class="prereq-body">Bài này yêu cầu hiểu trigger word và subject definition từ Bài 2.2 — bạn cần biết mình đang train cái gì trước khi hiểu cách train.</p>
+    <a class="prereq-link" href="video-generation-part-2-lesson-2.html">← Xem lại bài trước: DreamBooth, Identifier & Trigger</a>
+  </div>
+</div>
+      <div class="def-panel" role="note">
+        <p class="def-term">Low-Rank Adaptation</p>
+        <p>
+          LoRA thêm hai ma trận nhỏ (ma trận hạng thấp) vào bên trong các lớp nhất định của mô hình đã được đóng băng (frozen). Trong quá trình huấn luyện, chỉ hai ma trận này được cập nhật. Trọng số gốc của mô hình nền <em>không thay đổi</em>.
+        </p>
+        <p>
+          Adapter chỉ lưu phần cập nhật, nên thường nhỏ hơn checkpoint đầy đủ. Kích thước thực tế phụ thuộc kiến trúc, các module được gắn LoRA, rank và dtype; vì vậy không nên suy ra dung lượng hay VRAM từ tên “LoRA” alone.
+        </p>
+      </div>
+    </section>
 
-<script>
-  (() => {
-    'use strict';
+    <!-- 2. Cơ chế hoạt động -->
+    <section id="co-che" class="shell" aria-labelledby="how-heading">
+      <p class="section-label">02 — Cơ chế</p>
+      <h2 class="section-title" id="how-heading">LoRA hoạt động như thế nào?</h2>
+      <p class="section-lead">
+        LoRA phân rã phần thay đổi của trọng số thành tích của hai ma trận nhỏ, giữ nguyên trọng số gốc trong suốt quá trình.
+      </p>
 
-    const fill = document.getElementById('progress-fill');
-    const progressBar = fill?.closest('[role="progressbar"]');
-    const onScroll = () => {
-      const total = document.documentElement.scrollHeight - window.innerHeight;
-      const pct = total > 0 ? Math.min(100, Math.round((window.scrollY / total) * 100)) : 0;
-      if (fill) fill.style.width = pct + '%';
-      if (progressBar) progressBar.setAttribute('aria-valuenow', pct);
-    };
-    window.addEventListener('scroll', onScroll, {passive: true});
-    onScroll();
+      <div class="flow-grid">
+        <div class="flow-card">
+          <p class="flow-card-num">Bước 01</p>
+          <h3>Mô hình nền bị đóng băng</h3>
+          <p>Tất cả trọng số của mô hình gốc (base model) được giữ nguyên — không có gradient nào được tính cho chúng.</p>
+        </div>
+        <div class="flow-card">
+          <p class="flow-card-num">Bước 02</p>
+          <h3>Thêm hai ma trận A và B</h3>
+          <p>Vào một số lớp được chọn (thường là các lớp attention), LoRA chèn hai ma trận hạng thấp: <strong>A</strong> (d × r) và <strong>B</strong> (r × d), với r &lt;&lt; d.</p>
+        </div>
+        <div class="flow-card">
+          <p class="flow-card-num">Bước 03</p>
+          <h3>Chỉ huấn luyện A và B</h3>
+          <p>Quá trình huấn luyện chỉ cập nhật A và B. Ma trận A thường được khởi tạo ngẫu nhiên, ma trận B được khởi tạo bằng 0 để đầu ra ban đầu không thay đổi.</p>
+        </div>
+        <div class="flow-card">
+          <p class="flow-card-num">Lúc inference</p>
+          <h3>Cộng thêm ΔW vào trọng số gốc</h3>
+          <p>Đóng góp của LoRA được cộng vào trọng số gốc theo công thức dưới đây, có thể điều chỉnh bằng LoRA Strength.</p>
+        </div>
+      </div>
 
-    const canvas = document.getElementById('noise-canvas');
-    const ctx = canvas?.getContext('2d');
-    const stepsSlider = document.getElementById('steps-slider');
-    const stepsVal = document.getElementById('steps-val');
-    const qualityVal = document.getElementById('quality-val');
-    const qualityBar = document.getElementById('quality-bar');
-    const timeVal = document.getElementById('time-val');
-    const timeBar = document.getElementById('time-bar');
-    const noiseTxt = document.getElementById('noise-level-text');
-    const recText = document.getElementById('rec-text');
-    const consistencyVal = document.getElementById('consistency-val');
-    const bestForVal = document.getElementById('best-for-val');
-    const renderStatus = document.getElementById('render-status');
-    const renderFrame = document.getElementById('render-frame');
-    const runButton = document.getElementById('run-render');
-    const resetButton = document.getElementById('reset-render');
-    const phaseSteps = [...document.querySelectorAll('.phase-step')];
-    const presetButtons = [...document.querySelectorAll('.preset-button')];
-    const samplerInputs = [...document.querySelectorAll('input[name="sampler"]')];
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+      <div class="formula-block" role="note" aria-label="Công thức LoRA">
+        <code>W' = W + ΔW = W + B × A × scale</code>
+        <p class="formula-note">
+          Trong đó: <span>W</span> là trọng số gốc (frozen) · <span>B</span> và <span>A</span> là hai ma trận hạng thấp của LoRA. Cách <span>alpha/rank</span> và “weight/strength” được ghép với ΔW là quy ước của trainer hoặc runtime; hãy kiểm tra config và phiên bản công cụ đang dùng.
+        </p>
+      </div>
 
-    const revealItems = [...document.querySelectorAll('.sampling-route, .sampler-grid, .production-brief, .related-card')];
-    if (reduceMotion.matches || !('IntersectionObserver' in window)) {
-      revealItems.forEach((item) => item.classList.add('is-visible'));
-    } else {
-      const revealObserver = new IntersectionObserver((entries, observer) => {
-        entries.forEach((entry) => {
-          if (!entry.isIntersecting) return;
-          entry.target.classList.add('is-visible');
-          observer.unobserve(entry.target);
+      <div class="microscope" aria-labelledby="microscope-title">
+        <div class="microscope-head">
+          <div>
+            <p class="microscope-kicker">Parameter microscope</p>
+            <h3 class="microscope-title" id="microscope-title">Một nhiệm vụ, hai cách cập nhật trọng số</h3>
+          </div>
+          <div class="mode-switch" role="group" aria-label="Chọn phương pháp fine-tuning">
+            <button class="mode-button" type="button" data-mode="lora" aria-pressed="true">LoRA</button>
+            <button class="mode-button" type="button" data-mode="full" aria-pressed="false">Full tune</button>
+          </div>
+        </div>
+        <div class="microscope-body">
+          <div>
+            <div class="weight-matrix" id="weight-matrix" role="img" aria-label="Minh họa tương đối: LoRA chỉ cập nhật phần adapter, không phải tỷ lệ tham số thực" aria-describedby="matrix-caption"></div>
+            <p class="matrix-caption" id="matrix-caption">Minh họa tương đối, không phải tỷ lệ tham số hay dung lượng thực: base đứng yên; adapter là phần được cập nhật.</p>
+          </div>
+          <div class="parameter-story">
+            <p class="mode-summary" id="mode-summary"><strong>Một phần nhỏ hơn</strong> được huấn luyện; tỷ lệ thực phụ thuộc module mục tiêu và rank.</p>
+            <div class="metric-grid">
+              <div class="parameter-metric"><span>Trainable</span><strong id="trainable-value">Phụ thuộc config</strong></div>
+              <div class="parameter-metric"><span>File đầu ra</span><strong id="file-value">Phụ thuộc architecture</strong></div>
+              <div class="parameter-metric"><span>GPU memory</span><strong id="memory-value">Thấp hơn</strong></div>
+            </div>
+            <div class="transfer-line" aria-hidden="true"><div class="transfer-fill" id="transfer-fill"></div></div>
+            <p class="microscope-note" id="mode-note">Bạn mang theo “phần chênh lệch” nhỏ ΔW. Base model giống như cuốn sách gốc không bị viết đè — đổi adapter là đổi ghi chú chuyên môn.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. LoRA Strength -->
+    <section id="lora-strength" class="shell" aria-labelledby="strength-heading">
+      <p class="section-label">03 — LoRA Strength / Weight</p>
+      <h2 class="section-title" id="strength-heading">Điều chỉnh mức ảnh hưởng của LoRA</h2>
+      <p class="section-lead">
+        LoRA weight là hệ số runtime mà <em>một runtime cụ thể</em> dùng để điều chỉnh adapter. Trong Diffusers, ví dụ adapter weight 0 dùng base weights và 1 là mức adapter đầy đủ; tên tham số, range hợp lệ và các layer bị tác động khác nhau giữa runtime, model và phiên bản.
+      </p>
+
+      <div class="demo-shell" role="region" aria-labelledby="demo-heading">
+        <p class="demo-label" id="demo-heading">Mô phỏng · Style mixer — cùng một cảnh, thay đổi một adapter</p>
+
+        <div class="slider-row">
+          <label for="lora-slider">LoRA Strength</label>
+          <input
+            type="range"
+            id="lora-slider"
+            min="0"
+            max="2"
+            step="0.05"
+            value="1"
+            aria-valuemin="0"
+            aria-valuemax="2"
+            aria-valuenow="1"
+            aria-label="LoRA weight mô phỏng từ 0.0 đến 2.0"
+          />
+          <output class="slider-value" id="slider-output" for="lora-slider" aria-live="off">1.00</output>
+        </div>
+
+        <div class="strength-presets" aria-label="Preset LoRA Strength">
+          <button class="strength-preset" type="button" data-strength="0" aria-pressed="false">Base · 0.0</button>
+          <button class="strength-preset" type="button" data-strength="0.45" aria-pressed="false">Tinh tế · 0.45</button>
+          <button class="strength-preset" type="button" data-strength="1" aria-pressed="true">Cân bằng · 1.0</button>
+          <button class="strength-preset" type="button" data-strength="1.65" aria-pressed="false">Overdrive · 1.65</button>
+        </div>
+
+        <div class="strength-layout">
+          <div class="style-frame" id="style-frame" role="img" aria-describedby="style-description">
+            <div class="base-scene" aria-hidden="true"></div>
+            <div class="lora-scene" aria-hidden="true"></div>
+            <div class="city-line" aria-hidden="true"></div>
+            <div class="rider" aria-hidden="true"></div>
+            <div class="style-hud" aria-hidden="true">
+              <span>Cảnh 08 · City rider</span>
+              <span id="style-hud-value">LoRA 1.00</span>
+            </div>
+          </div>
+          <div class="strength-side">
+            <div class="blend-stage" aria-label="Mức đóng góp của adapter">
+              <div class="blend-labels"><span>Base model</span><span>LoRA ΔW</span></div>
+              <div class="blend-bar-track" role="presentation"><div class="blend-bar-fill" id="blend-bar" aria-hidden="true"></div></div>
+              <div class="blend-output" role="status" aria-live="polite" aria-atomic="true" id="blend-output">
+                <p class="output-line"><span class="base-text" id="base-text">Cảnh thành phố trung tính</span><span id="lora-text-span"></span></p>
+              </div>
+            </div>
+
+            <div class="strength-description" id="strength-desc" role="note" aria-live="polite" aria-atomic="true">
+              <strong>Weight mô phỏng = 1.00 —</strong> Dùng làm điểm so sánh trong lab này, không phải preset tối ưu hay hành vi đảm bảo của một model.
+            </div>
+            <p class="matrix-caption" id="style-description">Cảnh người đi xe trong thành phố chuyển từ màu trung tính sang phong cách neon, tương phản mạnh khi strength tăng.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="production-case" class="shell" aria-labelledby="case-heading">
+      <p class="section-label">04 — Production case</p>
+      <h2 class="section-title" id="case-heading">A/B một adapter trước khi chốt shot.</h2>
+      <p class="section-lead">Một brief để dùng LoRA như biến kiểm soát được, thay vì tăng weight cho đến khi ảnh “trông có vẻ mạnh”. Các kết quả dưới đây là kế hoạch thử nghiệm, không phải benchmark.</p>
+      <div class="case-grid">
+        <article class="case-card">
+          <p class="case-kicker">Đầu ra / bối cảnh</p>
+          <h3>Teaser 6 giây cho poster chuyển động</h3>
+          <p><strong>Mục tiêu:</strong> giữ bố cục chiếc xe máy và đọc rõ logo; thêm ngôn ngữ màu “neon mưa đêm”. <strong>Dùng tại:</strong> draft keyframe trước khi đưa sang workflow image-to-video.</p>
+        </article>
+        <article class="case-card">
+          <p class="case-kicker">Input / workflow</p>
+          <h3>Base + một style adapter</h3>
+          <p><strong>Giả định:</strong> cùng base model, cùng checkpoint LoRA tương thích, prompt, seed, scheduler, resolution, negative prompt và ảnh tham chiếu đều cố định. Chỉ đổi <strong>adapter weight</strong> theo các mức 0, 0.4, 0.8, 1.0.</p>
+        </article>
+        <article class="case-card">
+          <p class="case-kicker">Ràng buộc</p>
+          <h3>Ngân sách duyệt có giới hạn</h3>
+          <p>Render một lưới bốn ảnh ở cùng điều kiện trước; chỉ đưa hai ứng viên tốt vào video. Ghi rõ GPU, phiên bản pipeline và thời gian render trong run log — không dùng các giá trị này để suy rộng sang model khác.</p>
+        </article>
+      </div>
+      <div class="case-grid">
+        <article class="case-card">
+          <p class="case-kicker">Tiêu chí đánh giá</p>
+          <h3>Style có phục vụ shot?</h3>
+          <p>Chấm riêng: logo/subject có còn đọc được, palette có đúng art direction, bố cục có bị đổi, và khung có còn là input tốt cho motion ở bước sau.</p>
+        </article>
+        <article class="case-card">
+          <p class="case-kicker">Dấu hiệu thất bại</p>
+          <h3>Weight thắng bố cục</h3>
+          <p>Logo biến dạng, subject mất silhouette, chi tiết neon lặp vô nghĩa hoặc prompt adherence giảm là failure — không phải bằng chứng rằng LoRA “mạnh hơn thì tốt hơn”.</p>
+        </article>
+        <article class="case-card">
+          <p class="case-kicker">Bước tiếp theo</p>
+          <h3>Chẩn đoán một biến mỗi lượt</h3>
+          <p>Nếu 0.4–1.0 đều phá bố cục, kiểm tra adapter/base có tương thích, target module và trigger/caption; đừng tiếp tục đổi weight đồng thời với prompt hoặc sampler. Sang Bài 3.2 để tách rank/alpha khỏi weight inference.</p>
+        </article>
+      </div>
+      <aside class="source-note" aria-label="Phạm vi kỹ thuật và nguồn chính">
+        <p><strong>Phạm vi nguồn:</strong> LoRA paper mô tả việc đóng băng trọng số pretrained và thêm phân rã hạng thấp; đây là nguyên lý, không phải cam kết cho mọi diffusion/video model. <a href="https://arxiv.org/abs/2106.09685">Hu et al., LoRA</a> · <a href="https://huggingface.co/docs/diffusers/main/using-diffusers/loading_adapters">Diffusers: Load adapters</a> (hành vi weight/runtime).</p>
+      </aside>
+    </section>
+
+    <!-- 5. So sánh -->
+    <section id="so-sanh" class="shell" aria-labelledby="compare-heading">
+      <p class="section-label">05 — So sánh</p>
+      <h2 class="section-title" id="compare-heading">LoRA so với Full Fine-tuning</h2>
+      <p class="section-lead">
+        Hai cách tiếp cận khác nhau hoàn toàn về chi phí, kích thước và tính linh hoạt.
+      </p>
+      <div class="compare-table-wrap">
+        <table class="compare-table" aria-label="So sánh LoRA và Full Fine-tuning">
+          <thead>
+            <tr>
+              <th scope="col">Tiêu chí</th>
+              <th scope="col">LoRA</th>
+              <th scope="col">Full Fine-tuning</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Kích thước file</td>
+              <td class="cell-lora">Chỉ adapter; phụ thuộc rank, target module và dtype</td>
+              <td class="cell-full">Checkpoint mới có thể gần cỡ model; phụ thuộc format/dtype</td>
+            </tr>
+            <tr>
+              <td>Chi phí huấn luyện</td>
+              <td class="cell-lora">Thường ít trainable state hơn; vẫn phụ thuộc model, resolution và batch</td>
+              <td class="cell-full">Thường cao hơn; không mặc định đòi cụm GPU</td>
+            </tr>
+            <tr>
+              <td>Trọng số gốc</td>
+              <td class="cell-lora">Giữ nguyên (frozen)</td>
+              <td class="cell-full">Được cập nhật trong checkpoint mới</td>
+            </tr>
+            <tr>
+              <td>Hoán đổi linh hoạt</td>
+              <td class="cell-lora">Runtime có thể load/swap nếu format và API hỗ trợ</td>
+              <td class="cell-full">Thường cần tải checkpoint khác</td>
+            </tr>
+            <tr>
+              <td>Kết hợp nhiều phong cách</td>
+              <td class="cell-lora">Một số runtime hỗ trợ nhiều adapter; cần test xung đột</td>
+              <td class="cell-full">Không phải cơ chế adapter mặc định</td>
+            </tr>
+            <tr>
+              <td>Nguy cơ catastrophic forgetting</td>
+              <td class="cell-lora">Không tự loại bỏ rủi ro chất lượng hay overfit</td>
+              <td class="cell-full">Có thể cao hơn tùy dữ liệu, objective và lịch học</td>
+            </tr>
+            <tr>
+              <td>Chất lượng kết quả</td>
+              <td class="cell-lora">Tương đương trong việc giữ identity với chi phí tính toán thấp hơn đáng kể</td>
+              <td class="cell-full">Mức độ linh hoạt cao nhất nhưng tốn kém tài nguyên</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 6. Checkpoint -->
+    <section id="checkpoint" class="shell" aria-labelledby="checkpoint-heading">
+      <p class="section-label">06 — Kiểm tra</p>
+      <h2 class="section-title" id="checkpoint-heading">Checkpoint</h2>
+      <p class="section-lead">Chọn đáp án đúng để xem giải thích ngay lập tức.</p>
+
+      <div class="checkpoint-list">
+        <!-- Câu 1 -->
+        <div class="question-block">
+          <p class="question-num">Câu 1 / 3</p>
+          <p class="question-text" id="q1-text">Trong LoRA, điều gì xảy ra với trọng số của mô hình gốc trong quá trình huấn luyện?</p>
+          <ul class="options-list" role="group" aria-labelledby="q1-text">
+            <li>
+              <button class="option-btn" type="button" data-q="1" data-correct="false" aria-pressed="false">
+                Chúng được cập nhật cùng với ma trận A và B
+              </button>
+            </li>
+            <li>
+              <button class="option-btn" type="button" data-q="1" data-correct="true" aria-pressed="false">
+                Chúng bị đóng băng — không có gradient nào được tính cho chúng
+              </button>
+            </li>
+            <li>
+              <button class="option-btn" type="button" data-q="1" data-correct="false" aria-pressed="false">
+                Chúng bị xóa và thay bằng trọng số mới sau khi huấn luyện
+              </button>
+            </li>
+          </ul>
+          <div class="feedback-msg" id="q1-feedback" role="alert"></div>
+        </div>
+
+        <!-- Câu 2 -->
+        <div class="question-block">
+          <p class="question-num">Câu 2 / 3</p>
+          <p class="question-text" id="q2-text">Trong mô phỏng của bài này, bạn muốn style của LoRA xuất hiện tinh tế, không lấn át nội dung gốc. Thao tác A/B nào hợp lý nhất?</p>
+          <ul class="options-list" role="group" aria-labelledby="q2-text">
+            <li>
+              <button class="option-btn" type="button" data-q="2" data-correct="false" aria-pressed="false">
+                2.0 — mức cao nhất để LoRA có hiệu quả rõ ràng nhất
+              </button>
+            </li>
+            <li>
+              <button class="option-btn" type="button" data-q="2" data-correct="false" aria-pressed="false">
+                1.0 — mức cân bằng mặc định, LoRA áp dụng đúng như khi huấn luyện
+              </button>
+            </li>
+            <li>
+              <button class="option-btn" type="button" data-q="2" data-correct="true" aria-pressed="false">
+                Thử 0.3–0.5 trong runtime của mô phỏng, rồi tăng dần và so sánh cùng prompt/seed
+              </button>
+            </li>
+          </ul>
+          <div class="feedback-msg" id="q2-feedback" role="alert"></div>
+        </div>
+
+        <div class="question-block">
+          <p class="question-num">Câu 3 / 3</p>
+          <p class="question-text" id="q3-text">Vì sao “low-rank” giúp LoRA nhẹ hơn full fine-tuning?</p>
+          <ul class="options-list" role="group" aria-labelledby="q3-text">
+            <li><button class="option-btn" type="button" data-q="3" data-correct="false" aria-pressed="false">Vì LoRA nén toàn bộ mô hình thành một file ZIP</button></li>
+            <li><button class="option-btn" type="button" data-q="3" data-correct="true" aria-pressed="false">Vì phần thay đổi ΔW được biểu diễn bằng tích hai ma trận nhỏ A và B</button></li>
+            <li><button class="option-btn" type="button" data-q="3" data-correct="false" aria-pressed="false">Vì LoRA bỏ qua hoàn toàn các lớp attention</button></li>
+          </ul>
+          <div class="feedback-msg" id="q3-feedback" role="alert"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="bai-lien-quan" class="shell" aria-labelledby="related-heading">
+      <p class="section-label">Đọc theo knowledge map</p>
+      <h2 class="section-title" id="related-heading">Bài liên quan</h2>
+      <p class="section-lead">Đi tiếp theo quan hệ kỹ thuật thực: cấu hình adapter, dữ liệu tạo ra adapter, rồi cách dùng keyframe làm đầu vào cho video.</p>
+      <div class="related-grid">
+        <a class="related-card" href="video-generation-part-3-lesson-1.html">
+          <p class="related-kicker">Phần 3 · Bài 2</p>
+          <h3>Rank &amp; Alpha: capacity của LoRA</h3>
+          <p>Tách capacity và hệ số nội bộ lúc train khỏi adapter weight lúc inference để A/B test không đổi nhầm biến.</p>
+        </a>
+        <a class="related-card" href="video-generation-part-2-lesson-4.html">
+          <p class="related-kicker">Phần 3 · Bài 5</p>
+          <h3>Chuẩn bị dataset &amp; captioning</h3>
+          <p>Khi adapter lệch subject hoặc style, quay lại kiểm tra coverage và caption trước khi kết luận weight là nguyên nhân.</p>
+        </a>
+        <a class="related-card" href="video-generation-part-5-lesson-1.html">
+          <p class="related-kicker">Phần 4 · Bài 1</p>
+          <h3>I2V, T2V, FLF2V</h3>
+          <p>Production case ở bài này tạo keyframe; bài kế tiếp chọn mode video theo mức kiểm soát hình ảnh đang có.</p>
+        </a>
+      </div>
+    </section>
+
+    <!-- HANDOFF CARD -->
+    <section class="content-section" id="handoff" aria-labelledby="handoff-heading">
+      <div class="shell">
+        <div class="handoff-card">
+          <div class="handoff-card-icon" aria-hidden="true">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </div>
+          <div>
+            <p class="handoff-card-label">Bài tiếp theo</p>
+            <h2 class="handoff-card-title" id="handoff-heading">Dataset &amp; Captioning</h2>
+            <p class="handoff-card-body">Bài tiếp theo chuyển từ lý thuyết adapter sang dữ liệu thực tế: cách chuẩn bị dataset với rights/consent, train/validation split, video geometry, và caption QA để LoRA học đúng subject.</p>
+            <a class="button primary" href="video-generation-part-2-lesson-4.html" data-curriculum-next>Sang Bài 2.4 →</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-inner shell page-footer">
+      <p class="footer-copy" data-curriculum-completion-label>VIDEO GEN LAB · TRAINING DESIGN · BÀI 2.3 / LORA MECHANICS</p>
+      <div style="display:flex;gap:12px">
+        <a class="button" href="video-generation-part-2-lesson-2.html" data-curriculum-prev data-curriculum-title-fallback>← Bài 2.2: DreamBooth, Identifier &amp; Trigger</a>
+        <a class="button primary" href="video-generation-part-2-lesson-4.html" data-curriculum-next data-curriculum-title-fallback>Bài 2.4: Dataset &amp; Captioning →</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    /* ── Progress bar ── */
+    (function () {
+      var fill = document.getElementById('progress-fill');
+      if (!fill) return;
+      function update() {
+        var scrolled = window.scrollY || window.pageYOffset;
+        var total = document.documentElement.scrollHeight - window.innerHeight;
+        var pct = total > 0 ? Math.min(100, (scrolled / total) * 100) : 0;
+        fill.style.width = pct.toFixed(2) + '%';
+      }
+      window.addEventListener('scroll', update, {passive: true});
+      update();
+    })();
+
+    /* ── Parameter microscope ── */
+    (function () {
+      var matrix = document.getElementById('weight-matrix');
+      var buttons = Array.from(document.querySelectorAll('.mode-button'));
+      var summary = document.getElementById('mode-summary');
+      var trainable = document.getElementById('trainable-value');
+      var fileValue = document.getElementById('file-value');
+      var memoryValue = document.getElementById('memory-value');
+      var transferFill = document.getElementById('transfer-fill');
+      var note = document.getElementById('mode-note');
+      var caption = document.getElementById('matrix-caption');
+      var cells = [];
+
+      for (var i = 0; i < 144; i += 1) {
+        var cell = document.createElement('span');
+        cell.className = 'weight-cell is-base';
+        cell.setAttribute('aria-hidden', 'true');
+        matrix.appendChild(cell);
+        cells.push(cell);
+      }
+
+      function renderMode(mode) {
+        var isLora = mode === 'lora';
+        buttons.forEach(function (button) {
+          button.setAttribute('aria-pressed', String(button.dataset.mode === mode));
         });
-      }, { threshold: .14 });
-      revealItems.forEach((item) => {
-        item.classList.add('reveal-item');
-        revealObserver.observe(item);
-      });
-    }
-    let animationFrame = 0;
-
-    const profiles = {
-      euler: {label: 'Euler A', quality: -2, time: .86, consistency: 'Vừa', bestFor: 'Tạo biến thể'},
-      dpm: {label: 'DPM++ 2M', quality: 3, time: 1, consistency: 'Cao', bestFor: 'Render cân bằng'},
-      ddim: {label: 'DDIM', quality: 0, time: .94, consistency: 'Rất cao', bestFor: 'So sánh có kiểm soát'},
-      unipc: {label: 'UniPC', quality: 1, time: .72, consistency: 'Cao', bestFor: 'Preview ít bước'},
-    };
-
-    const selectedSampler = () => samplerInputs.find((input) => input.checked)?.value || 'dpm';
-
-    const pseudoRandom = (x, y, seed) => {
-      const value = Math.sin(x * 12.9898 + y * 78.233 + seed * 41.17) * 43758.5453;
-      return value - Math.floor(value);
-    };
-
-    const drawPine = (x, groundY, height, alpha) => {
-      ctx.save();
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = '#071316';
-      ctx.fillRect(x - 2, groundY - height * .18, 4, height * .18);
-      ctx.fillStyle = '#0d3030';
-      for (let tier = 0; tier < 3; tier += 1) {
-        const top = groundY - height + tier * height * .22;
-        const width = height * (.28 - tier * .025);
-        ctx.beginPath();
-        ctx.moveTo(x, top);
-        ctx.lineTo(x - width, top + height * .48);
-        ctx.lineTo(x + width, top + height * .48);
-        ctx.closePath();
-        ctx.fill();
-      }
-      ctx.restore();
-    };
-
-    const renderScene = (steps, sampler, animationProgress = 1) => {
-      if (!ctx) return;
-      const w = canvas.width;
-      const h = canvas.height;
-      const stepClarity = Math.pow((Math.max(4, steps) - 4) / 46, .52);
-      const clarity = Math.min(1, stepClarity * (.18 + animationProgress * .82));
-      const seed = sampler === 'euler' ? 17 : sampler === 'ddim' ? 31 : sampler === 'unipc' ? 47 : 23;
-      const jitter = sampler === 'euler' ? (1 - clarity) * 9 : 0;
-
-      const sky = ctx.createLinearGradient(0, 0, 0, h);
-      sky.addColorStop(0, '#07111f');
-      sky.addColorStop(.62, '#153542');
-      sky.addColorStop(1, '#081416');
-      ctx.fillStyle = sky;
-      ctx.fillRect(0, 0, w, h);
-
-      ctx.globalAlpha = Math.max(.18, clarity);
-      ctx.fillStyle = '#d7fff0';
-      ctx.beginPath();
-      ctx.arc(w * .78, h * .22, 30, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#07111f';
-      ctx.beginPath();
-      ctx.arc(w * .8, h * .2, 29, 0, Math.PI * 2);
-      ctx.fill();
-
-      if (clarity > .45) {
-        ctx.fillStyle = '#8cefff';
-        for (let i = 0; i < 24; i += 1) {
-          const x = pseudoRandom(i, 2, seed) * w;
-          const y = pseudoRandom(i, 7, seed) * h * .48;
-          const radius = pseudoRandom(i, 4, seed) > .7 ? 1.5 : .8;
-          ctx.beginPath();
-          ctx.arc(x, y, radius, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-
-      ctx.fillStyle = '#10262e';
-      ctx.beginPath();
-      ctx.moveTo(0, h * .65);
-      ctx.lineTo(w * .19, h * .33);
-      ctx.lineTo(w * .37, h * .62);
-      ctx.lineTo(w * .55, h * .28);
-      ctx.lineTo(w * .76, h * .65);
-      ctx.lineTo(w, h * .42);
-      ctx.lineTo(w, h);
-      ctx.lineTo(0, h);
-      ctx.closePath();
-      ctx.fill();
-
-      for (let i = 0; i < 15; i += 1) {
-        const x = i * 47 + (i % 2) * 14;
-        drawPine(x, h * .79, 70 + (i % 4) * 18, .5 + clarity * .5);
-      }
-
-      ctx.save();
-      ctx.translate(jitter, 0);
-      ctx.strokeStyle = '#7b98a0';
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(0, h * .82);
-      ctx.lineTo(w, h * .82);
-      ctx.stroke();
-      ctx.strokeStyle = '#243a40';
-      ctx.lineWidth = 2;
-      for (let x = 0; x < w; x += 34) {
-        ctx.beginPath();
-        ctx.moveTo(x, h * .79);
-        ctx.lineTo(x + 12, h * .87);
-        ctx.stroke();
-      }
-
-      const trainX = w * (.18 + animationProgress * .08);
-      const trainY = h * .61;
-      ctx.shadowColor = '#62e7f5';
-      ctx.shadowBlur = 18 * clarity;
-      ctx.fillStyle = '#163d47';
-      ctx.beginPath();
-      ctx.roundRect(trainX, trainY, w * .54, h * .17, 12);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = '#63e7f5';
-      const windowCount = clarity < .38 ? 3 : 7;
-      for (let i = 0; i < windowCount; i += 1) {
-        ctx.fillRect(trainX + 31 + i * 43, trainY + 18, 25, 21);
-      }
-      ctx.fillStyle = '#c8ff3d';
-      ctx.beginPath();
-      ctx.arc(trainX + w * .53, trainY + h * .105, 6, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-
-      ctx.globalAlpha = 1;
-      const noiseAlpha = Math.max(.025, (1 - clarity) * .92);
-      const block = clarity > .7 ? 5 : 8;
-      for (let y = 0; y < h; y += block) {
-        for (let x = 0; x < w; x += block) {
-          const n = pseudoRandom(x / block, y / block, seed);
-          ctx.fillStyle = n > .5 ? `rgba(230,245,245,${noiseAlpha * n})` : `rgba(8,18,24,${noiseAlpha})`;
-          ctx.fillRect(x, y, block, block);
-        }
-      }
-    };
-
-    const recommendationFor = (sampler, steps) => {
-      if (sampler === 'unipc' && steps <= 15) return `UniPC ở ${steps} bước là một preview cần kiểm chứng; chất lượng phụ thuộc model và scheduler, không có bảo đảm chung.`;
-      if (sampler === 'ddim') return `DDIM ở ${steps} bước giúp thử một đường lấy mẫu có kiểm soát; tái lập còn phụ thuộc eta, backend và toàn pipeline.`;
-      if (sampler === 'euler') return `Euler A ở ${steps} bước thêm tính ngẫu nhiên trong đường lấy mẫu: hợp khám phá biến thể, kém phù hợp khi cần tái lập tuyệt đối.`;
-      if (steps < 16) return `DPM++ 2M ở ${steps} bước là preview mô phỏng; đối chiếu model card trước khi dùng cho video thật.`;
-      if (steps <= 30) return `DPM++ 2M ở ${steps} bước minh họa vùng cân bằng, không phải preset phổ quát cho mọi model.`;
-      return `DPM++ 2M ở ${steps} bước tốn thêm compute; chỉ giữ mức này nếu A/B test cho thấy cải thiện đáng kể.`;
-    };
-
-    const updatePhase = (progress) => {
-      const phase = Math.min(3, Math.floor(progress * 4));
-      phaseSteps.forEach((step, index) => step.classList.toggle('is-active', index <= phase));
-      return ['Noise ban đầu', 'Khóa bố cục', 'Ổn định chuyển động', 'Bổ sung chi tiết'][phase];
-    };
-
-    const updateMetrics = (steps, sampler, shouldRender = true) => {
-      const profile = profiles[sampler];
-      stepsVal.textContent = steps;
-      const lowStepBoost = sampler === 'unipc' && steps <= 15 ? 7 : 0;
-      const q = Math.min(98, Math.round(97 * (1 - Math.exp(-steps / 16)) + profile.quality + lowStepBoost));
-      qualityVal.textContent = q + '%';
-      qualityBar.style.width = q + '%';
-      const relativeCost = ((.3 + steps * .09) * profile.time).toFixed(1);
-      timeVal.textContent = relativeCost + '×';
-      const timeBarPct = Math.min(100, Math.round(((parseFloat(relativeCost) - 0.3) / 4.8) * 100));
-      timeBar.style.width = timeBarPct + '%';
-      if (steps <= 8) noiseTxt.textContent = 'cao';
-      else if (steps <= 15) noiseTxt.textContent = 'trung bình';
-      else if (steps <= 28) noiseTxt.textContent = 'thấp';
-      else noiseTxt.textContent = 'rất thấp';
-      consistencyVal.textContent = profile.consistency;
-      bestForVal.textContent = profile.bestFor;
-      recText.textContent = recommendationFor(sampler, steps);
-      renderFrame.textContent = `${profile.label} · ${steps} steps`;
-      presetButtons.forEach((button) => button.setAttribute('aria-pressed', String(Number(button.dataset.steps) === steps)));
-      if (shouldRender) {
-        cancelAnimationFrame(animationFrame);
-        renderStatus.textContent = 'Bản xem tĩnh';
-        updatePhase(1);
-        renderScene(steps, sampler);
-      }
-    };
-
-    const runRender = () => {
-      cancelAnimationFrame(animationFrame);
-      const targetSteps = Number(stepsSlider.value);
-      const sampler = selectedSampler();
-      if (reduceMotion.matches) {
-        updateMetrics(targetSteps, sampler);
-        renderStatus.textContent = 'Hoàn tất';
-        runButton.textContent = 'Chạy lại khử nhiễu';
-        return;
-      }
-      runButton.disabled = true;
-      runButton.textContent = 'Đang khử nhiễu…';
-      const start = performance.now();
-      const duration = 1700;
-      const tick = (now) => {
-        const progress = Math.min(1, (now - start) / duration);
-        const eased = 1 - Math.pow(1 - progress, 3);
-        const currentSteps = Math.max(4, Math.round(4 + (targetSteps - 4) * eased));
-        renderStatus.textContent = updatePhase(progress);
-        renderScene(currentSteps, sampler, progress);
-        if (progress < 1) {
-          animationFrame = requestAnimationFrame(tick);
+        cells.forEach(function (cell, index) {
+          var row = Math.floor(index / 12);
+          var col = index % 12;
+          var adapterCell = row === 2 || col === 8;
+          cell.className = 'weight-cell ' + (isLora
+            ? (adapterCell ? 'is-trainable is-adapter' : 'is-base')
+            : 'is-trainable');
+        });
+        if (isLora) {
+          summary.replaceChildren();
+          var strong = document.createElement('strong');
+          strong.textContent = 'Một phần nhỏ hơn';
+          summary.append(strong, ' được huấn luyện; tỷ lệ tùy module mục tiêu và rank.');
+          trainable.textContent = 'Tùy config';
+          fileValue.textContent = 'Tùy architecture';
+          memoryValue.textContent = 'Thường ít state hơn';
+          transferFill.style.width = '3%';
+          transferFill.style.background = 'var(--acid-fill)';
+          note.textContent = 'Bạn mang theo phần cập nhật ΔW; đây là minh họa khái niệm, không thể hiện tỷ lệ tham số hoặc VRAM của model cụ thể.';
+          caption.textContent = 'Minh họa tương đối: base đứng yên; hai lát adapter đại diện cho phần được huấn luyện.';
+          matrix.setAttribute('aria-label', 'Minh họa LoRA: phần lớn trọng số bị đóng băng, chỉ hai lát adapter nhỏ được cập nhật');
         } else {
-          renderStatus.textContent = 'Hoàn tất';
-          runButton.disabled = false;
-          runButton.textContent = 'Chạy lại khử nhiễu';
+          summary.replaceChildren();
+          var fullStrong = document.createElement('strong');
+          fullStrong.textContent = '100%';
+          summary.append(fullStrong, ' tham số được phép thay đổi trong full fine-tuning.');
+          trainable.textContent = '100%';
+          fileValue.textContent = 'Tùy checkpoint';
+          memoryValue.textContent = 'Thường nhiều state hơn';
+          transferFill.style.width = '100%';
+          transferFill.style.background = 'var(--orange)';
+          note.textContent = 'Mọi trọng số đều có thể đổi. Chi phí thực phụ thuộc kiến trúc, optimizer state, precision, resolution và batch.';
+          caption.textContent = 'Full fine-tuning: toàn bộ ma trận sáng lên vì mọi trọng số đều có thể được cập nhật.';
+          matrix.setAttribute('aria-label', 'Minh họa full fine-tuning: toàn bộ trọng số trong ma trận được cập nhật');
         }
-      };
-      animationFrame = requestAnimationFrame(tick);
-    };
+      }
 
-    stepsSlider?.addEventListener('input', () => updateMetrics(Number(stepsSlider.value), selectedSampler()));
-    samplerInputs.forEach((input) => input.addEventListener('change', () => updateMetrics(Number(stepsSlider.value), selectedSampler())));
-    presetButtons.forEach((button) => button.addEventListener('click', () => {
-      stepsSlider.value = button.dataset.steps;
-      updateMetrics(Number(button.dataset.steps), selectedSampler());
-    }));
-    runButton?.addEventListener('click', runRender);
-    resetButton?.addEventListener('click', () => {
-      cancelAnimationFrame(animationFrame);
-      stepsSlider.value = '22';
-      const defaultSampler = samplerInputs.find((input) => input.value === 'dpm');
-      if (defaultSampler) defaultSampler.checked = true;
-      runButton.disabled = false;
-      runButton.textContent = 'Chạy khử nhiễu';
-      updateMetrics(22, 'dpm');
-      renderStatus.textContent = 'Sẵn sàng';
-    });
-    updateMetrics(Number(stepsSlider.value), selectedSampler());
-    renderStatus.textContent = 'Sẵn sàng';
+      buttons.forEach(function (button) {
+        button.addEventListener('click', function () { renderMode(button.dataset.mode); });
+      });
+      renderMode('lora');
+    })();
 
-    const checkpointTitle = document.getElementById('checkpoint-title');
-    const checkpointCount = document.getElementById('checkpoint-count');
-    const answerGrid = document.getElementById('answer-grid');
-    const answerFeedback = document.getElementById('answer-feedback');
-    const checkpointNext = document.getElementById('checkpoint-next');
-    const challenges = [
-      {
-        question: 'Workflow đã benchmark UniPC 8 bước làm preset preview. Bạn cần xem nhanh bố cục trước khi chốt prompt. Chọn cấu hình nào?',
-        answers: ['UniPC · 8 bước', 'Euler A · 40 bước', 'DDIM · 30 bước', 'DPM++ · 50 bước'],
-        correct: 0,
-        reason: 'Dùng đúng preset preview đã được benchmark cho workflow này. Không suy rộng 8 bước thành cấu hình tốt cho model khác.',
-      },
-      {
-        question: 'Pipeline xác nhận DDIM eta = 0 là deterministic. Bạn muốn so sánh hai prompt và giữ mọi biến khác không đổi. Ưu tiên sampler nào?',
-        answers: ['Euler A', 'DDIM', 'Bất kỳ sampler nào', 'Tăng lên 50 bước'],
-        correct: 1,
-        reason: 'DDIM eta = 0 trong pipeline đã xác nhận phù hợp cho phép so sánh có kiểm soát. Giữ nguyên seed, steps, scheduler và backend.',
-      },
-      {
-        question: 'A/B test của workflow này xác nhận DPM++ 2M ở 22 bước đạt brief. Bản nháp đã đúng bố cục; chọn gì?',
-        answers: ['DPM++ 2M · 22 bước', 'UniPC · 4 bước', 'Euler A · 50 bước', 'DDIM · 8 bước'],
-        correct: 0,
-        reason: 'Chọn cấu hình 22 bước vì đã có A/B test của chính workflow, không phải vì tồn tại một khoảng steps phổ quát.',
-      },
-    ];
-    let challengeIndex = 0;
+    /* ── LoRA Strength Demo ── */
+    (function () {
+      var slider = document.getElementById('lora-slider');
+      var sliderOutput = document.getElementById('slider-output');
+      var blendBar = document.getElementById('blend-bar');
+      var strengthDesc = document.getElementById('strength-desc');
+      var loraSpan = document.getElementById('lora-text-span');
+      var baseTextEl = document.getElementById('base-text');
+      var styleFrame = document.getElementById('style-frame');
+      var hudValue = document.getElementById('style-hud-value');
+      var presets = Array.from(document.querySelectorAll('.strength-preset'));
+      var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+      var animationFrame = 0;
 
-    const renderChallenge = () => {
-      const challenge = challenges[challengeIndex];
-      checkpointTitle.textContent = challenge.question;
-      checkpointCount.textContent = `Tình huống ${challengeIndex + 1} / ${challenges.length}`;
-      answerFeedback.textContent = 'Chọn một phương án, sau đó đọc lý do.';
-      checkpointNext.hidden = true;
-      answerGrid.replaceChildren(...challenge.answers.map((answer, index) => {
-        const button = document.createElement('button');
-        button.className = 'answer-button';
-        button.type = 'button';
-        button.textContent = answer;
-        button.addEventListener('click', () => {
-          [...answerGrid.children].forEach((item, itemIndex) => {
-            item.disabled = true;
-            if (itemIndex === challenge.correct) item.classList.add('is-correct');
+      function getDescription(strength) {
+        if (strength === 0) return 'Trong mô phỏng này adapter bị tắt; ở Diffusers, weight 0 dùng base weights.';
+        if (strength <= 0.3) return 'Mô phỏng: ảnh hưởng nhẹ. Đây là giả thuyết để so sánh, không phải range đúng cho mọi LoRA.';
+        if (strength <= 0.7) return 'Mô phỏng: style xuất hiện nhưng bố cục còn dễ đọc. Hãy đo bằng criteria của brief.';
+        if (strength <= 1.1) return 'Mô phỏng: điểm tham chiếu A/B; không đồng nghĩa “đúng như lúc train” trong mọi runtime.';
+        if (strength <= 1.5) return 'Mô phỏng: ảnh hưởng tăng. Kiểm tra prompt adherence và subject trước khi chấp nhận.';
+        return 'Mô phỏng: nguy cơ style lấn át tăng. Không suy ra artifact thật nếu chưa render ở pipeline mục tiêu.';
+      }
+
+      function renderBlend(strength) {
+        var pct = (strength / 2) * 100;
+        blendBar.style.width = pct.toFixed(1) + '%';
+        var loraOpacity = Math.min(1, strength / 1.5);
+        var baseOpacity = Math.max(.35, 1 - loraOpacity * .55);
+        baseTextEl.style.opacity = baseOpacity.toFixed(2);
+        if (strength === 0) {
+          loraSpan.textContent = '';
+          loraSpan.style.opacity = '0';
+        } else {
+          loraSpan.className = 'lora-text';
+          loraSpan.textContent = ' + Neon City LoRA';
+          loraSpan.style.opacity = loraOpacity.toFixed(2);
+        }
+        var strong = document.createElement('strong');
+        strong.textContent = 'Weight mô phỏng = ' + strength.toFixed(2) + ' — ';
+        strengthDesc.replaceChildren(strong, getDescription(strength));
+        sliderOutput.textContent = strength.toFixed(2);
+        slider.setAttribute('aria-valuenow', strength.toFixed(2));
+        styleFrame.style.setProperty('--mix', (strength / 1.65).toFixed(3));
+        styleFrame.style.setProperty('--rider-color', strength > .65 ? '#c8ff3d' : '#172126');
+        hudValue.textContent = 'LoRA ' + strength.toFixed(2);
+        slider.setAttribute('aria-valuetext', strength.toFixed(2) + '. ' + getDescription(strength));
+        presets.forEach(function (button) {
+          button.setAttribute('aria-pressed', String(Math.abs(Number(button.dataset.strength) - strength) < .01));
+        });
+      }
+
+      slider.addEventListener('input', function () {
+        cancelAnimationFrame(animationFrame);
+        renderBlend(parseFloat(this.value));
+      });
+
+      function animateTo(target) {
+        cancelAnimationFrame(animationFrame);
+        var startValue = parseFloat(slider.value);
+        if (reduceMotion.matches) {
+          slider.value = target;
+          renderBlend(target);
+          return;
+        }
+        var startTime = performance.now();
+        function tick(now) {
+          var progress = Math.min(1, (now - startTime) / 240);
+          var eased = 1 - Math.pow(1 - progress, 3);
+          var current = startValue + (target - startValue) * eased;
+          slider.value = current.toFixed(2);
+          renderBlend(current);
+          if (progress < 1) animationFrame = requestAnimationFrame(tick);
+        }
+        animationFrame = requestAnimationFrame(tick);
+      }
+
+      presets.forEach(function (button) {
+        button.addEventListener('click', function () { animateTo(Number(button.dataset.strength)); });
+      });
+
+      renderBlend(parseFloat(slider.value));
+    })();
+
+    /* ── Checkpoint ── */
+    (function () {
+      var answered = {};
+
+      document.querySelectorAll('.option-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var q = btn.getAttribute('data-q');
+          if (answered[q]) return;
+
+          var isCorrect = btn.getAttribute('data-correct') === 'true';
+          var feedback = document.getElementById('q' + q + '-feedback');
+          var allBtns = document.querySelectorAll('[data-q="' + q + '"]');
+
+          answered[q] = true;
+
+          allBtns.forEach(function (b) {
+            b.disabled = true;
+            b.setAttribute('aria-pressed', 'false');
+            if (b.getAttribute('data-correct') === 'true') {
+              b.classList.add('correct');
+            }
           });
-          const isCorrect = index === challenge.correct;
-          if (!isCorrect) button.classList.add('is-wrong');
-          answerFeedback.textContent = `${isCorrect ? 'Chính xác. ' : 'Chưa tối ưu. '}${challenge.reason}`;
-          checkpointNext.hidden = false;
-          checkpointNext.textContent = challengeIndex === challenges.length - 1 ? 'Làm lại checkpoint' : 'Tình huống tiếp theo';
-        }, {once: true});
-        return button;
-      }));
-    };
 
-    checkpointNext?.addEventListener('click', () => {
-      challengeIndex = (challengeIndex + 1) % challenges.length;
-      renderChallenge();
-      answerGrid.querySelector('button')?.focus();
-    });
-    renderChallenge();
-  })();
-</script>
+          if (!isCorrect) {
+            btn.classList.add('wrong');
+          }
+
+          btn.setAttribute('aria-pressed', 'true');
+
+          feedback.classList.remove('correct', 'wrong');
+          if (isCorrect) {
+            feedback.classList.add('show', 'correct');
+            feedback.textContent = q === '1'
+              ? 'Đúng. Trọng số mô hình gốc bị đóng băng; chỉ hai ma trận A và B của LoRA được cập nhật.'
+              : q === '2'
+                ? 'Đúng. Đây là một dải thử trong mô phỏng, không phải preset chung. Với runtime/model/adapter của bạn, hãy khóa prompt và seed rồi tăng dần từ mức thấp để quan sát.'
+                : 'Đúng. Hai ma trận hạng thấp A và B lưu phần thay đổi ΔW với ít tham số hơn rất nhiều so với cập nhật toàn bộ W.';
+          } else {
+            feedback.classList.add('show', 'wrong');
+            feedback.textContent = q === '1'
+              ? 'Chưa đúng. Trọng số gốc không bị thay đổi; LoRA chỉ huấn luyện hai ma trận nhỏ A và B.'
+              : q === '2'
+                ? 'Chưa đúng. Không có một con số đúng cho mọi adapter. Hãy A/B từ mức thấp trong runtime mục tiêu, giữ prompt/seed cố định và chỉ tăng khi ảnh hưởng chưa đủ rõ.'
+                : 'Chưa đúng. “Low-rank” nói về cách phân rã ΔW thành B × A, không phải nén ZIP hay bỏ qua attention.';
+          }
+        });
+      });
+    })();
+  </script>
 </body>
 </html>

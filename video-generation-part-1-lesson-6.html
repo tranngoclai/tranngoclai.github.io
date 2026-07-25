@@ -1,15 +1,17 @@
 <!DOCTYPE html>
-<html lang="vi" data-theme="dark">
+<html lang="vi" data-theme="dark" data-curriculum-id="attention">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" href="video-generation-favicon.svg">
-  <meta name="description" content="Bài 6: U-Net vs DiT — hai loại backbone khử nhiễu trong diffusion model. Encoder-decoder + skip connections của U-Net so với patchify + transformer blocks + attention của DiT, và vì sao video model như Wan2.2 nghiêng về DiT.">
-  <title>U-Net vs DiT — Backbone · Video Gen Lab · Bài 6</title>
+  <meta name="description" content="Bài 1.6: Cơ chế Attention trong diffusion backbone — Self-Attention và Cross-Attention, Q/K/V, softmax, và cách text prompt lái quá trình sinh video.">
+  <title>Model Architecture · Bài 1.6 — Self & Cross-Attention</title>
   <script src="video-generation-theme.js"></script>
   <link rel="stylesheet" href="video-generation-design-system.css">
+  <script src="video-generation-curriculum.js"></script>
+  <script src="video-generation-navigation.js"></script>
   <style>
-    /* ── Keyframes ────────────────────────────────────────── */
+    /* ── Keyframes ────────────────────────────────── */
     @keyframes fadeUp {
       from { opacity: 0; transform: translateY(24px); }
       to   { opacity: 1; transform: none; }
@@ -18,1887 +20,1705 @@
       0%   { background-position: -200% center; }
       100% { background-position:  200% center; }
     }
-    @keyframes gradientShift {
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: .45; }
+    }
+    @keyframes heroBgShift {
       0%   { background-position: 0% 50%; }
       50%  { background-position: 100% 50%; }
       100% { background-position: 0% 50%; }
     }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50%       { opacity: .55; }
-    }
     @keyframes dotFloat {
-      0%, 100% { transform: translateY(0); }
-      50%       { transform: translateY(-6px); }
+      0%   { transform: translateY(0px) translateX(0px); }
+      33%  { transform: translateY(-8px) translateX(3px); }
+      66%  { transform: translateY(-3px) translateX(-4px); }
+      100% { transform: translateY(0px) translateX(0px); }
+    }
+    @keyframes countUp {
+      from { opacity: 0; transform: scale(.8) translateY(4px); }
+      to   { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    @keyframes revealSlide {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: none; }
+    }
+    @keyframes borderGlow {
+      0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--acid) 40%, transparent); }
+      70%  { box-shadow: 0 0 0 8px color-mix(in srgb, var(--acid) 0%, transparent); }
+      100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--acid) 0%, transparent); }
+    }
+    @keyframes scoreFlashIn {
+      0%   { opacity: 0; transform: scale(.6) rotate(-6deg); }
+      60%  { transform: scale(1.12) rotate(2deg); }
+      100% { opacity: 1; transform: scale(1) rotate(0); }
+    }
+    @keyframes confettiFall {
+      0%   { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(60px) rotate(360deg); opacity: 0; }
     }
 
-    /* ── Scroll reveal ────────────────────────────────────── */
+    /* ── Scroll-reveal ────────────────────────────── */
     .reveal {
       opacity: 0;
-      transform: translateY(24px);
-      transition: opacity .55s cubic-bezier(.22,1,.36,1), transform .55s cubic-bezier(.22,1,.36,1);
+      transform: translateY(28px);
+      transition: opacity .6s cubic-bezier(.22,1,.36,1), transform .6s cubic-bezier(.22,1,.36,1);
     }
-    .reveal.visible {
-      opacity: 1;
-      transform: none;
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .reveal { opacity: 1; transform: none; transition: none; }
-    }
+    .reveal.visible { opacity: 1; transform: none; }
+    .reveal-delay-1 { transition-delay: .1s; }
+    .reveal-delay-2 { transition-delay: .18s; }
+    .reveal-delay-3 { transition-delay: .26s; }
 
-    /* ── Hero ─────────────────────────────────────────────── */
+    /* ── Hero ─────────────────────────────────────── */
     .hero {
-      padding: 80px 0 60px;
+      padding: 88px 0 72px;
       border-bottom: 1px solid var(--line);
       position: relative;
       overflow: hidden;
     }
-    /* Animated gradient background layer */
+    /* Animated gradient background */
     .hero::before {
       content: '';
       position: absolute;
       inset: 0;
       background: linear-gradient(
         135deg,
-        rgba(200,255,61,.07) 0%,
-        rgba(98,231,245,.09) 35%,
-        rgba(255,138,76,.06) 70%,
-        rgba(98,231,245,.04) 100%
+        color-mix(in srgb, var(--acid) 7%, transparent) 0%,
+        color-mix(in srgb, var(--cyan) 6%, transparent) 35%,
+        color-mix(in srgb, var(--acid) 4%, transparent) 65%,
+        transparent 100%
       );
       background-size: 300% 300%;
-      animation: gradientShift 10s ease infinite;
+      animation: heroBgShift 9s ease infinite;
       pointer-events: none;
       z-index: 0;
     }
-    /* Dot grid overlay */
+    /* Dot-grid overlay */
     .hero::after {
       content: '';
       position: absolute;
       inset: 0;
-      background-image: radial-gradient(circle, rgba(255,255,255,.06) 1px, transparent 1px);
+      background-image:
+        radial-gradient(circle, color-mix(in srgb, var(--acid) 22%, transparent) 1px, transparent 1px);
       background-size: 28px 28px;
+      opacity: .3;
       pointer-events: none;
       z-index: 0;
+      animation: dotFloat 14s ease-in-out infinite;
     }
     .hero > * { position: relative; z-index: 1; }
+
     .hero-meta {
       font-family: var(--font-mono);
       font-size: .72rem;
-      letter-spacing: .14em;
-      text-transform: uppercase;
+      letter-spacing: .16em;
       color: var(--muted);
-      margin: 0 0 18px;
+      text-transform: uppercase;
+      margin: 0 0 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
+    .hero-meta::before {
+      content: '';
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--acid);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
     .hero-title {
-      font-size: clamp(2.2rem, 5vw, 3.8rem);
+      font-size: clamp(2.4rem, 5.5vw, 4.2rem);
       font-weight: 900;
-      letter-spacing: -.03em;
-      line-height: 1.05;
-      margin: 0 0 18px;
+      letter-spacing: -.035em;
+      line-height: 1.03;
+      margin: 0 0 22px;
       background: linear-gradient(
-        120deg,
-        var(--ink) 0%,
-        var(--cyan) 40%,
-        var(--acid) 70%,
-        var(--ink) 100%
+        135deg,
+        var(--ink) 20%,
+        color-mix(in srgb, var(--acid) 90%, var(--ink)) 55%,
+        var(--cyan) 100%
       );
-      background-size: 200% auto;
+      background-size: 220% auto;
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
-      animation: shimmer 6s linear infinite;
+      animation: shimmer 5s linear infinite;
     }
+
     .hero-lead {
-      font-size: 1.08rem;
+      font-size: 1.12rem;
       color: var(--muted);
-      max-width: 660px;
-      margin: 0 0 26px;
-      line-height: 1.7;
+      max-width: 640px;
+      margin: 0 0 36px;
+      line-height: 1.65;
     }
+    .hero-lead strong { color: var(--ink); }
+
     .hero-badges {
       display: flex;
       gap: 10px;
       flex-wrap: wrap;
-      margin: 0 0 30px;
+      margin-bottom: 36px;
     }
     .hero-badge {
       font-family: var(--font-mono);
-      font-size: .66rem;
-      letter-spacing: .1em;
+      font-size: .65rem;
+      letter-spacing: .12em;
       text-transform: uppercase;
-      font-weight: 800;
-      padding: 6px 12px;
-      border-radius: 999px;
+      padding: 6px 14px;
+      border-radius: 8px;
       border: 1px solid var(--line);
-      background: var(--panel);
-      color: var(--muted);
+      color: var(--dim);
+      animation: shimmer 3.5s linear infinite;
+      background: linear-gradient(90deg, var(--panel) 40%, color-mix(in srgb, var(--acid) 10%, var(--panel)) 60%, var(--panel) 80%);
+      background-size: 200% auto;
+      transition: border-color .18s, color .18s;
     }
-    .hero-badge.unet { border-color: var(--orange); color: var(--orange); }
-    .hero-badge.dit  { border-color: var(--acid);   color: var(--acid); }
-    .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+    .hero-badge:hover { border-color: var(--dim); color: var(--muted); }
+    .hero-badge.acid { border-color: var(--acid); color: var(--acid); }
+    .hero-badge.cyan { border-color: var(--cyan); color: var(--cyan); }
 
-    /* Button micro-interactions */
-    .button { transition: transform .12s, box-shadow .12s, background .15s, border-color .15s; }
-    .button:active { transform: scale(.96); }
-    .button:hover { box-shadow: 0 6px 20px rgba(0,0,0,.22); }
+    /* ── Button micro-interactions ────────────────── */
+    .button {
+      transition: transform .14s cubic-bezier(.22,1,.36,1), box-shadow .18s ease;
+    }
+    .button:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(0,0,0,.24); }
+    .button:active { transform: scale(.96); transition-duration: .08s; }
 
-    /* ── Section structure ────────────────────────────────── */
-    .section { padding: 68px 0; border-top: 1px solid var(--line); }
+    /* ── Section wrappers ─────────────────────────── */
+    .content-section { padding: 76px 0; border-bottom: 1px solid var(--line); }
+    .content-section:last-of-type { border-bottom: none; }
+    .section { padding: 76px 0; border-bottom: 1px solid var(--line); }
+    .section:last-of-type { border-bottom: none; }
+
+    .section-index {
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      letter-spacing: .18em;
+      color: var(--dim);
+      text-transform: uppercase;
+      display: block;
+      margin: 0 0 12px;
+    }
     .section-label {
       font-family: var(--font-mono);
       font-size: .68rem;
-      letter-spacing: .16em;
+      letter-spacing: .18em;
+      color: var(--dim);
       text-transform: uppercase;
-      color: var(--muted);
-      margin: 0 0 10px;
+      margin: 0 0 12px;
     }
-    .section-heading {
-      font-size: clamp(1.5rem, 3vw, 2rem);
+    .section-h2 {
+      font-size: clamp(1.5rem, 3vw, 2.1rem);
       font-weight: 800;
-      letter-spacing: -.02em;
-      margin: 0 0 14px;
+      letter-spacing: -.022em;
+      margin: 0 0 24px;
+      color: var(--ink);
     }
-    .section-intro {
+    .section-title {
+      font-size: clamp(1.5rem, 3vw, 2.1rem);
+      font-weight: 800;
+      letter-spacing: -.022em;
+      margin: 0 0 24px;
+      color: var(--ink);
+    }
+    .section-body {
+      font-size: 1rem;
       color: var(--muted);
       max-width: 700px;
-      margin: 0 0 36px;
-      line-height: 1.7;
+      line-height: 1.72;
+      margin: 0 0 32px;
     }
-    .subhead {
-      font-size: 1.15rem;
-      font-weight: 800;
-      letter-spacing: -.01em;
-      margin: 44px 0 14px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .subhead-tag {
-      font-family: var(--font-mono);
-      font-size: .6rem;
-      letter-spacing: .12em;
-      text-transform: uppercase;
-      padding: 3px 9px;
-      border-radius: 6px;
-      font-weight: 800;
-    }
-    .subhead-tag.unet { background: color-mix(in srgb, var(--orange) 18%, var(--panel-2)); color: var(--orange); }
-    .subhead-tag.dit  { background: color-mix(in srgb, var(--acid) 18%, var(--panel-2)); color: var(--acid); }
-    .block-copy { color: var(--muted); max-width: 700px; margin: 0 0 28px; line-height: 1.7; }
 
-    /* ── Definition panel ─────────────────────────────────── */
+    /* ── Definition panel ─────────────────────────── */
     .def-panel {
-      border-left: 3px solid var(--acid);
+      border-left: 4px solid var(--acid);
       background: var(--panel);
       border-radius: 0 var(--radius) var(--radius) 0;
-      padding: 24px 28px;
-      margin-bottom: 20px;
-      max-width: 780px;
-    }
-    .def-panel strong { color: var(--acid); }
-    .def-panel p { margin: 0; line-height: 1.7; }
-
-    /* ── Disclosure ───────────────────────────────────────── */
-    .disclosure { margin-top: 16px; }
-    .disclosure-summary {
-      cursor: pointer;
-      color: var(--muted);
-      font-size: .9rem;
-      font-weight: 700;
-      padding: 8px 0;
-      user-select: none;
-      list-style: none;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .disclosure-summary::-webkit-details-marker { display: none; }
-    .disclosure-body {
-      padding: 16px 20px;
-      background: var(--panel-2);
-      border-radius: 12px;
-      font-size: .88rem;
-      color: var(--muted);
-      line-height: 1.7;
-      margin-top: 8px;
-    }
-    .disclosure-body p { margin: 0 0 10px; }
-    .disclosure-body p:last-child { margin-bottom: 0; }
-
-    /* ── Info note / callout ──────────────────────────────── */
-    .info-note {
-      margin-top: 16px;
-      padding: 16px 18px;
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      font-size: .84rem;
-      color: var(--muted);
-      line-height: 1.65;
-    }
-    .callout {
-      margin-top: 24px;
-      padding: 24px 28px;
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      display: flex;
-      gap: 18px;
-      align-items: flex-start;
-    }
-    .callout-icon { flex: 0 0 auto; font-size: 1.4rem; line-height: 1; }
-    .callout-body { font-size: .9rem; color: var(--muted); line-height: 1.7; }
-    .callout-body strong { color: var(--ink); }
-
-    /* ── Shared animation controls (both widgets) ─────────── */
-    .anim-controls {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-top: 20px;
-      flex-wrap: wrap;
-    }
-    .anim-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      min-height: 44px;
-      padding: 9px 18px;
-      border: 1.5px solid var(--line);
-      border-radius: 10px;
-      background: var(--panel-2);
-      color: var(--ink);
-      font-family: var(--font-mono);
-      font-size: .74rem;
-      letter-spacing: .06em;
-      font-weight: 700;
-      cursor: pointer;
-      transition: border-color .15s, background .15s, color .15s;
-    }
-    .anim-btn:hover { border-color: var(--cyan); color: var(--cyan); }
-    .anim-btn.active { border-color: var(--acid); color: var(--acid); background: color-mix(in srgb, var(--acid) 8%, var(--panel-2)); }
-    .anim-btn:disabled { cursor: not-allowed; opacity: .45; }
-    .anim-step-label {
-      font-family: var(--font-mono);
-      font-size: .72rem;
-      color: var(--muted);
-      margin-left: auto;
-      letter-spacing: .06em;
-    }
-    .anim-step-label strong { color: var(--cyan); }
-
-    /* ── DiT animated pipeline ────────────────────────────── */
-    .anim-pipeline-wrapper {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      padding: 40px 32px 32px;
+      padding: 26px 30px;
+      margin: 0 0 40px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 4px 28px rgba(0,0,0,.13);
+      position: relative;
       overflow: hidden;
     }
-    .anim-pipeline-wrapper .anim-controls { margin-top: 0; margin-bottom: 32px; }
-    .anim-svg-container { width: 100%; overflow-x: auto; }
-    #pipeline-svg { display: block; min-width: 620px; width: 100%; height: auto; }
-    .pipe-node { transition: opacity .35s; }
-    .pipe-node-rect {
-      rx: 14; ry: 14;
-      fill: var(--panel-2);
-      stroke: var(--line);
-      stroke-width: 1.5;
-      transition: stroke .35s, fill .35s;
+    .def-panel::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, var(--acid), transparent);
     }
-    .pipe-node.active .pipe-node-rect { stroke: var(--acid); fill: color-mix(in srgb, var(--acid) 10%, var(--panel-2)); }
-    .pipe-node.done .pipe-node-rect { stroke: var(--cyan); fill: color-mix(in srgb, var(--cyan) 8%, var(--panel-2)); }
-    .pipe-node-label { fill: var(--ink); font-family: var(--font-sans); font-size: 12px; font-weight: 700; text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
-    .pipe-node-sub { fill: var(--muted); font-family: var(--font-mono); font-size: 9.5px; text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
-    .pipe-arrow { stroke: var(--dim); stroke-width: 1.5; fill: none; marker-end: url(#arrowhead); transition: stroke .35s; }
-    .pipe-arrow.lit { stroke: var(--acid); }
-    .token-particle { fill: var(--acid); opacity: 0; transition: opacity .2s; }
-    .token-particle.visible { opacity: 1; }
-    .anim-desc {
-      margin-top: 20px;
-      padding: 14px 20px;
-      background: var(--panel-2);
-      border-left: 3px solid var(--cyan);
-      border-radius: 0 12px 12px 0;
-      font-size: .87rem;
-      color: var(--muted);
-      line-height: 1.65;
-      min-height: 56px;
-      transition: opacity .25s;
-    }
-    .anim-desc strong { color: var(--ink); }
+    .def-panel p { margin: 0; color: var(--ink); line-height: 1.68; }
+    .def-panel strong { color: var(--acid); }
 
-    /* ── DiT architecture click-to-explore ────────────────── */
-    .arch-diagram {
-      background: var(--panel);
-      border: 1px solid var(--line);
+    /* ── Diagram ──────────────────────────────────── */
+    .diagram-wrap {
       border-radius: var(--radius);
-      padding: 40px 32px;
+      padding: 40px 32px 32px;
       overflow-x: auto;
+      background: linear-gradient(var(--panel), var(--panel)) padding-box,
+                  linear-gradient(135deg, var(--cyan), var(--acid)) border-box;
+      border: 1px solid transparent;
+      transition: box-shadow .25s;
     }
-    .arch-pipeline { display: flex; align-items: center; gap: 0; min-width: 640px; position: relative; }
-    .arch-node {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
-      cursor: pointer;
-      position: relative;
-      border: 0; padding: 0; background: transparent; color: inherit; font: inherit;
-    }
-    .arch-box {
-      width: 100%;
-      max-width: 120px;
-      padding: 14px 10px;
-      border: 1.5px solid var(--line);
-      border-radius: 14px;
-      background: var(--panel-2);
+    .diagram-wrap:hover { box-shadow: 0 10px 40px rgba(0,0,0,.22); }
+    .diagram-svg-wrap { min-width: 560px; }
+    .diagram-svg-wrap svg { display: block; width: 100%; height: auto; }
+    .diagram-caption {
+      font-size: .82rem;
+      color: var(--dim);
+      margin: 18px 0 0;
       text-align: center;
-      font-size: .8rem;
-      font-weight: 700;
-      transition: border-color .18s, background .18s, transform .18s;
+      line-height: 1.6;
     }
-    .arch-node:hover .arch-box,
-    .arch-node[aria-pressed="true"] .arch-box {
-      border-color: var(--cyan);
-      background: color-mix(in srgb, var(--cyan) 10%, var(--panel-2));
-      transform: translateY(-3px);
-    }
-    .arch-box.accent-latent { border-color: var(--orange); }
-    .arch-box.accent-patch  { border-color: var(--acid); }
-    .arch-box.accent-block  { border-color: var(--cyan); }
-    .arch-box.accent-out    { border-color: var(--orange); }
-    .arch-node-label { font-size: .68rem; color: var(--muted); text-align: center; letter-spacing: .04em; }
-    .arch-arrow { flex: 0 0 36px; display: flex; align-items: center; justify-content: center; color: var(--dim); font-size: 1.2rem; padding-bottom: 24px; }
-    .arch-icon { font-size: 1.4rem; line-height: 1; margin-bottom: 2px; }
-    .arch-cond-row { display: flex; justify-content: center; gap: 40px; margin-top: 32px; padding-top: 24px; border-top: 1px dashed var(--line); }
-    .arch-cond-item { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-    .arch-cond-box { padding: 10px 18px; border: 1.5px dashed var(--muted); border-radius: 10px; font-size: .78rem; font-weight: 700; color: var(--muted); background: var(--panel); }
-    .arch-cond-label { font-size: .65rem; color: var(--dim); letter-spacing: .06em; text-transform: uppercase; }
-    .arch-cond-arrow { display: flex; align-items: center; gap: 6px; font-size: .72rem; color: var(--dim); margin-top: -4px; }
-    .arch-detail { margin-top: 28px; padding: 20px 22px; background: var(--panel-2); border: 1px solid var(--cyan); border-radius: 14px; font-size: .9rem; line-height: 1.65; display: none; }
-    .arch-detail.visible { display: block; }
-    .arch-detail-title { font-weight: 800; color: var(--cyan); margin-bottom: 6px; font-size: .85rem; letter-spacing: .04em; text-transform: uppercase; font-family: var(--font-mono); }
-    .arch-detail p { margin: 0; color: var(--muted); }
 
-    /* ── DiT Transformer block accordion + formula ────────── */
-    .block-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start; }
-    @media (max-width: 768px) { .block-layout { grid-template-columns: 1fr; } }
-    .block-side { flex: 1; }
-    .block-stack { display: flex; flex-direction: column; gap: 4px; }
-    .block-layer { border: 1.5px solid var(--line); border-radius: 14px; overflow: hidden; transition: border-color .18s; }
-    .block-layer:focus-within { border-color: var(--cyan); }
-    .block-layer-header { display: flex; align-items: center; gap: 14px; padding: 16px 20px; cursor: pointer; background: var(--panel); border: none; width: 100%; text-align: left; }
-    .block-layer-header:hover { background: var(--panel-2); }
-    .block-layer-badge { flex: 0 0 auto; font-family: var(--font-mono); font-size: .64rem; letter-spacing: .1em; text-transform: uppercase; padding: 3px 8px; border-radius: 6px; background: var(--panel-2); color: var(--muted); }
-    .block-layer-name { font-weight: 800; font-size: .95rem; }
-    .block-layer-expand { margin-left: auto; color: var(--dim); font-size: 1rem; transition: transform .18s; }
-    .block-layer[open] .block-layer-expand { transform: rotate(90deg); }
-    .block-layer-body { padding: 0 20px 18px; background: var(--panel); font-size: .88rem; color: var(--muted); line-height: 1.7; display: none; }
-    .block-layer[open] .block-layer-body { display: block; }
-    .block-layer-body code { font-family: var(--font-mono); font-size: .82em; background: var(--panel-2); padding: 2px 6px; border-radius: 5px; color: var(--cyan); }
-    .block-formula { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px 28px; }
-    .block-formula-title { font-family: var(--font-mono); font-size: .7rem; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin: 0 0 16px; }
-    .block-formula-flow { display: flex; flex-direction: column; gap: 6px; }
-    .bff-step { display: flex; align-items: center; gap: 10px; font-family: var(--font-mono); font-size: .8rem; }
-    .bff-step-num { flex: 0 0 22px; text-align: center; color: var(--dim); }
-    .bff-arrow { color: var(--dim); }
-    .bff-name { color: var(--ink); font-weight: 700; }
-    .bff-plus { padding-left: 32px; font-size: .72rem; color: var(--dim); }
-    .bff-name-accent { color: var(--acid); font-weight: 700; }
-
-    /* ── U-Net animated SVG diagram ───────────────────────── */
-    .diagram-wrap { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; overflow-x: auto; }
-    .diagram-wrap svg { display: block; max-width: 100%; margin: auto; }
-    .enc-block, .dec-block, .btn-block { opacity: 0; transition: opacity .35s; }
-    .skip-line { opacity: 0; transition: opacity .3s; }
-    .enc-block.show, .dec-block.show, .btn-block.show, .skip-line.show { opacity: 1; }
-    @media (prefers-reduced-motion: reduce) {
-      .enc-block, .dec-block, .skip-line, .btn-block { opacity: 1; transition: none; }
-    }
-    .trace-readout { margin-top: 16px; border: 1px solid var(--line); border-left: 3px solid var(--cyan); border-radius: 0 14px 14px 0; background: var(--panel-2); padding: 18px 20px; }
-    .trace-kicker { margin: 0 0 5px; color: var(--cyan); font-family: var(--font-mono); font-size: .68rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
-    .trace-title { margin: 0 0 8px; font-size: 1rem; }
-    .trace-copy { margin: 0; color: var(--muted); font-size: .9rem; }
-    .trace-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 16px 0 0; }
-    .trace-facts div { border-top: 1px solid var(--line); padding-top: 10px; }
-    .trace-facts dt { color: var(--dim); font-family: var(--font-mono); font-size: .64rem; letter-spacing: .08em; text-transform: uppercase; }
-    .trace-facts dd { margin: 3px 0 0; color: var(--ink); font-size: .82rem; font-weight: 700; }
-
-    /* ── U-Net feature map size panel ─────────────────────── */
-    .fmap-panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 28px 24px; }
-    .fmap-label { font-family: var(--font-mono); font-size: .68rem; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); margin-bottom: 20px; }
-    .fmap-track { display: flex; align-items: flex-end; justify-content: center; gap: 0; overflow-x: auto; padding-bottom: 8px; }
-    .fmap-step { display: flex; flex-direction: column; align-items: center; gap: 0; }
-    .fmap-box { border: 1px solid var(--line); background: var(--panel-2); border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background .2s, border-color .2s; }
-    .fmap-box.encoder { border-color: var(--cyan); }
-    .fmap-box.bottleneck { border-color: var(--orange); }
-    .fmap-box.decoder { border-color: var(--acid); }
-    .fmap-box.size-l { width: 80px; height: 80px; }
-    .fmap-box.size-m { width: 58px; height: 58px; }
-    .fmap-box.size-s { width: 38px; height: 38px; }
-    .fmap-box.size-xs { width: 22px; height: 22px; }
-    .fmap-size { font-family: var(--font-mono); font-size: .65rem; text-align: center; color: var(--muted); margin-top: 8px; line-height: 1.4; min-width: 54px; }
-    .fmap-size strong { display: block; font-size: .8rem; }
-    .fmap-size.encoder strong { color: var(--cyan); }
-    .fmap-size.bottleneck strong { color: var(--orange); }
-    .fmap-size.decoder strong { color: var(--acid); }
-    .fmap-arrow { font-size: .85rem; color: var(--dim); padding: 0 4px; padding-bottom: 32px; flex-shrink: 0; align-self: flex-end; }
-    .fmap-legend { display: flex; gap: 20px; margin-top: 18px; flex-wrap: wrap; }
-    .fmap-legend-item { display: flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: .68rem; color: var(--muted); letter-spacing: .06em; }
-    .fmap-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
-    .fmap-dot.enc { background: var(--cyan); }
-    .fmap-dot.btn { background: var(--orange); }
-    .fmap-dot.dec { background: var(--acid); }
-
-    /* ── U-Net skip connection toggle ─────────────────────── */
-    .skip-demo { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    @media (max-width: 640px) { .skip-demo { grid-template-columns: 1fr; } }
-    .skip-card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 20px; }
-    .skip-card-label { font-family: var(--font-mono); font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 12px; }
-    .skip-card-label.good { color: var(--acid); }
-    .skip-card-label.bad { color: var(--red); }
-    .skip-visual { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
-    .skip-row { height: 32px; border-radius: 6px; display: flex; align-items: center; padding: 0 10px; font-size: .75rem; font-family: var(--font-mono); color: #111; }
-    .skip-row.enc { background: var(--cyan); }
-    .skip-row.mid { background: var(--orange); color: #fff; }
-    .skip-row.dec { background: var(--acid); }
-    .skip-row.lost { background: var(--line); color: var(--muted); font-style: italic; }
-    .skip-arrow { text-align: center; font-size: 1.1rem; color: var(--dim); line-height: 1; }
-    .skip-desc { font-size: .88rem; color: var(--muted); line-height: 1.6; }
-    .skip-desc strong { color: var(--ink); }
-
-    /* ── U-Net residual block ─────────────────────────────── */
-    .residual-wrap { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 28px; display: flex; flex-direction: column; align-items: center; gap: 0; max-width: 520px; }
-    .res-block { display: flex; align-items: center; gap: 0; width: 100%; }
-    .res-main { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0; }
-    .res-box { border: 1px solid var(--line); border-radius: 10px; padding: 10px 18px; font-family: var(--font-mono); font-size: .8rem; text-align: center; min-width: 140px; background: var(--panel-2); }
-    .res-box.conv { border-color: var(--cyan); color: var(--cyan); }
-    .res-box.norm { border-color: var(--orange); color: var(--orange); }
-    .res-box.act  { border-color: var(--acid);   color: var(--acid); }
-    .res-arrow-v { width: 2px; height: 20px; background: var(--line); margin: 0 auto; }
-    .res-bypass { display: flex; flex-direction: column; align-items: center; gap: 0; margin-left: 18px; }
-    .res-bypass-line-v { width: 2px; background: var(--acid); flex: 1; min-height: 60px; }
-    .res-bypass-label { font-family: var(--font-mono); font-size: .64rem; color: var(--acid); letter-spacing: .08em; text-transform: uppercase; writing-mode: vertical-rl; text-orientation: mixed; transform: rotate(180deg); margin-block: 4px; }
-    .res-plus { font-size: 1.2rem; font-weight: 800; color: var(--acid); margin-top: 8px; }
-    .res-caption { font-size: .82rem; color: var(--muted); margin-top: 16px; text-align: center; line-height: 1.6; }
-
-    /* ── Visual side-by-side compare (SVG) ────────────────── */
-    .visual-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-    @media (max-width: 640px) { .visual-compare { grid-template-columns: 1fr; } }
-    .visual-compare--spaced { margin-bottom: 32px; }
-    .vc-panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
-    .vc-header { padding: 18px 24px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; }
-    .vc-tag { font-family: var(--font-mono); font-size: .65rem; letter-spacing: .12em; text-transform: uppercase; padding: 3px 9px; border-radius: 6px; font-weight: 800; }
-    .vc-tag.unet { background: color-mix(in srgb, var(--orange) 18%, var(--panel-2)); color: var(--orange); }
-    .vc-tag.dit  { background: color-mix(in srgb, var(--acid) 18%, var(--panel-2)); color: var(--acid); }
-    .vc-name { font-weight: 800; font-size: 1rem; }
-    .vc-svg-area { padding: 28px 20px; display: flex; justify-content: center; }
-    .vc-svg-area svg { display: block; width: 100%; max-width: 260px; height: auto; }
-    .unet-enc { fill: color-mix(in srgb, var(--orange) 14%, var(--panel-2)); stroke: var(--orange); stroke-width: 1.5; }
-    .unet-bot { fill: color-mix(in srgb, var(--red) 18%, var(--panel-2)); stroke: var(--red); stroke-width: 1.5; }
-    .unet-dec { fill: color-mix(in srgb, var(--orange) 8%, var(--panel-2)); stroke: var(--orange); stroke-width: 1; stroke-dasharray: 4 2; }
-    .unet-skip { stroke: var(--orange); stroke-width: 1; stroke-dasharray: 3 2; fill: none; opacity: .55; }
-    .unet-label { fill: var(--muted); font-family: var(--font-mono); font-size: 8.5px; text-anchor: middle; dominant-baseline: middle; }
-    .unet-label-main { fill: var(--ink); font-family: var(--font-sans); font-size: 9.5px; font-weight: 700; text-anchor: middle; dominant-baseline: middle; }
-    .dit-token { fill: color-mix(in srgb, var(--acid) 22%, var(--panel-2)); stroke: var(--acid); stroke-width: 1.5; rx: 6; ry: 6; }
-    .dit-block { fill: color-mix(in srgb, var(--cyan) 14%, var(--panel-2)); stroke: var(--cyan); stroke-width: 1.5; }
-    .dit-cond  { fill: color-mix(in srgb, var(--muted) 12%, var(--panel-2)); stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 2; }
-    .dit-label { fill: var(--muted); font-family: var(--font-mono); font-size: 8.5px; text-anchor: middle; dominant-baseline: middle; }
-    .dit-label-main { fill: var(--ink); font-family: var(--font-sans); font-size: 9.5px; font-weight: 700; text-anchor: middle; dominant-baseline: middle; }
-    .vc-traits { padding: 0 24px 24px; list-style: none; margin: 0; display: flex; flex-direction: column; gap: 8px; }
-    .vc-trait { display: flex; gap: 9px; align-items: flex-start; font-size: .84rem; color: var(--muted); line-height: 1.55; }
-    .vc-trait-dot { flex: 0 0 6px; width: 6px; height: 6px; border-radius: 50%; margin-top: 7px; }
-    .unet .vc-trait-dot { background: var(--orange); }
-    .dit  .vc-trait-dot { background: var(--acid); }
-    .vc-trait strong { color: var(--ink); }
-
-    /* ── Comparison table ─────────────────────────────────── */
-    .table-wrap { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; overflow-x: auto; }
-    .compare-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
-    .compare-table th, .compare-table td { padding: 13px 16px; border: 1px solid var(--line); text-align: left; vertical-align: top; }
-    .compare-table th { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); background: var(--panel); font-weight: 700; }
-    .compare-table td { background: var(--panel-2); }
-    .compare-table tr:hover td { background: var(--panel); }
-    .col-unet { color: var(--orange); font-weight: 700; }
-    .col-dit  { color: var(--acid); font-weight: 700; }
-
-    /* ── Why DiT cards ────────────────────────────────────── */
-    .why-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
-    @media (max-width: 768px) { .why-grid { grid-template-columns: 1fr; } }
-    .why-card {
+    /* ── Attention explorer ───────────────────────── */
+    .attn-demo {
       background: var(--panel);
       border: 1px solid var(--line);
       border-radius: var(--radius);
-      padding: 24px 22px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      position: relative;
-      transition: transform .2s, box-shadow .2s, border-color .2s;
+      padding: 36px 32px;
+      margin-top: 36px;
+      backdrop-filter: blur(14px);
+      box-shadow: 0 2px 20px rgba(0,0,0,.1);
+      transition: box-shadow .25s;
     }
-    .why-card::before {
+    .attn-demo:hover { box-shadow: 0 10px 36px rgba(0,0,0,.2); }
+    .attn-demo-title {
+      font-size: 1rem;
+      font-weight: 800;
+      color: var(--ink);
+      margin: 0 0 8px;
+      letter-spacing: -.01em;
+    }
+    .attn-demo-desc {
+      font-size: .88rem;
+      color: var(--muted);
+      margin: 0 0 24px;
+      line-height: 1.6;
+    }
+    .attn-scenario {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--cyan);
+      border-radius: 0 10px 10px 0;
+      padding: 16px 20px;
+      margin-bottom: 22px;
+      font-size: .84rem;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+    .attn-scenario strong { color: var(--cyan); }
+    .attn-toggle-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 28px; }
+    .attn-toggle {
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 9px 20px;
+      background: var(--panel-2);
+      color: var(--muted);
+      font-weight: 800;
+      font-size: .82rem;
+      transition: border-color .18s, color .18s, background .18s, transform .12s, box-shadow .18s;
+    }
+    .attn-toggle:hover {
+      border-color: var(--dim);
+      color: var(--ink);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0,0,0,.15);
+    }
+    .attn-toggle:active { transform: scale(.96); }
+    .attn-toggle[aria-pressed="true"] {
+      border-color: var(--acid);
+      color: #111;
+      background: var(--acid);
+      box-shadow: 0 4px 14px color-mix(in srgb, var(--acid) 35%, transparent);
+    }
+
+    .attn-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 24px;
+    }
+    @media (min-width: 760px) {
+      .attn-grid { grid-template-columns: minmax(0,1fr) 250px; align-items: start; }
+    }
+
+    .attn-matrix-wrap { overflow-x: auto; }
+    .attn-matrix { display: grid; gap: 4px; min-width: 320px; }
+    .attn-corner,
+    .attn-colhead,
+    .attn-rowhead {
+      font-family: var(--font-mono);
+      font-size: .64rem;
+      letter-spacing: .04em;
+      color: var(--dim);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 4px 2px;
+      white-space: nowrap;
+    }
+    .attn-rowhead {
+      justify-content: flex-end;
+      padding-right: 10px;
+      cursor: pointer;
+      border-radius: 6px;
+      color: var(--muted);
+      transition: color .15s, background .15s;
+    }
+    .attn-rowhead:hover { color: var(--ink); background: var(--panel-2); }
+    .attn-rowhead.active-row { color: var(--acid); font-weight: 800; }
+    .attn-cell {
+      aspect-ratio: 1 / 1;
+      min-width: 34px;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: .6rem;
+      color: rgba(255,255,255,.88);
+      cursor: pointer;
+      transition: transform .14s cubic-bezier(.22,1,.36,1), box-shadow .14s, opacity .2s;
+    }
+    .attn-cell:hover { transform: scale(1.12); box-shadow: 0 4px 14px rgba(0,0,0,.28); }
+    .attn-cell.dim-row { opacity: .2; }
+    .attn-cell.active-cell { box-shadow: 0 0 0 2px var(--acid); }
+
+    .attn-readout {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 20px;
+    }
+    .attn-readout-label {
+      font-family: var(--font-mono);
+      font-size: .64rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin: 0 0 6px;
+    }
+    .attn-readout-query {
+      font-size: 1.05rem;
+      font-weight: 900;
+      color: var(--acid);
+      margin: 0 0 16px;
+      letter-spacing: -.01em;
+    }
+    .attn-bar-row { margin-bottom: 10px; }
+    .attn-bar-head {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .attn-bar-track {
+      height: 9px;
+      background: var(--panel);
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+    }
+    .attn-bar-fill {
+      height: 100%;
+      border-radius: 6px;
+      background: linear-gradient(90deg, var(--cyan), var(--acid));
+      transition: width .4s cubic-bezier(.4,0,.2,1);
+    }
+    .attn-note {
+      font-size: .78rem;
+      color: var(--dim);
+      line-height: 1.55;
+      margin: 14px 0 0;
+    }
+
+    /* ── Compare cards ────────────────────────────── */
+    .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .compare-card {
+      background: var(--panel);
+      border-radius: var(--radius);
+      padding: 26px;
+      transition: transform .22s cubic-bezier(.22,1,.36,1), box-shadow .22s;
+      position: relative;
+      overflow: hidden;
+    }
+    /* Gradient border via pseudo-element */
+    .compare-card::before {
       content: '';
       position: absolute;
       inset: 0;
       border-radius: var(--radius);
       padding: 1px;
-      background: linear-gradient(135deg, var(--acid), var(--cyan), transparent 60%);
+      background: var(--line);
       -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-      mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
       -webkit-mask-composite: xor;
       mask-composite: exclude;
-      opacity: 0;
-      transition: opacity .25s;
-      pointer-events: none;
     }
-    .why-card:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 12px 32px rgba(0,0,0,.28);
-      border-color: transparent;
+    .compare-card.self::before {
+      background: linear-gradient(135deg, var(--cyan), color-mix(in srgb, var(--cyan) 30%, var(--line)));
     }
-    .why-card:hover::before { opacity: 1; }
-    .why-card-icon { font-size: 1.6rem; line-height: 1; }
-    .why-card-title { font-weight: 800; font-size: .95rem; line-height: 1.3; }
-    .why-card-body { font-size: .87rem; color: var(--muted); line-height: 1.65; flex: 1; }
-    .why-card-tag { display: inline-block; font-family: var(--font-mono); font-size: .64rem; letter-spacing: .1em; text-transform: uppercase; padding: 3px 8px; border-radius: 6px; background: color-mix(in srgb, var(--acid) 14%, var(--panel-2)); color: var(--acid); align-self: flex-start; margin-top: auto; }
+    .compare-card.cross::before {
+      background: linear-gradient(135deg, var(--acid), color-mix(in srgb, var(--acid) 30%, var(--line)));
+    }
+    .compare-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 14px 36px rgba(0,0,0,.22);
+    }
+    .cc-tag {
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 6px;
+      display: inline-block;
+      margin-bottom: 14px;
+    }
+    .compare-card.self .cc-tag { background: color-mix(in srgb, var(--cyan) 14%, transparent); color: var(--cyan); }
+    .compare-card.cross .cc-tag { background: color-mix(in srgb, var(--acid) 14%, transparent); color: var(--acid); }
+    .cc-heading { font-weight: 800; font-size: 1rem; color: var(--ink); margin: 0 0 10px; }
+    .cc-list { margin: 0; padding-left: 18px; color: var(--muted); font-size: .9rem; }
+    .cc-list li { margin-bottom: 7px; }
+    .cc-stat {
+      font-family: var(--font-mono);
+      font-size: 1.05rem;
+      font-weight: 900;
+      margin-top: 14px;
+      display: block;
+      padding: 10px 14px;
+      border-radius: 10px;
+    }
+    .compare-card.self .cc-stat { color: var(--cyan); background: color-mix(in srgb, var(--cyan) 8%, var(--panel-2)); }
+    .compare-card.cross .cc-stat { color: var(--acid); background: color-mix(in srgb, var(--acid) 8%, var(--panel-2)); }
 
-    /* ── Wan2.2 MoE router ────────────────────────────────── */
-    .moe-lab { display: grid; grid-template-columns: minmax(240px, .72fr) 1.28fr; gap: 24px; padding: 28px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
-    .moe-controls { margin: 0; padding: 0; border: 0; }
-    .moe-controls legend { margin-bottom: 14px; color: var(--muted); font-family: var(--font-mono); font-size: .72rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
-    .moe-choice-list { display: grid; gap: 10px; }
-    .moe-choice { display: flex; min-height: 56px; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel-2); font-weight: 800; cursor: pointer; }
-    .moe-choice:has(input:checked) { border-color: var(--acid); }
-    .moe-choice input { width: 20px; height: 20px; accent-color: var(--acid); }
-    .moe-stage { min-height: 190px; display: grid; align-content: center; gap: 14px; padding: 24px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel-2); }
-    .moe-route { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; }
-    .moe-node { min-height: 70px; display: grid; place-items: center; padding: 12px; border: 1px solid var(--line); border-radius: 14px; color: var(--muted); text-align: center; }
-    .moe-node.active { border-color: var(--acid); background: color-mix(in srgb, var(--acid) 10%, var(--panel-2)); color: var(--ink); }
-    .moe-arrow { color: var(--dim); font-size: 1.4rem; }
-    .moe-output { margin: 0; color: var(--muted); line-height: 1.65; }
-    .moe-output strong { color: var(--ink); }
-    @media (max-width: 768px) { .moe-lab { grid-template-columns: 1fr; padding: 20px; } }
-    @media (max-width: 480px) { .moe-route { grid-template-columns: 1fr; } .moe-arrow { transform: rotate(90deg); justify-self: center; } }
+    /* ── Formula strip ────────────────────────────── */
+    .formula-box {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 22px 28px;
+      overflow-x: auto;
+      margin: 0 0 30px;
+      position: relative;
+    }
+    .formula-box code {
+      font-family: var(--font-mono);
+      font-size: 1.06rem;
+      color: var(--acid);
+      white-space: nowrap;
+    }
+    .formula-box .fx-note { display: block; margin-top: 12px; font-size: .8rem; color: var(--dim); white-space: normal; line-height: 1.6; }
+    .copy-btn {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      font-family: var(--font-mono);
+      font-size: .6rem;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      padding: 5px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--dim);
+      cursor: pointer;
+      transition: border-color .15s, color .15s, transform .12s;
+    }
+    .copy-btn:hover { border-color: var(--acid); color: var(--acid); }
+    .copy-btn:active { transform: scale(.94); }
 
-    /* ── Sources ──────────────────────────────────────────── */
-    .source-list { display: grid; gap: 10px; padding: 0; margin: 0; list-style: none; }
+    /* ── Terminal block ───────────────────────────── */
+    .terminal-block {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin: 26px 0;
+      overflow-x: auto;
+      position: relative;
+    }
+    .terminal-block pre {
+      margin: 0;
+      font-family: var(--font-mono);
+      font-size: .82rem;
+      line-height: 1.65;
+      color: #e6edf3;
+      white-space: pre;
+    }
+    .terminal-block .t-comment { color: #8b949e; }
+    .terminal-block .t-key    { color: #79c0ff; }
+    .terminal-block .t-val    { color: #a5d6ff; }
+    .terminal-block .t-num    { color: #f0883e; }
+    .terminal-block .t-str    { color: #a8d8a8; }
+    .terminal-block .t-label  { color: #7ee787; }
+    .terminal-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #21262d;
+    }
+    .terminal-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .terminal-dot.red   { background: #f85149; }
+    .terminal-dot.amber { background: #d29922; }
+    .terminal-dot.green { background: #3fb950; }
+    .terminal-title {
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      color: #8b949e;
+      margin-left: 4px;
+    }
+    /* Copy button for terminal */
+    .terminal-copy-btn {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      font-family: var(--font-mono);
+      font-size: .58rem;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid #30363d;
+      background: #161b22;
+      color: #8b949e;
+      cursor: pointer;
+      transition: border-color .15s, color .15s, transform .12s;
+    }
+    .terminal-copy-btn:hover { border-color: #7ee787; color: #7ee787; }
+    .terminal-copy-btn:active { transform: scale(.94); }
+
+    /* ── Pipeline ─────────────────────────────────── */
+    .pipeline { display: flex; align-items: stretch; gap: 0; overflow-x: auto; padding-bottom: 8px; }
+    .pipe-step {
+      flex: 1;
+      min-width: 136px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 20px 14px;
+      text-align: center;
+      transition: transform .22s cubic-bezier(.22,1,.36,1), box-shadow .22s, border-color .18s;
+      cursor: default;
+    }
+    .pipe-step:hover { transform: translateY(-4px); box-shadow: 0 10px 28px rgba(0,0,0,.2); }
+    .pipe-step.highlight {
+      border-color: var(--acid);
+      background: color-mix(in srgb, var(--acid) 5%, var(--panel));
+    }
+    .pipe-step.highlight .ps-name { color: var(--acid); }
+    .pipe-arrow { display: flex; align-items: center; padding: 0 6px; color: var(--dim); font-size: 1.2rem; flex-shrink: 0; }
+    .ps-icon { font-size: 1.5rem; margin-bottom: 8px; }
+    .ps-name { font-weight: 800; font-size: .82rem; color: var(--ink); margin-bottom: 4px; }
+    .ps-desc { font-size: .72rem; color: var(--dim); line-height: 1.4; }
+    .ps-badge {
+      display: inline-block;
+      background: var(--acid);
+      color: #111;
+      font-size: .6rem;
+      font-weight: 800;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      border-radius: 5px;
+      padding: 3px 7px;
+      margin-top: 8px;
+    }
+
+    /* ── Note box ─────────────────────────────────── */
+    .note-box {
+      border: 1px solid var(--orange);
+      background: color-mix(in srgb, var(--orange) 7%, var(--panel));
+      border-radius: var(--radius);
+      padding: 24px 28px;
+    }
+    .note-box-title {
+      font-weight: 800;
+      color: var(--orange);
+      margin: 0 0 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .note-box p { margin: 0; color: var(--muted); font-size: .95rem; line-height: 1.68; }
+
+    /* ── Stats strip ──────────────────────────────── */
+    .stats-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 14px;
+      margin: 28px 0;
+    }
+    .stat-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 20px;
+      text-align: center;
+      transition: transform .2s, box-shadow .2s;
+    }
+    .stat-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,.16); }
+    .stat-num {
+      font-family: var(--font-mono);
+      font-size: 1.6rem;
+      font-weight: 900;
+      color: var(--acid);
+      display: block;
+      animation: countUp .5s ease forwards;
+    }
+    .stat-label { font-size: .76rem; color: var(--dim); margin-top: 4px; line-height: 1.4; }
+
+    /* ── Source list ──────────────────────────────── */
+    .source-list { margin: 24px 0 0; padding-left: 20px; color: var(--muted); }
+    .source-list li { margin-bottom: 10px; }
     .source-list a {
-      display: block; min-height: 44px; border: 1px solid var(--line); border-radius: 12px;
-      padding: 12px 16px; background: var(--panel); color: var(--ink); text-decoration: none;
-      transition: border-color .18s, transform .18s, box-shadow .18s;
+      color: var(--cyan);
+      text-underline-offset: 3px;
+      text-decoration: none;
+      background-image: linear-gradient(var(--cyan), var(--cyan));
+      background-size: 0 1px;
+      background-position: 0 100%;
+      background-repeat: no-repeat;
+      transition: background-size .2s ease, color .18s;
     }
-    .source-list a:hover { border-color: var(--cyan); background: var(--panel-2); transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.18); }
-    .source-list strong { display: block; }
-    .source-list span { display: block; color: var(--muted); font-size: .82rem; margin-top: 3px; }
+    .source-list a:hover { background-size: 100% 1px; color: var(--ink); }
 
-    /* ── Related lessons ──────────────────────────────────── */
-    .related-h2 { margin-bottom: 1.5rem; }
+    /* ── Related lessons ──────────────────────────── */
     .related-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; }
     .related-card {
-      display: flex; flex-direction: column; gap: .5rem;
-      border: 1px solid var(--line); border-radius: var(--radius);
-      padding: 1.2rem 1.4rem; background: var(--panel);
-      text-decoration: none; color: var(--ink);
-      transition: border-color .18s, transform .18s, box-shadow .18s;
+      display: flex;
+      flex-direction: column;
+      gap: .5rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 1.2rem 1.4rem;
+      background: var(--panel);
+      text-decoration: none;
+      color: var(--ink);
+      transition: border-color .18s, transform .2s cubic-bezier(.22,1,.36,1), box-shadow .18s;
       cursor: pointer;
+      position: relative;
+      overflow: hidden;
     }
-    .related-card:hover { border-color: var(--cyan); transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,.18); }
-    .related-badge { font-family: var(--font-mono); font-size: .62rem; letter-spacing: .14em; text-transform: uppercase; color: var(--cyan); }
-    .related-title { font-size: 1rem; font-weight: 800; }
-    .related-desc { color: var(--muted); font-size: .85rem; flex: 1; }
-    .related-arrow { color: var(--acid); font-size: 1.1rem; align-self: flex-end; margin-top: .4rem; }
-
-    /* ── Checkpoint quiz ──────────────────────────────────── */
-    .checkpoint-list { display: flex; flex-direction: column; gap: 28px; }
-    .q-block { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 28px; }
-    .q-number { font-family: var(--font-mono); font-size: .68rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
-    .q-text { font-size: 1.02rem; font-weight: 700; margin-bottom: 18px; line-height: 1.5; }
-    .q-options { display: flex; flex-direction: column; gap: 8px; }
-    .q-option { display: flex; align-items: flex-start; gap: 12px; padding: 12px 16px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--panel-2); cursor: pointer; font-size: .9rem; line-height: 1.5; transition: border-color .15s, background .15s; text-align: left; color: var(--ink); min-height: 44px; }
-    .q-option:hover { border-color: var(--muted); background: var(--panel); }
-    .q-option.correct { border-color: var(--acid); background: color-mix(in srgb, var(--acid) 10%, var(--panel-2)); }
-    .q-option.wrong   { border-color: var(--red);  background: color-mix(in srgb, var(--red) 10%, var(--panel-2)); }
-    .q-option-mark { flex: 0 0 20px; width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--line); margin-top: 1px; display: flex; align-items: center; justify-content: center; font-size: .7rem; font-weight: 800; flex-shrink: 0; }
-    .q-option.correct .q-option-mark { border-color: var(--acid); background: var(--acid); color: #111; }
-    .q-option.wrong   .q-option-mark { border-color: var(--red);  background: var(--red);  color: #fff; }
-    .q-explanation {
-      margin-top: 14px; padding: 14px 18px; background: var(--panel-2);
-      border-left: 3px solid var(--cyan); border-radius: 0 10px 10px 0;
-      font-size: .87rem; color: var(--muted); line-height: 1.65;
-      display: none;
+    .related-card::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, color-mix(in srgb, var(--cyan) 4%, transparent), transparent);
       opacity: 0;
-      transform: translateY(8px);
+      transition: opacity .2s;
     }
-    .q-explanation.visible {
-      display: block;
-      animation: fadeUp .3s cubic-bezier(.22,1,.36,1) forwards;
+    .related-card:hover {
+      border-color: var(--cyan);
+      transform: translateY(-4px);
+      box-shadow: 0 10px 28px rgba(0,0,0,.2);
     }
-    /* Score flash */
-    @keyframes scorePop {
-      0%   { transform: scale(1); }
-      40%  { transform: scale(1.18); }
-      100% { transform: scale(1); }
+    .related-card:hover::after { opacity: 1; }
+    .related-badge {
+      font-family: var(--font-mono);
+      font-size: .62rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--cyan);
     }
-    .q-option.correct .q-option-mark { animation: scorePop .35s ease forwards; }
-    .q-option { transition: border-color .15s, background .15s, transform .1s; }
-    .q-option:active { transform: scale(.98); }
-    .q-explanation strong { color: var(--ink); }
-    .q-reset { margin-top: 14px; font-size: .82rem; }
-    .q-reset-hidden { display: none; }
+    .related-title { font-size: 1rem; font-weight: 800; position: relative; z-index: 1; }
+    .related-desc { color: var(--muted); font-size: .85rem; flex: 1; position: relative; z-index: 1; }
+    .related-arrow { color: var(--acid); font-size: 1.1rem; align-self: flex-end; margin-top: .4rem; transition: transform .2s cubic-bezier(.22,1,.36,1); position: relative; z-index: 1; }
+    .related-card:hover .related-arrow { transform: translateX(5px); }
 
-    /* ── Footer pager ─────────────────────────────────────── */
+    /* ── Checkpoint quiz ──────────────────────────── */
+    .checkpoint-list { display: flex; flex-direction: column; gap: 26px; }
+    .checkpoint-item {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 30px;
+      transition: box-shadow .2s;
+    }
+    .checkpoint-item:hover { box-shadow: 0 4px 22px rgba(0,0,0,.12); }
+    .cp-question { font-weight: 800; font-size: 1rem; color: var(--ink); margin: 0 0 18px; }
+    .cp-options { display: flex; flex-direction: column; gap: 9px; margin-bottom: 16px; }
+    .cp-option {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 13px 17px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--panel-2);
+      cursor: pointer;
+      color: var(--muted);
+      font-size: .9rem;
+      transition: border-color .15s, background .15s, transform .14s cubic-bezier(.22,1,.36,1), color .15s;
+      min-height: 44px;
+      text-align: left;
+    }
+    .cp-option:hover { border-color: var(--dim); color: var(--ink); transform: translateX(3px); }
+    .cp-option:active { transform: scale(.98); }
+    .cp-option.selected { border-color: var(--cyan); color: var(--ink); background: color-mix(in srgb, var(--cyan) 8%, var(--panel-2)); }
+    .cp-option.correct { border-color: var(--acid); background: color-mix(in srgb, var(--acid) 9%, var(--panel-2)); color: var(--ink); animation: borderGlow .6s ease; }
+    .cp-option.wrong { border-color: var(--red); background: color-mix(in srgb, var(--red) 9%, var(--panel-2)); color: var(--ink); }
+    .cp-option[disabled] { cursor: default; transform: none; }
+    .cp-opt-mark {
+      width: 20px;
+      height: 20px;
+      border: 2px solid currentColor;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .7rem;
+    }
+    .cp-explanation {
+      margin-top: 14px;
+      padding: 16px 18px;
+      background: var(--panel-2);
+      border-radius: 10px;
+      font-size: .88rem;
+      color: var(--muted);
+      line-height: 1.65;
+      display: none;
+      border-left: 3px solid var(--acid);
+    }
+    .cp-explanation.visible {
+      display: block;
+      animation: revealSlide .32s cubic-bezier(.22,1,.36,1) forwards;
+    }
+    .cp-explanation strong { color: var(--ink); }
+    .score-flash {
+      display: inline-block;
+      background: var(--acid);
+      color: #111;
+      font-weight: 900;
+      font-size: .84rem;
+      padding: 5px 14px;
+      border-radius: 9px;
+      margin-left: 10px;
+      animation: scoreFlashIn .5s cubic-bezier(.22,1,.36,1) forwards;
+    }
+
+    /* ── Confetti ─────────────────────────────────── */
+    .confetti-piece {
+      position: fixed;
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+      pointer-events: none;
+      z-index: 9999;
+      animation: confettiFall .9s ease-out forwards;
+    }
+
+    /* ── Footer ───────────────────────────────────── */
     .page-footer {
+      padding: 52px 0;
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 16px;
       flex-wrap: wrap;
-      padding: 40px 0 48px;
       border-top: 1px solid var(--line);
     }
-    .footer-text { font-family: var(--font-mono); font-size: .72rem; color: var(--dim); letter-spacing: .06em; }
+    .footer-text { font-size: .8rem; color: var(--dim); font-family: var(--font-mono); }
 
-    /* ── Utils ────────────────────────────────────────────── */
-    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-
-    @media (prefers-reduced-motion: reduce) {
-      .pipe-node, .pipe-node-rect, .pipe-arrow, .token-particle,
-      .arch-box, .block-layer, .block-layer-expand,
-      .anim-btn, .q-option, .anim-desc,
-      .hero-title, .hero::before, .hero::after,
-      .why-card, .related-card {
-        transition: none !important;
-        animation: none !important;
-      }
-      .hero-title {
-        background: none;
-        -webkit-text-fill-color: var(--ink);
-        color: var(--ink);
-      }
-    }
-    /* Light mode: readable gradient hero title */
-    :root[data-theme="light"] .hero-title {
-      background: linear-gradient(
-        120deg,
-        var(--ink) 0%,
-        var(--cyan) 40%,
-        #3a6e00 70%,
-        var(--ink) 100%
-      );
-      background-size: 200% auto;
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-    /* Ensure hero::before is visible in light mode */
-    :root[data-theme="light"] .hero::before {
-      background: linear-gradient(
-        135deg,
-        rgba(89,121,0,.06) 0%,
-        rgba(0,120,135,.07) 35%,
-        rgba(184,76,15,.05) 70%,
-        rgba(0,120,135,.03) 100%
-      );
-      background-size: 300% 300%;
-      animation: gradientShift 10s ease infinite;
+    /* ── Responsive ───────────────────────────────── */
+    @media (max-width: 680px) {
+      .compare-grid { grid-template-columns: 1fr; }
+      .pipeline { flex-direction: column; }
+      .pipe-arrow { transform: rotate(90deg); align-self: center; }
+      .hero { padding: 56px 0 48px; }
+      .section, .content-section { padding: 56px 0; }
+      .related-grid { grid-template-columns: 1fr; }
+      .stats-strip { grid-template-columns: 1fr 1fr; }
     }
     @media (max-width: 900px) { .topnav { display: none; } }
-    @media (max-width: 768px) {
-      .residual-wrap { padding: 20px 14px; }
-      .compare-table th, .compare-table td { padding: 10px 12px; }
-      .trace-facts { grid-template-columns: 1fr; }
+    @media (prefers-reduced-motion: reduce) {
+      .attn-cell, .attn-bar-fill, .attn-toggle,
+      .reveal, .hero::before, .hero::after,
+      .hero-title, .hero-badge, .button,
+      .confetti-piece { transition: none; animation: none; }
     }
+    .phase-contract { margin: 26px 0 0; padding: 18px; border: 1px solid var(--line); border-left: 4px solid var(--cyan); border-radius: 16px; background: color-mix(in srgb, var(--panel) 88%, transparent); }
+    .phase-contract h2 { margin: 0; font: 800 .78rem/1.35 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--cyan); }
+    .phase-contract > p { margin: 8px 0 14px; color: var(--muted); font-size: .92rem; }
+    .phase-contract-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .phase-contract-item { padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--panel-2); }
+    .phase-contract-item strong { display: block; margin-bottom: 4px; font: 800 .68rem/1.3 var(--font-mono); letter-spacing: .07em; text-transform: uppercase; color: var(--ink); }
+    .phase-contract-item span { display: block; color: var(--muted); font-size: .82rem; line-height: 1.45; }
+    @media (max-width: 700px) { .phase-contract-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
+  <a class="skip-link" href="#main">Bỏ qua điều hướng</a>
 
-<a class="skip-link" href="#main">Bỏ qua điều hướng</a>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="index.html" data-curriculum-home aria-label="Video Gen Lab — về trang chủ">
+        <span class="brand-mark" aria-hidden="true"></span>
+        VIDEO GEN LAB
+      </a>
+      <nav class="topnav" aria-label="Điều hướng bài học">
+        <a href="video-generation-part-1-lesson-5.html" data-curriculum-prev>← Bài 1.5</a>
+        <a href="index.html" data-curriculum-home>Trang chủ</a>
+        <a href="video-generation-part-1-lesson-7.html" data-curriculum-next>Bài 1.7 →</a>
+      </nav>
+      <!-- theme-toggle injected by video-generation-theme.js -->
+      <div class="progress-track" aria-hidden="true"><div class="progress-fill" id="progressFill"></div></div>
+    </div>
+  </header>
 
-<!-- ── Topbar ─────────────────────────────────────────────── -->
-<header class="topbar">
-  <div class="topbar-inner">
-    <a class="brand" href="index.html" aria-label="Video Gen Lab — về trang chủ">
-      <span class="brand-mark" aria-hidden="true"></span>
-      VIDEO GEN LAB
-    </a>
-    <nav class="topnav" aria-label="Bài học">
-      <a href="video-generation-part-1-lesson-1.html">Bài 1</a>
-      <a href="video-generation-part-1-lesson-2.html">Bài 2</a>
-      <a href="video-generation-part-1-lesson-3.html">Bài 3</a>
-      <a href="video-generation-part-1-lesson-4.html">Bài 4</a>
-      <a href="video-generation-part-1-lesson-5.html">Bài 5</a>
-      <a href="video-generation-part-1-lesson-6.html" aria-current="page">Bài 6</a>
-      <a href="index.html">Trang chủ</a>
-    </nav>
-    <div class="progress-track" aria-hidden="true"><div class="progress-fill" id="progressFill"></div></div>
-  </div>
-</header>
+  <main id="main">
+    <div class="shell">
 
-<!-- ── Main ──────────────────────────────────────────────── -->
-<main id="main">
-
-  <!-- Hero -->
-  <div class="shell">
-    <section class="hero" aria-labelledby="hero-heading">
-      <p class="hero-meta">PART 1 · BÀI 6 · MODEL ARCHITECTURE</p>
-      <h1 class="hero-title" id="hero-heading">U-Net vs DiT —<br>Hai loại backbone</h1>
-      <p class="hero-lead">
-        Mỗi bước khử nhiễu, quá trình diffusion gọi đúng một mạng để đoán noise: <strong>backbone</strong>.
-        Trong hai bài trước ta gặp hai ứng viên — U-Net dạng chữ U với skip connections, và DiT
-        thuần Transformer trên các patch token. Bài này đặt chúng cạnh nhau: cùng nhiệm vụ, hai
-        triết lý thiết kế, và lý do các video model hiện đại như Wan2.2 nghiêng về DiT.
-      </p>
-      <div class="hero-badges" aria-hidden="true">
-        <span class="hero-badge unet">U-Net · encoder–decoder</span>
-        <span class="hero-badge dit">DiT · patchify + attention</span>
-        <span class="hero-badge">Inductive bias · Scaling</span>
-      </div>
-      <div class="hero-actions">
-        <a href="#checkpoint" class="button primary">Kiểm tra ngay →</a>
-        <a href="video-generation-part-1-lesson-5.html" class="button">← Bài 5: Attention</a>
-      </div>
-    </section>
-  </div>
-
-  <!-- 01: Backbone là gì -->
-  <div class="shell">
-    <section class="section reveal" id="backbone" aria-labelledby="def-heading">
-      <p class="section-label">01 — Nền tảng</p>
-      <h2 class="section-heading" id="def-heading">Backbone làm gì trong diffusion?</h2>
-      <p class="section-intro">
-        Diffusion tạo ảnh/video bằng cách khử nhiễu dần: bắt đầu từ latent toàn noise, lặp nhiều bước,
-        mỗi bước bớt một ít noise. Ở mỗi bước, scheduler gọi một mạng neural để <strong>dự đoán phần
-        noise cần loại bỏ</strong> (hoặc một mục tiêu tương đương). Mạng đó chính là <em>backbone</em> —
-        và có hai kiểu backbone phổ biến: U-Net và DiT.
-      </p>
-
-      <div class="def-panel" role="note">
-        <p>
-          <strong>Backbone khử nhiễu</strong> nhận vào latent nhiễu <em>z<sub>t</sub></em>, timestep <em>t</em>
-          và điều kiện (text, ảnh…), rồi xuất ra dự đoán giúp sampler đi tới latent ít nhiễu hơn
-          <em>z<sub>t−1</sub></em>. <strong>U-Net</strong> và <strong>DiT</strong> chỉ khác nhau ở
-          <em>cách tổ chức bên trong</em> — nhiệm vụ "đoán noise" thì giống hệt nhau. Cùng một quá trình
-          diffusion có thể lắp U-Net hay DiT vào đúng vị trí backbone này.
+      <!-- ── HERO ─────────────────────────────────── -->
+      <section class="hero" aria-labelledby="hero-heading">
+        <p class="hero-meta" data-curriculum-hero-label>MODEL ARCHITECTURE · BÀI 1.6 · ATTENTION</p>
+        <h1 class="hero-title" id="hero-heading">Attention —<br>Self &amp; Cross</h1>
+        <p class="hero-lead">
+          Bên trong diffusion backbone, mỗi token phải "nhìn" các token khác để biết mình nên
+          trở thành gì. Đó là <strong>attention</strong>. Self-Attention để các patch trong ảnh/video
+          trao đổi với nhau; Cross-Attention để chúng lắng nghe prompt văn bản. Đây chính là nơi câu
+          lệnh của bạn thật sự lái quá trình sinh video.
         </p>
-      </div>
-
-      <details class="disclosure">
-        <summary class="disclosure-summary">Nhắc lại nhanh: denoising xảy ra ở đâu?</summary>
-        <div class="disclosure-body">
-          <p>VAE encoder nén video/ảnh xuống <strong>latent space</strong> — không gian nhỏ gọn hơn nhiều
-          so với pixel. Cả U-Net lẫn DiT đều làm việc <em>trong</em> không gian này. Sau khi backbone
-          khử nhiễu xong toàn bộ chuỗi bước, VAE decoder mới giải mã latent cuối cùng thành ảnh/video thật.</p>
-        </div>
-      </details>
-    </section>
-  </div>
-
-  <!-- 02: U-Net -->
-  <div class="shell">
-    <section class="section reveal" id="unet-architecture" aria-labelledby="unet-heading">
-      <p class="section-label">02 — Backbone A</p>
-      <h2 class="section-heading" id="unet-heading">U-Net — Encoder–Decoder &amp; Skip Connections</h2>
-      <p class="section-intro">
-        U-Net là kiến trúc hình chữ U: <strong>encoder</strong> nén latent xuống (giảm resolution),
-        <strong>decoder</strong> giải nén trở lại, và <strong>skip connections</strong> nối hai nhánh
-        cùng cấp để trả lại chi tiết không gian mà bottleneck không mang hết. Convolution xử lý local
-        feature — đây là backbone của SD1.5, SDXL.
-      </p>
-
-      <p class="subhead"><span class="subhead-tag unet">Diagram</span>Cấu trúc hình chữ U — lần theo dữ liệu</p>
-      <p class="block-copy">
-        Dùng <strong>Tiếp</strong>/<strong>Lùi</strong> để tự lần theo luồng dữ liệu qua encoder,
-        bottleneck và decoder, hoặc chọn <strong>Tự chạy</strong>. Mũi tên ngang là skip connections.
-      </p>
-
-      <div class="diagram-wrap">
-        <svg id="unet-svg" viewBox="0 0 760 430" width="760" height="430" role="img"
-             aria-labelledby="unet-title unet-desc">
-          <title id="unet-title">Sơ đồ kiến trúc U-Net tương tác</title>
-          <desc id="unet-desc">Encoder ở trái giảm kích thước feature map; decoder ở phải tăng kích thước. Ba đường skip ngang nối các tầng có cùng độ phân giải.</desc>
-          <defs>
-            <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-              <path d="M0,0 L0,6 L8,3 Z" fill="var(--cyan)" />
-            </marker>
-            <marker id="arr-skip" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-              <path d="M0,0 L0,6 L8,3 Z" fill="var(--acid)" />
-            </marker>
-            <marker id="arr-down" markerWidth="8" markerHeight="8" refX="4" refY="7" orient="auto">
-              <path d="M0,0 L8,0 L4,8 Z" fill="var(--cyan)" />
-            </marker>
-            <marker id="arr-up" markerWidth="8" markerHeight="8" refX="4" refY="1" orient="auto">
-              <path d="M0,8 L8,8 L4,0 Z" fill="var(--orange)" />
-            </marker>
-          </defs>
-
-          <rect x="20" y="10" width="200" height="400" rx="12" fill="rgba(98,231,245,.04)" stroke="var(--line)" stroke-width="1"/>
-          <rect x="540" y="10" width="200" height="400" rx="12" fill="rgba(255,138,76,.04)" stroke="var(--line)" stroke-width="1"/>
-
-          <text x="120" y="32" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="var(--cyan)" letter-spacing="2">ENCODER</text>
-          <text x="640" y="32" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="var(--orange)" letter-spacing="2">DECODER</text>
-          <text x="380" y="378" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="var(--dim)" letter-spacing="2">BOTTLENECK</text>
-
-          <g class="enc-block" id="enc-l1">
-            <rect x="40" y="50" width="160" height="48" rx="8" fill="var(--panel)" stroke="var(--cyan)" stroke-width="1.5"/>
-            <text x="120" y="68" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="var(--cyan)">Conv Block</text>
-            <text x="120" y="84" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="var(--muted)">64×64 · 64ch</text>
-            <line x1="120" y1="98" x2="120" y2="122" stroke="var(--cyan)" stroke-width="2" marker-end="url(#arr-down)"/>
-            <text x="132" y="113" font-family="ui-monospace, monospace" font-size="9" fill="var(--dim)">↓2×</text>
-          </g>
-
-          <g class="enc-block" id="enc-l2">
-            <rect x="50" y="126" width="140" height="48" rx="8" fill="var(--panel)" stroke="var(--cyan)" stroke-width="1.5"/>
-            <text x="120" y="144" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="var(--cyan)">Conv Block</text>
-            <text x="120" y="160" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="var(--muted)">32×32 · 128ch</text>
-            <line x1="120" y1="174" x2="120" y2="198" stroke="var(--cyan)" stroke-width="2" marker-end="url(#arr-down)"/>
-            <text x="132" y="189" font-family="ui-monospace, monospace" font-size="9" fill="var(--dim)">↓2×</text>
-          </g>
-
-          <g class="enc-block" id="enc-l3">
-            <rect x="60" y="202" width="120" height="48" rx="8" fill="var(--panel)" stroke="var(--cyan)" stroke-width="1.5"/>
-            <text x="120" y="220" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="var(--cyan)">Conv Block</text>
-            <text x="120" y="236" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="var(--muted)">16×16 · 256ch</text>
-            <path d="M180,278 Q230,278 280,304" fill="none" stroke="var(--cyan)" stroke-width="2" marker-end="url(#arr)"/>
-            <line x1="120" y1="250" x2="120" y2="270" stroke="var(--cyan)" stroke-width="2"/>
-            <line x1="120" y1="270" x2="180" y2="270" stroke="var(--cyan)" stroke-width="2"/>
-            <line x1="180" y1="270" x2="180" y2="278" stroke="var(--cyan)" stroke-width="2"/>
-            <text x="132" y="265" font-family="ui-monospace, monospace" font-size="9" fill="var(--dim)">↓2×</text>
-          </g>
-
-          <g class="btn-block" id="bottleneck-g">
-            <rect x="280" y="286" width="200" height="52" rx="8" fill="var(--panel)" stroke="var(--orange)" stroke-width="2"/>
-            <text x="380" y="308" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="var(--orange)">Bottleneck</text>
-            <text x="380" y="326" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="var(--muted)">8×8 · 512ch</text>
-            <path d="M480,312 Q530,286 560,278" fill="none" stroke="var(--orange)" stroke-width="2" marker-end="url(#arr-up)"/>
-          </g>
-
-          <g class="dec-block" id="dec-l3">
-            <rect x="560" y="202" width="120" height="48" rx="8" fill="var(--panel)" stroke="var(--orange)" stroke-width="1.5"/>
-            <text x="620" y="220" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="var(--orange)">Up Block</text>
-            <text x="620" y="236" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="var(--muted)">16×16 · 256ch</text>
-            <line x1="620" y1="202" x2="620" y2="176" stroke="var(--orange)" stroke-width="2" marker-end="url(#arr-up)"/>
-            <text x="632" y="193" font-family="ui-monospace, monospace" font-size="9" fill="var(--dim)">↑2×</text>
-          </g>
-
-          <g class="dec-block" id="dec-l2">
-            <rect x="550" y="126" width="140" height="48" rx="8" fill="var(--panel)" stroke="var(--orange)" stroke-width="1.5"/>
-            <text x="620" y="144" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="var(--orange)">Up Block</text>
-            <text x="620" y="160" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="var(--muted)">32×32 · 128ch</text>
-            <line x1="620" y1="126" x2="620" y2="100" stroke="var(--orange)" stroke-width="2" marker-end="url(#arr-up)"/>
-            <text x="632" y="117" font-family="ui-monospace, monospace" font-size="9" fill="var(--dim)">↑2×</text>
-          </g>
-
-          <g class="dec-block" id="dec-l1">
-            <rect x="540" y="50" width="160" height="48" rx="8" fill="var(--panel)" stroke="var(--orange)" stroke-width="1.5"/>
-            <text x="620" y="68" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="var(--orange)">Up Block</text>
-            <text x="620" y="84" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="var(--muted)">64×64 · 64ch</text>
-          </g>
-
-          <g class="skip-line" id="skip-l1">
-            <line x1="200" y1="74" x2="540" y2="74" stroke="var(--acid)" stroke-width="2" stroke-dasharray="6 3" marker-end="url(#arr-skip)"/>
-            <rect x="340" y="62" width="80" height="18" rx="4" fill="var(--night)"/>
-            <text x="380" y="75" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9" fill="var(--acid)">skip · 64ch</text>
-          </g>
-
-          <g class="skip-line" id="skip-l2">
-            <line x1="190" y1="150" x2="550" y2="150" stroke="var(--acid)" stroke-width="2" stroke-dasharray="6 3" marker-end="url(#arr-skip)"/>
-            <rect x="340" y="138" width="80" height="18" rx="4" fill="var(--night)"/>
-            <text x="380" y="151" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9" fill="var(--acid)">skip · 128ch</text>
-          </g>
-
-          <g class="skip-line" id="skip-l3">
-            <line x1="180" y1="226" x2="560" y2="226" stroke="var(--acid)" stroke-width="2" stroke-dasharray="6 3" marker-end="url(#arr-skip)"/>
-            <rect x="340" y="214" width="80" height="18" rx="4" fill="var(--night)"/>
-            <text x="380" y="227" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9" fill="var(--acid)">skip · 256ch</text>
-          </g>
-
-          <g transform="translate(200, 398)">
-            <line x1="0" y1="8" x2="24" y2="8" stroke="var(--cyan)" stroke-width="2"/>
-            <text x="28" y="12" font-family="ui-monospace, monospace" font-size="9" fill="var(--muted)">Encoder</text>
-            <line x1="90" y1="8" x2="114" y2="8" stroke="var(--orange)" stroke-width="2"/>
-            <text x="118" y="12" font-family="ui-monospace, monospace" font-size="9" fill="var(--muted)">Decoder</text>
-            <line x1="186" y1="8" x2="210" y2="8" stroke="var(--acid)" stroke-width="2" stroke-dasharray="6 3"/>
-            <text x="214" y="12" font-family="ui-monospace, monospace" font-size="9" fill="var(--muted)">Skip connection</text>
-          </g>
-        </svg>
-
-        <div class="anim-controls" role="group" aria-label="Điều khiển animation U-Net">
-          <button class="anim-btn" id="btn-prev" type="button">← Lùi</button>
-          <button class="anim-btn" id="btn-next" type="button">Tiếp →</button>
-          <button class="anim-btn" id="btn-play" type="button" aria-pressed="false">▶ Tự chạy</button>
-          <button class="anim-btn" id="btn-reset" type="button">↺ Về đầu</button>
-          <span class="anim-step-label" id="step-label">Bước 1 / 7</span>
-        </div>
-        <div class="trace-readout" id="trace-readout" aria-live="polite" aria-atomic="true">
-          <p class="trace-kicker" id="trace-kicker">Encoder · nhận đầu vào</p>
-          <h3 class="trace-title" id="trace-title">Noisy latent đi vào U-Net</h3>
-          <p class="trace-copy" id="trace-copy">Tầng đầu giữ resolution cao để đọc cấu trúc cục bộ. Timestep cho mạng biết mức nhiễu hiện tại.</p>
-          <dl class="trace-facts">
-            <div><dt>Resolution</dt><dd id="trace-resolution">64 × 64</dd></div>
-            <div><dt>Thông tin chính</dt><dd id="trace-info">Cạnh + texture + noise</dd></div>
-            <div><dt>Skip</dt><dd id="trace-skip">Lưu feature L1</dd></div>
-          </dl>
-        </div>
-      </div>
-
-      <p class="subhead"><span class="subhead-tag unet">Feature maps</span>Resolution thay đổi thế nào?</p>
-      <p class="block-copy">
-        Encoder giảm resolution còn channels thường tăng; decoder làm ngược lại. Con số cụ thể phụ thuộc
-        từng model — điều quan trọng là quy luật đa tỉ lệ (multi-scale).
-      </p>
-      <div class="fmap-panel" role="img" aria-label="Biểu đồ minh họa feature map: encoder giảm resolution từ 64 xuống bottleneck 8 nhân 8, decoder tăng lại từ 8 lên 64">
-        <p class="fmap-label">Feature Map Resolution — Encoder ↓ Bottleneck ↓ Decoder ↑</p>
-        <div class="fmap-track">
-          <div class="fmap-step"><div class="fmap-box encoder size-l" aria-hidden="true"></div><div class="fmap-size encoder"><strong>64×64</strong>64ch</div></div>
-          <div class="fmap-arrow" aria-hidden="true">→</div>
-          <div class="fmap-step"><div class="fmap-box encoder size-m" aria-hidden="true"></div><div class="fmap-size encoder"><strong>32×32</strong>128ch</div></div>
-          <div class="fmap-arrow" aria-hidden="true">→</div>
-          <div class="fmap-step"><div class="fmap-box encoder size-s" aria-hidden="true"></div><div class="fmap-size encoder"><strong>16×16</strong>256ch</div></div>
-          <div class="fmap-arrow" aria-hidden="true">→</div>
-          <div class="fmap-step"><div class="fmap-box bottleneck size-xs" aria-hidden="true"></div><div class="fmap-size bottleneck"><strong>8×8</strong>512ch</div></div>
-          <div class="fmap-arrow" aria-hidden="true">→</div>
-          <div class="fmap-step"><div class="fmap-box decoder size-s" aria-hidden="true"></div><div class="fmap-size decoder"><strong>16×16</strong>256ch</div></div>
-          <div class="fmap-arrow" aria-hidden="true">→</div>
-          <div class="fmap-step"><div class="fmap-box decoder size-m" aria-hidden="true"></div><div class="fmap-size decoder"><strong>32×32</strong>128ch</div></div>
-          <div class="fmap-arrow" aria-hidden="true">→</div>
-          <div class="fmap-step"><div class="fmap-box decoder size-l" aria-hidden="true"></div><div class="fmap-size decoder"><strong>64×64</strong>64ch</div></div>
-        </div>
-        <div class="fmap-legend">
-          <div class="fmap-legend-item"><div class="fmap-dot enc"></div>Encoder (downsampling)</div>
-          <div class="fmap-legend-item"><div class="fmap-dot btn"></div>Bottleneck</div>
-          <div class="fmap-legend-item"><div class="fmap-dot dec"></div>Decoder (upsampling)</div>
-        </div>
-      </div>
-
-      <p class="subhead"><span class="subhead-tag unet">Cơ chế cốt lõi</span>Skip connections làm gì?</p>
-      <p class="block-copy">
-        Khi encoder downsample, bottleneck khó giữ mọi chi tiết vị trí ở độ phân giải cao. Skip connection
-        gửi feature map từ encoder sang decoder cùng cấp — decoder nhận cả hai: ngữ nghĩa từ bottleneck
-        và chi tiết không gian từ encoder.
-      </p>
-      <div class="skip-demo">
-        <div class="skip-card">
-          <p class="skip-card-label good">Có skip connections</p>
-          <div class="skip-visual" aria-label="Luồng thông tin với skip connections">
-            <div class="skip-row enc">Enc L3: 64×64 edges ✓</div>
-            <div class="skip-arrow" aria-hidden="true">↓ nén + ──────→</div>
-            <div class="skip-row mid">Bottleneck: ngữ nghĩa</div>
-            <div class="skip-arrow" aria-hidden="true">↓ giải nén ←──────</div>
-            <div class="skip-row dec">Dec L3: up + concat(edges) ✓</div>
+        <aside class="phase-contract" aria-label="Vị trí của bài trong lộ trình">
+          <h2>Bạn đang ở đâu?</h2>
+          <p>Attention là cơ chế dùng chung: nó nhận conditioning khi inference và một số projection có thể là target adapter khi train LoRA.</p>
+          <div class="phase-contract-grid">
+            <div class="phase-contract-item"><strong>Base pretraining</strong><span>Attention weights học quan hệ giữa latent tokens và conditioning trong checkpoint gốc.</span></div>
+            <div class="phase-contract-item"><strong>LoRA training</strong><span>Recipe có thể gắn LoRA vào projection cụ thể; target chính xác phải đọc từ config, không suy đoán.</span></div>
+            <div class="phase-contract-item"><strong>Inference</strong><span>Self-attention giữ quan hệ nội tại; cross-attention đưa prompt hoặc image embedding vào denoiser.</span></div>
           </div>
-          <p class="skip-desc">Decoder <strong>ghép (concatenate)</strong> feature cùng resolution từ encoder với luồng đang upsample — đúng cơ chế trong U-Net gốc.</p>
+        </aside>
+        <div class="hero-badges" aria-hidden="true">
+          <span class="hero-badge acid">Self-Attention</span>
+          <span class="hero-badge cyan">Cross-Attention</span>
+          <span class="hero-badge">Q · K · V</span>
+          <span class="hero-badge">Softmax</span>
         </div>
-        <div class="skip-card">
-          <p class="skip-card-label bad">Không có skip connections</p>
-          <div class="skip-visual" aria-label="Luồng thông tin không có skip connections">
-            <div class="skip-row enc">Enc L3: 64×64 edges ✓</div>
-            <div class="skip-arrow" aria-hidden="true">↓ nén</div>
-            <div class="skip-row mid">Bottleneck: ngữ nghĩa</div>
-            <div class="skip-arrow" aria-hidden="true">↓ giải nén</div>
-            <div class="skip-row lost">Dec L3: chỉ upscale — mờ ✗</div>
-          </div>
-          <p class="skip-desc">Không có đường ngang, mọi thông tin phải đi qua bottleneck. Đây là so sánh trực giác, không phải dự đoán định lượng về chất lượng.</p>
-        </div>
-      </div>
 
-      <p class="subhead"><span class="subhead-tag unet">Thành phần</span>Giải phẫu Residual Block</p>
-      <p class="block-copy">
-        Trong nhiều diffusion U-Net hiện đại, block dùng residual bypass: luồng chính đi qua
-        Conv → Norm → Activation rồi cộng với đường tắt. Đây là <strong>skip ngắn bên trong block</strong>,
-        khác với <strong>skip dài encoder → decoder</strong> tạo nên hình chữ U.
-      </p>
-      <div class="residual-wrap" role="img" aria-label="Sơ đồ residual block: input đi qua Conv, GroupNorm, SiLU, sau đó cộng với bypass từ input gốc">
-        <div class="res-block">
-          <div class="res-main">
-            <div class="res-box">Input x</div>
-            <div class="res-arrow-v" aria-hidden="true"></div>
-            <div class="res-box conv">Conv 3×3</div>
-            <div class="res-arrow-v" aria-hidden="true"></div>
-            <div class="res-box norm">GroupNorm</div>
-            <div class="res-arrow-v" aria-hidden="true"></div>
-            <div class="res-box act">SiLU / ReLU</div>
-            <div class="res-arrow-v" aria-hidden="true"></div>
-            <div class="res-plus" aria-label="cộng với bypass">⊕</div>
-            <div class="res-arrow-v" aria-hidden="true"></div>
-            <div class="res-box">Output</div>
+        <!-- OUTPUT ARTIFACT BADGE -->
+        <div class="output-artifact" role="note">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          <span class="output-artifact-label">Đầu ra bài học:</span>
+          <span class="output-artifact-text">Hiểu self-attention (token-to-token) và cross-attention (text/image conditioning) trong DiT block của Wan2.2, cách Q/K/V hoạt động, và tại sao prompt inject ảnh hưởng đến từng patch</span>
+        </div>
+        <a class="button primary" href="#checkpoint">Kiểm tra hiểu biết →</a>
+      </section>
+
+      <!-- FLOW POSITION MINI-MAP -->
+      <nav class="flow-minimap" aria-label="Vị trí trong lộ trình" style="margin-bottom: 24px;">
+        <span class="flow-minimap-label">LỘ TRÌNH</span>
+        <span class="flow-minimap-sep">›</span>
+        <a class="flow-minimap-item" href="video-generation-part-1-lesson-5.html">1.5: U-Net vs DiT Backbone</a>
+        <span class="flow-minimap-sep">›</span>
+        <strong class="flow-minimap-item current" aria-current="step">1.6: Self & Cross-Attention</strong>
+        <span class="flow-minimap-sep">›</span>
+        <a class="flow-minimap-item" href="video-generation-part-1-lesson-7.html">1.7: Temporal Context Window</a>
+      </nav>
+
+      <!-- ── 01 DEFINITION ──────────────────────────── -->
+      <section class="section reveal" aria-labelledby="def-heading">
+        <p class="section-label">01 / Khái niệm</p>
+        <h2 class="section-title" id="def-heading">Attention là gì?</h2>
+
+        <!-- PREREQUISITE CALLOUT -->
+        <div class="prereq-callout" role="note" aria-label="Yêu cầu trước bài học">
+          <div class="prereq-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 8v4m0 4h.01"/></svg>
           </div>
-          <div class="res-bypass" aria-hidden="true">
-            <div class="res-bypass-line-v"></div>
-            <div class="res-bypass-label">bypass</div>
-            <div class="res-bypass-line-v"></div>
+          <div>
+            <p class="prereq-title">Cần biết trước</p>
+            <p class="prereq-body">Bài này xây dựng trên DiT backbone từ Bài 1.5 (P1L6) — cần biết cấu trúc DiT block trước khi đi sâu vào cơ chế attention bên trong.</p>
+            <a class="prereq-link" href="video-generation-part-1-lesson-5.html">← Xem lại bài trước: Bài 1.5</a>
           </div>
         </div>
-        <p class="res-caption">
-          Bypass (đường xanh lá) cộng thẳng input vào output sau activation.<br>
-          Gradient lan ngược qua bypass — tránh vanishing gradient trong mạng sâu.
-        </p>
-      </div>
-    </section>
-  </div>
 
-  <!-- 03: DiT -->
-  <div class="shell">
-    <section class="section reveal" id="dit-architecture" aria-labelledby="dit-heading">
-      <p class="section-label">03 — Backbone B</p>
-      <h2 class="section-heading" id="dit-heading">DiT — Patchify + Transformer Blocks + Attention</h2>
-      <p class="section-intro">
-        DiT (Diffusion Transformer) bỏ hẳn convolution và hình chữ U. Nó chia latent thành các
-        <strong>patch</strong>, coi chúng như một chuỗi token, rồi đẩy qua một stack các
-        <strong>Transformer block</strong> đồng nhất. Giới thiệu trong paper
-        <em>"Scalable Diffusion Models with Transformers"</em> (Peebles &amp; Xie, 2022) — nay là
-        backbone của SD3, FLUX, Wan2.2.
-      </p>
-
-      <p class="subhead"><span class="subhead-tag dit">Pipeline động</span>Latent đi qua DiT thế nào?</p>
-      <p class="block-copy">
-        Nhấn <strong>Play</strong> để xem dữ liệu chạy từ latent noise → patchify → các DiT block →
-        unpatchify → denoised latent.
-      </p>
-
-      <div class="anim-pipeline-wrapper">
-        <div class="anim-controls" role="group" aria-label="Điều khiển animation pipeline DiT">
-          <button class="anim-btn" id="anim-play-btn" type="button" onclick="animControl('play')" aria-label="Play animation">
-            <span id="anim-play-icon" aria-hidden="true">▶</span>
-            <span id="anim-play-text">Play</span>
-          </button>
-          <button class="anim-btn" id="anim-reset-btn" type="button" onclick="animControl('reset')" aria-label="Reset animation">
-            <span aria-hidden="true">↺</span> Reset
-          </button>
-          <span class="anim-step-label" id="anim-step-counter" aria-live="polite">Bước 0 / 5</span>
-        </div>
-
-        <div class="anim-svg-container" role="img" aria-label="Sơ đồ pipeline DiT động">
-          <svg id="pipeline-svg" viewBox="0 0 680 160" xmlns="http://www.w3.org/2000/svg"
-               aria-hidden="true" focusable="false">
-            <defs>
-              <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
-                <polygon points="0 0, 8 3, 0 6" fill="var(--dim)"/>
-              </marker>
-              <marker id="arrowhead-lit" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
-                <polygon points="0 0, 8 3, 0 6" fill="var(--acid)"/>
-              </marker>
-            </defs>
-            <line class="pipe-arrow" id="arr-0" x1="112" y1="80" x2="145" y2="80"/>
-            <line class="pipe-arrow" id="arr-1" x1="247" y1="80" x2="280" y2="80"/>
-            <line class="pipe-arrow" id="arr-2" x1="407" y1="80" x2="440" y2="80"/>
-            <line class="pipe-arrow" id="arr-3" x1="543" y1="80" x2="576" y2="80"/>
-
-            <g class="pipe-node" id="node-0" data-step="0">
-              <rect class="pipe-node-rect" x="10" y="44" width="102" height="72"/>
-              <text class="pipe-node-label" x="61" y="71">Latent</text>
-              <text class="pipe-node-label" x="61" y="87">Input</text>
-              <text class="pipe-node-sub" x="61" y="103">z_t (noisy)</text>
-            </g>
-            <g class="pipe-node" id="node-1" data-step="1">
-              <rect class="pipe-node-rect" x="145" y="44" width="102" height="72"/>
-              <text class="pipe-node-label" x="196" y="74">Patchify</text>
-              <text class="pipe-node-sub" x="196" y="93">patch tokens</text>
-            </g>
-            <g class="pipe-node" id="node-2" data-step="2">
-              <rect class="pipe-node-rect" x="280" y="44" width="127" height="72"/>
-              <text class="pipe-node-label" x="343" y="71">N &#xD7; DiT</text>
-              <text class="pipe-node-label" x="343" y="87">Block</text>
-              <text class="pipe-node-sub" x="343" y="103">40 layers / expert</text>
-            </g>
-            <g class="pipe-node" id="node-3" data-step="3">
-              <rect class="pipe-node-rect" x="440" y="44" width="103" height="72"/>
-              <text class="pipe-node-label" x="491" y="74">Unpatchify</text>
-              <text class="pipe-node-sub" x="491" y="93">reshape</text>
-            </g>
-            <g class="pipe-node" id="node-4" data-step="4">
-              <rect class="pipe-node-rect" x="576" y="44" width="96" height="72"/>
-              <text class="pipe-node-label" x="624" y="71">Denoised</text>
-              <text class="pipe-node-label" x="624" y="87">Latent</text>
-              <text class="pipe-node-sub" x="624" y="103">z_(t−1)</text>
-            </g>
-            <circle class="token-particle" id="token-dot" cx="61" cy="80" r="6"/>
-          </svg>
-        </div>
-
-        <div class="anim-desc" id="anim-desc" aria-live="polite">
-          Nhấn <strong>Play</strong> để bắt đầu — xem từng bước DiT xử lý latent input.
-        </div>
-      </div>
-
-      <p class="subhead"><span class="subhead-tag dit">Kiến trúc</span>Click để khám phá từng bước</p>
-      <p class="block-copy">
-        Click vào từng bước để xem giải thích. Điều kiện hóa (timestep &amp; text) được đưa vào
-        <em>bên trong</em> Transformer blocks.
-      </p>
-      <div class="arch-diagram">
-        <div class="arch-pipeline" role="group" aria-label="Các bước trong pipeline DiT">
-          <button class="arch-node" type="button" aria-pressed="false" data-detail="latent" aria-label="Bước: Latent Input">
-            <div class="arch-box accent-latent"><div class="arch-icon" aria-hidden="true">🎞</div>Latent<br>Input</div>
-            <span class="arch-node-label">z<sub>t</sub> (noisy)</span>
-          </button>
-          <div class="arch-arrow" aria-hidden="true">→</div>
-          <button class="arch-node" type="button" aria-pressed="false" data-detail="patchify" aria-label="Bước: Patchify">
-            <div class="arch-box accent-patch"><div class="arch-icon" aria-hidden="true">⊞</div>Patchify</div>
-            <span class="arch-node-label">tokens</span>
-          </button>
-          <div class="arch-arrow" aria-hidden="true">→</div>
-          <button class="arch-node" type="button" aria-pressed="false" data-detail="blocks" aria-label="Bước: Transformer Blocks">
-            <div class="arch-box accent-block"><div class="arch-icon" aria-hidden="true">⚡</div>N × DiT<br>Block</div>
-            <span class="arch-node-label">40 layers / expert (A14B)</span>
-          </button>
-          <div class="arch-arrow" aria-hidden="true">→</div>
-          <button class="arch-node" type="button" aria-pressed="false" data-detail="unpatchify" aria-label="Bước: Unpatchify">
-            <div class="arch-box accent-patch"><div class="arch-icon" aria-hidden="true">⊟</div>Unpatchify</div>
-            <span class="arch-node-label">reshape</span>
-          </button>
-          <div class="arch-arrow" aria-hidden="true">→</div>
-          <button class="arch-node" type="button" aria-pressed="false" data-detail="output" aria-label="Bước: Denoised Latent">
-            <div class="arch-box accent-out"><div class="arch-icon" aria-hidden="true">✨</div>Denoised<br>Latent</div>
-            <span class="arch-node-label">z<sub>t−1</sub></span>
-          </button>
-        </div>
-        <div class="arch-cond-row" aria-label="Điều kiện hóa đầu vào">
-          <div class="arch-cond-item">
-            <div class="arch-cond-box">Timestep t</div>
-            <div class="arch-cond-arrow"><span aria-hidden="true">↑</span><span class="arch-cond-label">AdaLN modulation</span></div>
-          </div>
-          <div class="arch-cond-item">
-            <div class="arch-cond-box">Text Embedding</div>
-            <div class="arch-cond-arrow"><span aria-hidden="true">↑</span><span class="arch-cond-label">Cross-attention</span></div>
-          </div>
-        </div>
-        <div class="arch-detail" id="arch-detail-panel" aria-live="polite">
-          <div class="arch-detail-title" id="arch-detail-title"></div>
-          <p id="arch-detail-body"></p>
-        </div>
-      </div>
-
-      <p class="subhead"><span class="subhead-tag dit">Chi tiết</span>Bên trong một DiT Block</p>
-      <p class="block-copy">Mỗi block lặp lại cùng một cấu trúc — click từng lớp để hiểu vai trò của nó.</p>
-      <div class="block-layout">
-        <div class="block-side">
-          <div class="block-stack" role="list" aria-label="Các lớp trong một DiT Block">
-            <div class="block-layer" role="listitem">
-              <button class="block-layer-header" aria-expanded="false" onclick="toggleLayer(this)" type="button">
-                <span class="block-layer-badge">1</span>
-                <span class="block-layer-name">AdaLN — Adaptive LayerNorm</span>
-                <span class="block-layer-expand" aria-hidden="true">›</span>
-              </button>
-              <div class="block-layer-body">
-                Chuẩn hóa token trước khi vào attention. Phiên bản <em>Adaptive</em> nghĩa là
-                tham số scale (<code>γ</code>) và shift (<code>β</code>) được <strong>tính từ timestep embedding</strong>,
-                cho phép mỗi timestep t điều chỉnh cách chuẩn hóa khác nhau. Đây là cách DiT "biết mình đang ở bước denoising nào".
-              </div>
-            </div>
-            <div class="block-layer" role="listitem">
-              <button class="block-layer-header" aria-expanded="false" onclick="toggleLayer(this)" type="button">
-                <span class="block-layer-badge">2</span>
-                <span class="block-layer-name">Self-Attention</span>
-                <span class="block-layer-expand" aria-hidden="true">›</span>
-              </button>
-              <div class="block-layer-body">
-                Mỗi patch token tính <code>Q, K, V</code> từ chính nó, rồi attend đến <em>tất cả</em> patch khác.
-                Kết quả: mỗi token chứa ngữ cảnh toàn bộ ảnh/video. Với video, đây là nơi các frame "nhìn" nhau để đảm bảo consistency.
-              </div>
-            </div>
-            <div class="block-layer" role="listitem">
-              <button class="block-layer-header" aria-expanded="false" onclick="toggleLayer(this)" type="button">
-                <span class="block-layer-badge">3</span>
-                <span class="block-layer-name">Cross-Attention (Text Conditioning)</span>
-                <span class="block-layer-expand" aria-hidden="true">›</span>
-              </button>
-              <div class="block-layer-body">
-                Patch tokens (<code>Q</code>) attend đến <strong>text embedding</strong> (<code>K, V</code>).
-                Đây là nơi prompt ảnh hưởng đến nội dung — các token về "con mèo" sẽ attend mạnh hơn đến patch có mèo. Wan2.2 dùng UMT5-XXL để tạo text embedding.
-              </div>
-            </div>
-            <div class="block-layer" role="listitem">
-              <button class="block-layer-header" aria-expanded="false" onclick="toggleLayer(this)" type="button">
-                <span class="block-layer-badge">4</span>
-                <span class="block-layer-name">Feed-Forward Network (FFN)</span>
-                <span class="block-layer-expand" aria-hidden="true">›</span>
-              </button>
-              <div class="block-layer-body">
-                Mỗi token được xử lý độc lập qua 2 lớp linear (MLP) với hàm kích hoạt (GELU/SiLU).
-                Đây là nơi model học feature phi tuyến — attention xác định <em>đâu</em> cần nhìn, FFN quyết định <em>cái gì</em> được rút ra.
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="block-side">
-          <div class="block-formula" aria-label="Công thức DiT Block">
-            <div class="block-formula-title">Luồng xử lý trong một block</div>
-            <div class="block-formula-flow">
-              <div class="bff-step"><span class="bff-step-num">x</span><span class="bff-arrow">→</span><span class="bff-name">AdaLN(x, t)</span></div>
-              <div class="bff-plus">↓ chuẩn hóa theo timestep</div>
-              <div class="bff-step"><span class="bff-step-num"></span><span class="bff-arrow">→</span><span class="bff-name">Self-Attn(x)</span></div>
-              <div class="bff-plus">↓ + residual connection</div>
-              <div class="bff-step"><span class="bff-step-num"></span><span class="bff-arrow">→</span><span class="bff-name">Cross-Attn(x, text)</span></div>
-              <div class="bff-plus">↓ + residual connection</div>
-              <div class="bff-step"><span class="bff-step-num"></span><span class="bff-arrow">→</span><span class="bff-name">FFN(x)</span></div>
-              <div class="bff-plus">↓ + residual connection</div>
-              <div class="bff-step"><span class="bff-step-num"></span><span class="bff-arrow">→</span><span class="bff-name bff-name-accent">x′ (output)</span></div>
-            </div>
-          </div>
-          <div class="info-note">
-            <strong>Wan2.2 T2V-A14B:</strong> mỗi expert dùng 40 Transformer blocks, với
-            <em>Rotary Positional Embedding (RoPE)</em> 3D để mã hóa vị trí theo height, width và time — phù hợp cho video.
-          </div>
-        </div>
-      </div>
-    </section>
-  </div>
-
-  <!-- 04: Head-to-head comparison -->
-  <div class="shell">
-    <section class="section reveal" id="comparison" aria-labelledby="cmp-heading">
-      <p class="section-label">04 — Đối đầu</p>
-      <h2 class="section-heading" id="cmp-heading">U-Net vs DiT — Head to head</h2>
-      <p class="section-intro">
-        Hai kiến trúc, cùng nhiệm vụ đoán noise — nhưng cách tổ chức hoàn toàn khác. U-Net dạng chữ U
-        với skip connections; DiT là stack block phẳng đồng nhất.
-      </p>
-
-      <div class="visual-compare visual-compare--spaced">
-        <div class="vc-panel unet">
-          <div class="vc-header"><span class="vc-tag unet">Cũ</span><span class="vc-name">U-Net</span></div>
-          <div class="vc-svg-area">
-            <svg viewBox="0 0 240 200" xmlns="http://www.w3.org/2000/svg" aria-label="Kiến trúc U-Net: encoder, bottleneck, decoder với skip connections" role="img">
-              <defs><marker id="ua" markerWidth="6" markerHeight="5" refX="5" refY="2.5" orient="auto"><polygon points="0 0, 6 2.5, 0 5" fill="var(--dim)"/></marker></defs>
-              <rect class="unet-enc" x="20" y="12" width="52" height="22" rx="5"/><text class="unet-label-main" x="46" y="23">Encoder 1</text>
-              <rect class="unet-enc" x="30" y="46" width="42" height="20" rx="5"/><text class="unet-label-main" x="51" y="56">Enc 2</text>
-              <rect class="unet-enc" x="40" y="78" width="32" height="18" rx="5"/><text class="unet-label-main" x="56" y="87">Enc 3</text>
-              <rect class="unet-bot" x="85" y="108" width="70" height="24" rx="7"/><text class="unet-label-main" x="120" y="120">Bottleneck</text>
-              <rect class="unet-dec" x="168" y="78" width="32" height="18" rx="5"/><text class="unet-label-main" x="184" y="87">Dec 3</text>
-              <rect class="unet-dec" x="168" y="46" width="42" height="20" rx="5"/><text class="unet-label-main" x="189" y="56">Dec 2</text>
-              <rect class="unet-dec" x="168" y="12" width="52" height="22" rx="5"/><text class="unet-label-main" x="194" y="23">Decoder 1</text>
-              <line class="unet-skip" x1="72" y1="23" x2="168" y2="23"/>
-              <line class="unet-skip" x1="72" y1="56" x2="168" y2="56"/>
-              <line class="unet-skip" x1="72" y1="87" x2="168" y2="87"/>
-              <line stroke="var(--dim)" stroke-width="1.2" marker-end="url(#ua)" x1="46" y1="34" x2="46" y2="44"/>
-              <line stroke="var(--dim)" stroke-width="1.2" marker-end="url(#ua)" x1="51" y1="66" x2="56" y2="76"/>
-              <line stroke="var(--dim)" stroke-width="1.2" marker-end="url(#ua)" x1="56" y1="96" x2="90" y2="106"/>
-              <line stroke="var(--dim)" stroke-width="1.2" marker-end="url(#ua)" x1="148" y1="114" x2="180" y2="96"/>
-              <line stroke="var(--dim)" stroke-width="1.2" marker-end="url(#ua)" x1="184" y1="78" x2="189" y2="68"/>
-              <line stroke="var(--dim)" stroke-width="1.2" marker-end="url(#ua)" x1="189" y1="46" x2="194" y2="36"/>
-              <text class="unet-label" x="120" y="155">skip connections →</text>
-              <text class="unet-label" x="120" y="168">bất đối xứng</text>
-              <text x="120" y="26" text-anchor="middle" fill="var(--orange)" font-family="var(--font-mono)" font-size="7.5" opacity=".7">──── skip ────</text>
-            </svg>
-          </div>
-          <ul class="vc-traits">
-            <li class="vc-trait"><span class="vc-trait-dot"></span><span><strong>Hình chữ U</strong> — encode xuống rồi decode lên</span></li>
-            <li class="vc-trait"><span class="vc-trait-dot"></span><span><strong>Skip connections</strong> nối encoder–decoder</span></li>
-            <li class="vc-trait"><span class="vc-trait-dot"></span><span><strong>Convolution</strong> xử lý local features</span></li>
-            <li class="vc-trait"><span class="vc-trait-dot"></span><span>Scale khó — mỗi level cần thiết kế riêng</span></li>
-          </ul>
-        </div>
-
-        <div class="vc-panel dit">
-          <div class="vc-header"><span class="vc-tag dit">Mới</span><span class="vc-name">DiT</span></div>
-          <div class="vc-svg-area">
-            <svg viewBox="0 0 240 200" xmlns="http://www.w3.org/2000/svg" aria-label="Kiến trúc DiT: stack các block đồng nhất từ trên xuống" role="img">
-              <defs><marker id="da" markerWidth="6" markerHeight="5" refX="5" refY="2.5" orient="auto"><polygon points="0 0, 6 2.5, 0 5" fill="var(--dim)"/></marker></defs>
-              <rect class="dit-token" x="20" y="10" width="20" height="16" rx="4"/>
-              <rect class="dit-token" x="44" y="10" width="20" height="16" rx="4"/>
-              <rect class="dit-token" x="68" y="10" width="20" height="16" rx="4"/>
-              <rect class="dit-token" x="92" y="10" width="20" height="16" rx="4"/>
-              <rect class="dit-token" x="116" y="10" width="20" height="16" rx="4"/>
-              <rect class="dit-token" x="140" y="10" width="20" height="16" rx="4"/>
-              <rect class="dit-token" x="164" y="10" width="20" height="16" rx="4"/>
-              <rect class="dit-token" x="188" y="10" width="20" height="16" rx="4"/>
-              <text class="dit-label" x="120" y="37">patch tokens (patchify)</text>
-              <line stroke="var(--dim)" stroke-width="1.2" marker-end="url(#da)" x1="120" y1="42" x2="120" y2="52"/>
-              <rect class="dit-block" x="20" y="54" width="200" height="24" rx="8"/><text class="dit-label-main" x="120" y="66">DiT Block 1</text>
-              <line stroke="var(--dim)" stroke-width="1.2" marker-end="url(#da)" x1="120" y1="78" x2="120" y2="86"/>
-              <rect class="dit-block" x="20" y="88" width="200" height="24" rx="8"/><text class="dit-label-main" x="120" y="100">DiT Block 2</text>
-              <line stroke="var(--dim)" stroke-width="1.2" marker-end="url(#da)" x1="120" y1="112" x2="120" y2="120"/>
-              <rect class="dit-block" x="20" y="122" width="200" height="24" rx="8" opacity=".75"/><text class="dit-label-main" x="120" y="134" opacity=".75">DiT Block 3…N</text>
-              <line stroke="var(--dim)" stroke-width="1.2" marker-end="url(#da)" x1="120" y1="146" x2="120" y2="154"/>
-              <rect x="60" y="156" width="120" height="22" rx="6" fill="color-mix(in srgb, var(--acid) 12%, var(--panel-2))" stroke="var(--acid)" stroke-width="1.2"/>
-              <text class="dit-label-main" x="120" y="167">Unpatchify → z₀</text>
-              <text class="dit-label" x="120" y="190">stack đồng nhất · dễ scale</text>
-            </svg>
-          </div>
-          <ul class="vc-traits">
-            <li class="vc-trait"><span class="vc-trait-dot"></span><span><strong>Stack phẳng</strong> — N block giống nhau xếp chồng</span></li>
-            <li class="vc-trait"><span class="vc-trait-dot"></span><span><strong>Self-attention toàn cục</strong> — mọi patch nhìn thấy nhau</span></li>
-            <li class="vc-trait"><span class="vc-trait-dot"></span><span><strong>Cross-attention</strong> tích hợp text conditioning</span></li>
-            <li class="vc-trait"><span class="vc-trait-dot"></span><span>Scale dễ — thêm block = tăng capacity</span></li>
-          </ul>
-        </div>
-      </div>
-
-      <div class="table-wrap">
-        <table class="compare-table" aria-label="So sánh U-Net và DiT theo các tiêu chí kỹ thuật">
-          <thead>
-            <tr>
-              <th scope="col">Tiêu chí</th>
-              <th scope="col" class="col-unet">U-Net</th>
-              <th scope="col" class="col-dit">DiT</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><strong>Cấu trúc</strong></td>
-              <td>Hình chữ U bất đối xứng: encoder ↓ + decoder ↑ + skip connections</td>
-              <td>Stack phẳng N block Transformer giống hệt nhau</td>
-            </tr>
-            <tr>
-              <td><strong>Toán tử chính</strong></td>
-              <td>Convolution (local) + attention ở bottleneck</td>
-              <td>Self-attention toàn cục + cross-attention + FFN trên token</td>
-            </tr>
-            <tr>
-              <td><strong>Inductive bias</strong></td>
-              <td>Mạnh: spatial locality, translation equivariance từ Conv</td>
-              <td>Yếu: thuần data-driven, ít giả định cấu trúc</td>
-            </tr>
-            <tr>
-              <td><strong>Scalability</strong></td>
-              <td>Scale bằng số block, channels và các mức resolution</td>
-              <td>Nghiên cứu DiT ghi nhận FID giảm đều khi tăng Gflops trong thiết lập thử nghiệm</td>
-            </tr>
-            <tr>
-              <td><strong>Video generation</strong></td>
-              <td>Mở rộng bằng temporal module hoặc 3D operation gắn thêm</td>
-              <td>Attention trên token không gian–thời gian; chi phí phụ thuộc implementation</td>
-            </tr>
-            <tr>
-              <td><strong>Skip connections</strong></td>
-              <td>Có — cốt lõi kiến trúc, bảo toàn spatial detail</td>
-              <td>Không dùng cặp skip đa tỉ lệ kiểu U-Net</td>
-            </tr>
-            <tr>
-              <td><strong>Ví dụ model</strong></td>
-              <td>SD1.5, SDXL, ControlNet</td>
-              <td>DiT-XL, SD3, FLUX, Wan2.2, HunyuanVideo</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <p class="subhead"><span class="subhead-tag dit">Xu hướng</span>Vì sao video model nghiêng về DiT?</p>
-      <p class="block-copy">
-        Video = chuỗi dài hơn, nhiều token hơn, cần global context hơn. Ba đặc điểm của DiT khớp với nhu cầu đó.
-      </p>
-      <div class="why-grid">
-        <div class="why-card">
-          <div class="why-card-icon" aria-hidden="true">📐</div>
-          <div class="why-card-title">Scalability tuyến tính</div>
-          <div class="why-card-body">Tăng độ sâu, độ rộng hoặc số token → tăng compute/capacity. Dòng Wan2.2 phát hành model dense 5B và model A14B hai expert mà không quay lại U-Net.</div>
-          <span class="why-card-tag">Scale</span>
-        </div>
-        <div class="why-card">
-          <div class="why-card-icon" aria-hidden="true">🎬</div>
-          <div class="why-card-title">Xử lý song song frame</div>
-          <div class="why-card-body">Tất cả patch từ mọi frame được xử lý <em>đồng thời</em> như một chuỗi token. Self-attention 3D giúp frame 1 và frame 30 nhất quán về nội dung.</div>
-          <span class="why-card-tag">Temporal</span>
-        </div>
-        <div class="why-card">
-          <div class="why-card-icon" aria-hidden="true">💬</div>
-          <div class="why-card-title">Text conditioning tự nhiên</div>
-          <div class="why-card-body">Cross-attention tích hợp text embedding (UMT5-XXL) trực tiếp vào mỗi block. Wan2.2 hiểu prompt phức tạp và dịch thành chuyển động nhất quán.</div>
-          <span class="why-card-tag">Control</span>
-        </div>
-      </div>
-
-      <div class="callout">
-        <div class="callout-icon" aria-hidden="true">💡</div>
-        <div class="callout-body">
-          <strong>Không có luật "U-Net luôn kém hơn".</strong> DiT được ưa chuộng vì nghiên cứu gốc cho thấy
-          chất lượng cải thiện ổn định khi tăng compute của transformer, và token hóa không gian–thời gian
-          tạo giao diện thống nhất cho attention. Đổi lại, U-Net có spatial inductive bias hữu ích và vẫn là
-          lựa chọn thực tế trong nhiều hệ thống.
-        </div>
-      </div>
-
-      <p class="subhead"><span class="subhead-tag dit">Wan2.2 MoE</span>Hai expert, hai nhiệm vụ denoising</p>
-      <p class="block-copy">
-        Wan2.2 A14B không chạy cả hai expert cùng lúc. Chọn một giai đoạn để xem expert nào được kích hoạt.
-      </p>
-      <div class="moe-lab">
-        <fieldset class="moe-controls">
-          <legend>Giai đoạn denoising</legend>
-          <div class="moe-choice-list">
-            <label class="moe-choice"><input type="radio" name="moe-stage" value="high" checked> Đầu quá trình · noise cao</label>
-            <label class="moe-choice"><input type="radio" name="moe-stage" value="low"> Cuối quá trình · noise thấp</label>
-          </div>
-        </fieldset>
-        <div class="moe-stage" aria-live="polite">
-          <div class="moe-route" aria-hidden="true">
-            <div class="moe-node active" id="moe-high-node">High-noise expert<br>≈ 14B params</div>
-            <span class="moe-arrow">→</span>
-            <div class="moe-node" id="moe-low-node">Low-noise expert<br>≈ 14B params</div>
-          </div>
-          <p class="moe-output" id="moe-output">
-            <strong>High-noise expert đang hoạt động:</strong> ưu tiên bố cục tổng thể khi tín hiệu còn chìm trong noise.
+        <div class="def-panel" role="note">
+          <p>
+            <strong>Attention</strong> là cơ chế cho phép mỗi token tính một <strong>trung bình có
+            trọng số</strong> của thông tin từ những token khác. "Trọng số" quyết định token nào quan
+            trọng với ai, và chúng được học chứ không cố định. Diffusion backbone (U-Net hoặc DiT) xếp
+            chồng nhiều lớp attention để dần dần biến nhiễu thành khung hình khớp với prompt.
           </p>
         </div>
+        <p class="section-body">
+          Có hai loại attention chạy trong cùng backbone. <strong>Self-Attention</strong>: query và key
+          đến từ <em>cùng một chuỗi</em> (các patch không gian/thời gian của latent) — token trong ảnh
+          nói chuyện với nhau. <strong>Cross-Attention</strong>: query đến từ latent ảnh, còn key/value
+          đến từ <em>chuỗi khác</em> — các token văn bản do text encoder tạo ra. Cross-attention là cây
+          cầu nối prompt vào pixel.
+        </p>
+
+        <!-- Real numbers strip -->
+        <div class="stats-strip reveal reveal-delay-1">
+          <div class="stat-card">
+            <span class="stat-num" data-count="16">16</span>
+            <div class="stat-label">attention heads mỗi lớp trong Wan2.2</div>
+          </div>
+          <div class="stat-card">
+            <span class="stat-num" data-count="64">64</span>
+            <div class="stat-label">head_dim → chia √64 = 8 để scale</div>
+          </div>
+          <div class="stat-card">
+            <span class="stat-num">~380 MB</span>
+            <div class="stat-label">VRAM mỗi DiT block @ bf16 (RTX 3090)</div>
+          </div>
+          <div class="stat-card">
+            <span class="stat-num">~18 GB</span>
+            <div class="stat-label">VRAM full cross-attn 720p × 81 frames (14B)</div>
+          </div>
+        </div>
+
+        <!-- Realistic scenario context -->
+        <div class="terminal-block reveal reveal-delay-2">
+          <button class="terminal-copy-btn" type="button" aria-label="Sao chép đoạn code" data-copy-terminal="1">Copy</button>
+          <div class="terminal-header">
+            <span class="terminal-dot red"></span>
+            <span class="terminal-dot amber"></span>
+            <span class="terminal-dot green"></span>
+            <span class="terminal-title">Wan2.2 — cấu trúc DiT block (ví dụ)</span>
+          </div>
+          <pre><span class="t-comment"># Mỗi DiT block trong Wan2.2 có cấu trúc:</span>
+<span class="t-label">WanAttentionBlock</span> {
+  <span class="t-key">spatial_self_attn</span>:  <span class="t-str">"SelfAttention"</span>   <span class="t-comment"># patch nói chuyện trong frame</span>
+  <span class="t-key">temporal_self_attn</span>: <span class="t-str">"SelfAttention"</span>   <span class="t-comment"># patch xuyên nhiều frame</span>
+  <span class="t-key">cross_attn</span>:         <span class="t-str">"CrossAttention"</span>  <span class="t-comment"># lắng nghe UMT5 text tokens</span>
+  <span class="t-key">attn_heads</span>:         <span class="t-num">16</span>                <span class="t-comment"># multi-head: 16 góc nhìn song song</span>
+  <span class="t-key">head_dim</span>:           <span class="t-num">64</span>                <span class="t-comment"># dₖ = 64 → chia √64 = 8</span>
+  <span class="t-key">vram_per_block</span>:     <span class="t-str">"~380 MB @ bf16"</span>  <span class="t-comment"># trên RTX 3090</span>
+}</pre>
+        </div>
+      </section>
+
+      <!-- ── 02 Q/K/V DIAGRAM ───────────────────────── -->
+      <section class="section reveal" aria-labelledby="qkv-heading">
+        <p class="section-label">02 / Cơ chế</p>
+        <h2 class="section-title" id="qkv-heading">Q, K, V — hỏi, khớp, lấy</h2>
+        <p class="section-body">
+          Mỗi token được chiếu thành ba vector: <strong>Query (Q)</strong> — "tôi đang tìm gì?",
+          <strong>Key (K)</strong> — "tôi mô tả điều gì?", và <strong>Value (V)</strong> — "nội dung
+          tôi mang theo". Điểm khớp giữa một Q và mỗi K (tích vô hướng) đi qua <strong>softmax</strong>
+          để thành trọng số cộng lại bằng 1, rồi dùng để trộn các V.
+        </p>
+
+        <div class="formula-box" role="math" aria-label="Công thức attention: Attention(Q,K,V) bằng softmax của Q nhân K chuyển vị chia căn d_k, rồi nhân V">
+          <button class="copy-btn" type="button" aria-label="Sao chép công thức" data-copy="Attention(Q, K, V) = softmax( Q · Kᵀ / √dₖ ) · V">Copy</button>
+          <code>Attention(Q, K, V) = softmax( Q · Kᵀ / √dₖ ) · V</code>
+          <span class="fx-note">√dₖ là hệ số chia theo số chiều để điểm khớp không quá lớn; softmax biến điểm thành trọng số 0–1 tổng bằng 1.</span>
+        </div>
+
+        <div class="diagram-wrap reveal">
+          <div class="diagram-svg-wrap" role="img" aria-label="Sơ đồ: một token Query khớp với nhiều Key qua softmax để tạo trọng số, rồi trộn các Value thành đầu ra">
+            <svg viewBox="0 0 760 270" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <defs>
+                <marker id="ah" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                  <polygon points="0 0, 8 3, 0 6" fill="var(--dim)"/>
+                </marker>
+              </defs>
+
+              <!-- Query -->
+              <rect x="20" y="105" width="90" height="52" rx="10" fill="var(--panel-2)" stroke="var(--cyan)" stroke-width="1.8"/>
+              <text x="65" y="128" font-family="var(--font-mono)" font-size="13" font-weight="800" fill="var(--cyan)" text-anchor="middle">Query</text>
+              <text x="65" y="147" font-family="var(--font-mono)" font-size="9" fill="var(--dim)" text-anchor="middle">1 token</text>
+
+              <!-- Keys stack -->
+              <text x="232" y="34" font-family="var(--font-sans)" font-size="11" font-weight="700" fill="var(--ink)" text-anchor="middle">KEYS</text>
+              <rect x="186" y="44"  width="92" height="34" rx="8" fill="var(--panel-2)" stroke="var(--line)" stroke-width="1.4"/>
+              <rect x="186" y="86"  width="92" height="34" rx="8" fill="var(--panel-2)" stroke="var(--line)" stroke-width="1.4"/>
+              <rect x="186" y="128" width="92" height="34" rx="8" fill="var(--panel-2)" stroke="var(--line)" stroke-width="1.4"/>
+              <rect x="186" y="170" width="92" height="34" rx="8" fill="var(--panel-2)" stroke="var(--line)" stroke-width="1.4"/>
+              <text x="232" y="66"  font-family="var(--font-mono)" font-size="10" fill="var(--muted)" text-anchor="middle">k₁</text>
+              <text x="232" y="108" font-family="var(--font-mono)" font-size="10" fill="var(--muted)" text-anchor="middle">k₂</text>
+              <text x="232" y="150" font-family="var(--font-mono)" font-size="10" fill="var(--muted)" text-anchor="middle">k₃</text>
+              <text x="232" y="192" font-family="var(--font-mono)" font-size="10" fill="var(--muted)" text-anchor="middle">k₄</text>
+
+              <!-- Q → K arrows -->
+              <line x1="112" y1="131" x2="183" y2="61"  stroke="var(--dim)" stroke-width="1.2" marker-end="url(#ah)"/>
+              <line x1="112" y1="131" x2="183" y2="103" stroke="var(--dim)" stroke-width="1.2" marker-end="url(#ah)"/>
+              <line x1="112" y1="131" x2="183" y2="145" stroke="var(--dim)" stroke-width="1.2" marker-end="url(#ah)"/>
+              <line x1="112" y1="131" x2="183" y2="187" stroke="var(--dim)" stroke-width="1.2" marker-end="url(#ah)"/>
+
+              <!-- Softmax box -->
+              <rect x="318" y="88" width="112" height="82" rx="12" fill="var(--panel)" stroke="var(--acid)" stroke-width="1.8"/>
+              <text x="374" y="122" font-family="var(--font-sans)" font-size="12" font-weight="800" fill="var(--acid)" text-anchor="middle">SOFTMAX</text>
+              <text x="374" y="141" font-family="var(--font-mono)" font-size="9" fill="var(--dim)" text-anchor="middle">Q·Kᵀ / √dₖ</text>
+              <line x1="280" y1="131" x2="315" y2="131" stroke="var(--dim)" stroke-width="1.4" marker-end="url(#ah)"/>
+
+              <!-- Weights -->
+              <text x="503" y="34" font-family="var(--font-sans)" font-size="11" font-weight="700" fill="var(--ink)" text-anchor="middle">WEIGHTS</text>
+              <rect x="457" y="44"  width="92" height="34" rx="8" fill="color-mix(in srgb, var(--acid) 45%, var(--panel-2))" stroke="var(--acid)" stroke-width="1.2"/>
+              <rect x="457" y="86"  width="92" height="34" rx="8" fill="color-mix(in srgb, var(--acid) 15%, var(--panel-2))" stroke="var(--line)" stroke-width="1.2"/>
+              <rect x="457" y="128" width="92" height="34" rx="8" fill="color-mix(in srgb, var(--acid) 70%, var(--panel-2))" stroke="var(--acid)" stroke-width="1.2"/>
+              <rect x="457" y="170" width="92" height="34" rx="8" fill="color-mix(in srgb, var(--acid) 8%, var(--panel-2))" stroke="var(--line)" stroke-width="1.2"/>
+              <text x="503" y="66"  font-family="var(--font-mono)" font-size="10" fill="var(--ink)" text-anchor="middle">0.30</text>
+              <text x="503" y="108" font-family="var(--font-mono)" font-size="10" fill="var(--muted)" text-anchor="middle">0.10</text>
+              <text x="503" y="150" font-family="var(--font-mono)" font-size="10" fill="var(--ink)" text-anchor="middle">0.55</text>
+              <text x="503" y="192" font-family="var(--font-mono)" font-size="10" fill="var(--muted)" text-anchor="middle">0.05</text>
+              <line x1="433" y1="131" x2="455" y2="131" stroke="var(--dim)" stroke-width="1.4" marker-end="url(#ah)"/>
+
+              <!-- Weighted sum of V -->
+              <rect x="622" y="100" width="120" height="62" rx="12" fill="var(--panel)" stroke="var(--cyan)" stroke-width="1.8"/>
+              <text x="682" y="126" font-family="var(--font-sans)" font-size="12" font-weight="800" fill="var(--cyan)" text-anchor="middle">Σ wᵢ · Vᵢ</text>
+              <text x="682" y="145" font-family="var(--font-mono)" font-size="9" fill="var(--dim)" text-anchor="middle">output token</text>
+              <line x1="551" y1="131" x2="619" y2="131" stroke="var(--dim)" stroke-width="1.4" marker-end="url(#ah)"/>
+
+              <text x="380" y="248" font-family="var(--font-mono)" font-size="10" fill="var(--dim)" text-anchor="middle">Trọng số cao ở k₃ → output nghiêng về nội dung (Value) của token 3</text>
+            </svg>
+          </div>
+          <p class="diagram-caption">
+            Một query hỏi tất cả key; softmax quyết định "lắng nghe" ai nhiều nhất; output là hỗn hợp
+            các value theo đúng những trọng số đó.
+          </p>
+        </div>
+
+        <!-- ── INTERACTIVE ATTENTION EXPLORER ──────── -->
+        <div class="attn-demo reveal reveal-delay-1" aria-labelledby="attn-demo-title">
+          <p class="attn-demo-title" id="attn-demo-title">Demo tương tác: ma trận attention</p>
+          <div class="attn-scenario">
+            <strong>Bối cảnh thực tế:</strong> Khi model Wan2.2 (14B) xử lý prompt
+            <em>"con mèo cam chạy trên cỏ"</em>, demo dưới đây mô phỏng cách từng patch latent
+            (20 steps denoising, ~8.6 GB VRAM trên 4090) phân bổ attention — chọn Self hoặc Cross để thấy sự khác biệt.
+          </div>
+          <p class="attn-demo-desc">
+            Chọn chế độ, rồi bấm một <strong>hàng (query)</strong> để xem token đó phân bổ chú ý ra sao.
+            Trọng số được tính thật bằng tích vô hướng Q·K rồi qua softmax trên các vector minh hoạ —
+            ô càng sáng nghĩa là chú ý càng nhiều.
+          </p>
+
+          <div class="attn-toggle-row" role="group" aria-label="Chế độ attention">
+            <button class="attn-toggle" id="attnSelfBtn" type="button" aria-pressed="true">Self-Attention</button>
+            <button class="attn-toggle" id="attnCrossBtn" type="button" aria-pressed="false">Cross-Attention</button>
+          </div>
+
+          <div class="attn-grid">
+            <div class="attn-matrix-wrap">
+              <div class="attn-matrix" id="attnMatrix" role="grid" aria-label="Ma trận trọng số attention" aria-live="polite"></div>
+            </div>
+
+            <div class="attn-readout" role="region" aria-label="Chi tiết query đang chọn" aria-live="polite">
+              <p class="attn-readout-label">Query đang chọn</p>
+              <p class="attn-readout-query" id="attnQueryName">—</p>
+              <div id="attnBars"></div>
+              <p class="attn-note" id="attnModeNote"></p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── 03 SELF vs CROSS ────────────────────────── -->
+      <section class="section reveal" aria-labelledby="sc-heading">
+        <p class="section-label">03 / Phân biệt</p>
+        <h2 class="section-title" id="sc-heading">Self-Attention vs Cross-Attention</h2>
+        <p class="section-body">
+          Cùng một phép toán, khác nguồn của Key/Value. Đó là điểm mấu chốt để phân biệt hai loại.
+        </p>
+        <div class="compare-grid">
+          <div class="compare-card self">
+            <span class="cc-tag">Self-Attention</span>
+            <p class="cc-heading">Token nói chuyện trong cùng chuỗi</p>
+            <ul class="cc-list">
+              <li>Q, K, V <strong>đều</strong> từ latent ảnh/video</li>
+              <li>Patch học ngữ cảnh: bố cục, hình dạng, sự nhất quán</li>
+              <li>Trong video: nối kết cả không gian và thời gian</li>
+              <li>Giữ vật thể "cùng là một" qua các frame</li>
+            </ul>
+            <code class="cc-stat">Q, K, V ← latent</code>
+          </div>
+          <div class="compare-card cross">
+            <span class="cc-tag">Cross-Attention</span>
+            <p class="cc-heading">Token ảnh lắng nghe prompt</p>
+            <ul class="cc-list">
+              <li>Q từ latent ảnh, <strong>K/V từ token văn bản</strong></li>
+              <li>Là nơi prompt "tiêm" ngữ nghĩa vào từng vùng ảnh</li>
+              <li>Đổi prompt → đổi trọng số → đổi nội dung sinh ra</li>
+              <li>Nền tảng của prompt weighting, attention editing</li>
+            </ul>
+            <code class="cc-stat">Q ← latent · K, V ← text</code>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── 04 CROSS-ATTENTION STEERS ──────────────── -->
+      <section class="section reveal" aria-labelledby="steer-heading">
+        <p class="section-label">04 / Tại sao quan trọng</p>
+        <h2 class="section-title" id="steer-heading">Cross-attention: nơi prompt thật sự lái</h2>
+        <p class="section-body">
+          Text encoder (Bài 4 — UMT5/T5) biến prompt thành một chuỗi token embedding. Những embedding
+          này không được dán trực tiếp lên ảnh — chúng đi vào cross-attention dưới dạng Key/Value. Ở mỗi
+          lớp, từng patch latent (Query) hỏi: "trong prompt, điều gì liên quan đến tôi?" Patch ở vùng
+          bầu trời có thể dồn trọng số vào từ "hoàng hôn"; patch ở vùng chủ thể dồn vào "con mèo".
+        </p>
+        <p class="section-body">
+          Vì trọng số này được tính lại ở mọi bước denoising và mọi lớp, prompt liên tục định hướng
+          quá trình. Đây cũng là lý do các kỹ thuật như tăng/giảm trọng số một cụm từ, hay chỉnh sửa
+          bản đồ attention, có thể thay đổi kết quả mà không cần train lại model.
+        </p>
+
+        <!-- Realistic workflow example -->
+        <div class="terminal-block reveal reveal-delay-1">
+          <button class="terminal-copy-btn" type="button" aria-label="Sao chép đoạn code" data-copy-terminal="2">Copy</button>
+          <div class="terminal-header">
+            <span class="terminal-dot red"></span>
+            <span class="terminal-dot amber"></span>
+            <span class="terminal-dot green"></span>
+            <span class="terminal-title">Prompt weighting — cú pháp ví dụ (CLIP-based encoder)</span>
+          </div>
+          <pre><span class="t-comment"># Prompt gốc (trọng số bằng nhau)</span>
+<span class="t-str">"con mèo cam chạy trên cỏ xanh dưới ánh nắng"</span>
+
+<span class="t-comment"># Tăng trọng số "cam" → cross-attn trọng số cao hơn với token "cam"</span>
+<span class="t-str">"con mèo (cam:1.4) chạy trên cỏ xanh dưới ánh nắng"</span>
+
+<span class="t-comment"># Kỹ thuật nâng cao: negative prompt tác động qua CFG</span>
+<span class="t-comment"># Cross-attn maps có thể visualize = attention heatmap trên mỗi frame</span>
+<span class="t-label">Lưu ý VRAM:</span>  <span class="t-comment">cross-attn với sequence dài (512 tokens) ~2× RAM so với 77 tokens</span>
+<span class="t-label">Wan2.2 / 14B:</span> <span class="t-num">~18 GB</span> VRAM khi full cross-attn @ <span class="t-num">720p × 81</span> frames</pre>
+        </div>
+
+        <div class="note-box reveal reveal-delay-2" role="note">
+          <p class="note-box-title">
+            <span aria-hidden="true">💡</span>
+            Nối với các bài khác
+          </p>
+          <p>
+            Chuỗi token văn bản đến từ <strong>text encoder ở Bài 4</strong>. Backbone chứa các lớp
+            attention này chính là <strong>U-Net / DiT ở Bài 6</strong>. Attention là mắt xích ghép
+            "prompt đã mã hoá" vào "latent đang được khử nhiễu".
+          </p>
+        </div>
+      </section>
+
+      <!-- ── 05 SELF-ATTENTION IN VIDEO ─────────────── -->
+      <section class="section reveal" aria-labelledby="video-heading">
+        <p class="section-label">05 / Với video</p>
+        <h2 class="section-title" id="video-heading">Self-attention không gian &amp; thời gian</h2>
+        <p class="section-body">
+          Ảnh tĩnh chỉ có self-attention không gian: các patch trong một khung hình trao đổi với nhau.
+          Video thêm trục thời gian, nên self-attention phải bao gồm cả các patch ở frame khác — nếu
+          không, mỗi frame sẽ trôi dạt độc lập và video bị nhấp nháy, mất tính liên tục.
+        </p>
+        <div class="pipeline" aria-label="Các dạng attention trong một khối video backbone">
+          <div class="pipe-step highlight">
+            <div class="ps-icon" aria-hidden="true">🗺</div>
+            <div class="ps-name">Spatial Self-Attn</div>
+            <div class="ps-desc">Patch trong cùng frame nói chuyện với nhau</div>
+            <span class="ps-badge">Self</span>
+          </div>
+          <div class="pipe-arrow" aria-hidden="true">→</div>
+          <div class="pipe-step highlight">
+            <div class="ps-icon" aria-hidden="true">⏱</div>
+            <div class="ps-name">Temporal Self-Attn</div>
+            <div class="ps-desc">Cùng vị trí, xuyên nhiều frame → mượt &amp; nhất quán</div>
+            <span class="ps-badge">Self</span>
+          </div>
+          <div class="pipe-arrow" aria-hidden="true">→</div>
+          <div class="pipe-step">
+            <div class="ps-icon" aria-hidden="true">💬</div>
+            <div class="ps-name">Cross-Attn</div>
+            <div class="ps-desc">Mọi patch lắng nghe token prompt</div>
+            <span class="ps-badge">Cross</span>
+          </div>
+          <div class="pipe-arrow" aria-hidden="true">→</div>
+          <div class="pipe-step">
+            <div class="ps-icon" aria-hidden="true">🎬</div>
+            <div class="ps-name">Latent kế tiếp</div>
+            <div class="ps-desc">Đưa sang lớp/bước denoising sau</div>
+          </div>
+        </div>
+        <p class="section-body" style="margin-top:28px">
+          Nhiều backbone video xử lý không gian và thời gian trong các lớp riêng (hoặc gộp thành
+          "spatio-temporal attention"). Chi tiết cách bố trí — và khác biệt giữa U-Net và DiT — sẽ ở
+          <strong>Bài 6</strong>. Điều cần nhớ: <em>temporal self-attention</em> là thứ giữ cho video
+          nhất quán theo thời gian, không chỉ đẹp ở từng khung hình rời rạc.
+        </p>
+      </section>
+
+      <!-- ── RELATED LESSONS ────────────────────────── -->
+      <section class="content-section reveal" id="related" aria-labelledby="related-heading">
+        <div>
+          <span class="section-index">LIÊN QUAN</span>
+          <h2 class="section-h2" id="related-heading" style="margin-bottom:1.5rem">Bài liên quan</h2>
+          <div class="related-grid">
+            <a class="related-card" href="video-generation-part-1-lesson-3.html">
+              <span class="related-badge">PHAN 1 · BAI 4</span>
+              <strong class="related-title">CLIP Image Representation &amp; Conditioning</strong>
+              <p class="related-desc">CLIP tạo image embedding cho ảnh tham chiếu; cross-attention hoặc adapter dùng nó tùy workflow I2V.</p>
+              <span class="related-arrow">→</span>
+            </a>
+            <a class="related-card" href="video-generation-part-5-lesson-4.html">
+              <span class="related-badge">PHAN 4 · BAI 3</span>
+              <strong class="related-title">IP-Adapter — Image Embedding</strong>
+              <p class="related-desc">IP-Adapter inject image features qua cross-attention — cùng cơ chế Q/K/V nhưng với ảnh tham chiếu thay cho text.</p>
+              <span class="related-arrow">→</span>
+            </a>
+            <a class="related-card" href="video-generation-part-1-lesson-5.html">
+              <span class="related-badge">PHAN 1 · BAI 6</span>
+              <strong class="related-title">U-Net vs DiT Backbone</strong>
+              <p class="related-desc">Backbone là nơi các lớp self và cross-attention được xếp chồng — hiểu attention giúp bạn đọc kiến trúc U-Net và DiT dễ hơn.</p>
+              <span class="related-arrow">→</span>
+            </a>
+            <a class="related-card" href="video-generation-part-6-lesson-4.html">
+              <span class="related-badge">PHAN 2 · BAI 4</span>
+              <strong class="related-title">CFG — Classifier-Free Guidance</strong>
+              <p class="related-desc">CFG khuếch đại tín hiệu cross-attention từ conditional prompt so với unconditional — hiểu attention làm rõ vì sao CFG scale quan trọng.</p>
+              <span class="related-arrow">→</span>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── 06 CHECKPOINT ──────────────────────────── -->
+      <section class="section reveal" id="checkpoint" aria-labelledby="cp-heading">
+        <p class="section-label">06 / Kiểm tra</p>
+        <h2 class="section-title" id="cp-heading">Bạn hiểu chưa?</h2>
+        <p class="section-body">Chọn đáp án đúng — giải thích sẽ hiện ngay sau khi bạn trả lời.</p>
+        <div class="checkpoint-list">
+
+          <!-- Q1 -->
+          <div class="checkpoint-item">
+            <p class="cp-question" id="q1-label">
+              1. Khác biệt cốt lõi giữa Self-Attention và Cross-Attention nằm ở đâu?
+            </p>
+            <div class="cp-options" role="group" aria-labelledby="q1-label">
+              <button class="cp-option" data-q="1" data-val="a" type="button">
+                <span class="cp-opt-mark" aria-hidden="true"></span>
+                Self dùng softmax, Cross thì không
+              </button>
+              <button class="cp-option" data-q="1" data-val="b" type="button">
+                <span class="cp-opt-mark" aria-hidden="true"></span>
+                Nguồn của Key/Value: Self lấy trong cùng chuỗi, Cross lấy từ token văn bản
+              </button>
+              <button class="cp-option" data-q="1" data-val="c" type="button">
+                <span class="cp-opt-mark" aria-hidden="true"></span>
+                Self chỉ dùng cho ảnh, Cross chỉ dùng cho âm thanh
+              </button>
+            </div>
+            <div class="cp-explanation" id="q1-exp" aria-live="polite">
+              <strong>Đúng rồi!</strong> Cả hai dùng cùng công thức softmax(Q·Kᵀ/√dₖ)·V. Điểm khác là
+              <strong>nguồn K/V</strong>: Self lấy Q, K, V trong cùng chuỗi latent; Cross lấy Q từ latent
+              nhưng K/V từ chuỗi token văn bản.
+            </div>
+          </div>
+
+          <!-- Q2 -->
+          <div class="checkpoint-item">
+            <p class="cp-question" id="q2-label">
+              2. Trong công thức attention, softmax dùng để làm gì?
+            </p>
+            <div class="cp-options" role="group" aria-labelledby="q2-label">
+              <button class="cp-option" data-q="2" data-val="a" type="button">
+                <span class="cp-opt-mark" aria-hidden="true"></span>
+                Nén ảnh pixel xuống latent
+              </button>
+              <button class="cp-option" data-q="2" data-val="b" type="button">
+                <span class="cp-opt-mark" aria-hidden="true"></span>
+                Biến điểm khớp Q·K thành trọng số 0–1 tổng bằng 1 để trộn Value
+              </button>
+              <button class="cp-option" data-q="2" data-val="c" type="button">
+                <span class="cp-opt-mark" aria-hidden="true"></span>
+                Tạo vector Query từ token đầu vào
+              </button>
+            </div>
+            <div class="cp-explanation" id="q2-exp" aria-live="polite">
+              <strong>Chính xác!</strong> Softmax chuẩn hoá các điểm khớp thành phân phối trọng số
+              (không âm, cộng lại bằng 1). Nhờ đó output là <strong>trung bình có trọng số</strong> của
+              các Value — token khớp nhất được lắng nghe nhiều nhất.
+            </div>
+          </div>
+
+          <!-- Q3 -->
+          <div class="checkpoint-item">
+            <p class="cp-question" id="q3-label">
+              3. Vì sao <em>temporal</em> self-attention lại đặc biệt quan trọng với video?
+            </p>
+            <div class="cp-options" role="group" aria-labelledby="q3-label">
+              <button class="cp-option" data-q="3" data-val="a" type="button">
+                <span class="cp-opt-mark" aria-hidden="true"></span>
+                Vì nó giúp các frame liên kết nhau, giữ video nhất quán và bớt nhấp nháy
+              </button>
+              <button class="cp-option" data-q="3" data-val="b" type="button">
+                <span class="cp-opt-mark" aria-hidden="true"></span>
+                Vì nó thay thế hoàn toàn cross-attention với prompt
+              </button>
+              <button class="cp-option" data-q="3" data-val="c" type="button">
+                <span class="cp-opt-mark" aria-hidden="true"></span>
+                Vì nó giảm số kênh latent xuống còn 1
+              </button>
+            </div>
+            <div class="cp-explanation" id="q3-exp" aria-live="polite">
+              <strong>Đúng!</strong> Temporal self-attention để cùng một vị trí giao tiếp qua nhiều
+              frame, nhờ vậy vật thể được giữ <strong>nhất quán theo thời gian</strong> thay vì mỗi
+              frame trôi dạt độc lập gây nhấp nháy. Cross-attention với prompt là một vai trò khác.
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ── SOURCES ────────────────────────────────── -->
+      <section class="section reveal" aria-labelledby="sources-heading">
+        <p class="section-label">Nguồn nghiên cứu</p>
+        <h2 class="section-title" id="sources-heading">Đọc sâu từ nguồn gốc</h2>
+        <p class="section-body">Các vector trong demo là minh hoạ; công thức và vai trò attention lấy từ nguồn gốc.</p>
+        <ul class="source-list">
+          <li><a href="https://arxiv.org/abs/1706.03762">Vaswani et al. — Attention Is All You Need</a>: định nghĩa scaled dot-product attention và softmax(Q·Kᵀ/√dₖ)·V.</li>
+          <li><a href="https://arxiv.org/abs/2112.10752">Rombach et al. — Latent Diffusion Models</a>: cross-attention đưa điều kiện văn bản vào U-Net khử nhiễu.</li>
+          <li><a href="https://arxiv.org/abs/2212.09748">Peebles &amp; Xie — Scalable Diffusion Models with Transformers (DiT)</a>: backbone transformer với các khối self-attention cho diffusion.</li>
+          <li><a href="https://github.com/Wan-Video/Wan2.2">Wan2.2 — repository chính thức</a>: kiến trúc backbone video với self/cross-attention.</li>
+        </ul>
+      </section>
+
+    </div><!-- /.shell -->
+
+    <!-- HANDOFF CARD -->
+    <section class="content-section" id="handoff" aria-labelledby="handoff-heading">
+      <div class="shell">
+        <div class="handoff-card">
+          <div class="handoff-card-icon" aria-hidden="true">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </div>
+          <div>
+            <p class="handoff-card-label">Bài tiếp theo</p>
+            <h2 class="handoff-card-title" id="handoff-heading">Temporal Context Window</h2>
+            <p class="handoff-card-body">Bài tiếp theo mở rộng attention sang chiều thời gian: cách Wan2.2 xử lý chuỗi frame và duy trì temporal coherence qua context window.</p>
+            <a class="button primary" href="video-generation-part-1-lesson-7.html" data-curriculum-next>Sang Bài 1.7 →</a>
+          </div>
+        </div>
       </div>
-      <details class="disclosure">
-        <summary class="disclosure-summary">Vì sao gọi là A14B khi tổng cộng khoảng 27B?</summary>
-        <div class="disclosure-body">
-          <p>Mỗi bước chỉ kích hoạt một expert khoảng 14B tham số. Hai expert cộng lại khoảng 27B,
-          nhưng active parameters và compute mỗi bước vẫn gần mức 14B theo tài liệu Wan2.2.</p>
-        </div>
-      </details>
     </section>
-  </div>
 
-  <!-- 05: Recap + Sources -->
-  <div class="shell">
-    <section class="section reveal" id="sources" aria-labelledby="sources-heading">
-      <p class="section-label">05 — Tóm tắt &amp; nguồn</p>
-      <h2 class="section-heading" id="sources-heading">Chốt lại &amp; đọc sâu</h2>
-      <p class="section-intro">
-        Cả U-Net và DiT đều là backbone làm cùng một việc: đoán noise ở mỗi bước diffusion. U-Net dựa vào
-        encoder–decoder + skip connections và spatial inductive bias; DiT dựa vào patchify + stack
-        transformer đồng nhất với attention toàn cục, dễ scale và hợp với video — lý do Wan2.2 chọn DiT.
-      </p>
-      <ul class="source-list">
-        <li><a href="https://arxiv.org/abs/1505.04597" target="_blank" rel="noreferrer"><strong>U-Net (Ronneberger et al., 2015)</strong><span>Contracting path, expanding path và feature-map concatenation qua skip connections.</span></a></li>
-        <li><a href="https://proceedings.neurips.cc/paper/2020/hash/4c5bcfec8584af0d967f1ab10179ca4b-Abstract.html" target="_blank" rel="noreferrer"><strong>Denoising Diffusion Probabilistic Models (Ho et al., 2020)</strong><span>U-Net backbone có timestep conditioning cho quá trình reverse diffusion.</span></a></li>
-        <li><a href="https://openaccess.thecvf.com/content/CVPR2022/html/Rombach_High-Resolution_Image_Synthesis_With_Latent_Diffusion_Models_CVPR_2022_paper.html" target="_blank" rel="noreferrer"><strong>Latent Diffusion Models (Rombach et al., 2022)</strong><span>Denoising U-Net hoạt động trong latent space và nhận điều kiện qua cross-attention.</span></a></li>
-        <li><a href="https://arxiv.org/abs/2212.09748" target="_blank" rel="noreferrer"><strong>Diffusion Transformer (Peebles &amp; Xie, 2022)</strong><span>Thay U-Net bằng transformer trên latent patches và phân tích scaling theo compute.</span></a></li>
-        <li><a href="https://github.com/Wan-Video/Wan2.2" target="_blank" rel="noreferrer"><strong>Wan2.2 — repository chính thức</strong><span>Backbone diffusion transformer và Mixture-of-Experts theo giai đoạn nhiễu.</span></a></li>
-        <li><a href="https://huggingface.co/Wan-AI/Wan2.2-T2V-A14B/blob/main/high_noise_model/config.json" target="_blank" rel="noreferrer"><strong>Wan2.2 T2V-A14B config</strong><span>40 layers, 40 heads, hidden dim 5120 cho mỗi expert.</span></a></li>
-      </ul>
-    </section>
-  </div>
-
-  <!-- Related lessons -->
-  <div class="shell">
-    <section class="content-section reveal" id="related" aria-labelledby="related-heading">
-      <div class="section related-inner">
-        <span class="section-label">LIÊN QUAN</span>
-        <h2 class="section-heading related-h2" id="related-heading">Bài liên quan</h2>
-        <div class="related-grid">
-          <a class="related-card" href="video-generation-part-1-lesson-5.html">
-            <span class="related-badge">PHAN 1 · BAI 5</span>
-            <strong class="related-title">Attention — Self &amp; Cross</strong>
-            <p class="related-desc">Các cơ chế Self-Attention và Cross-Attention bên trong mỗi DiT Block.</p>
-            <span class="related-arrow" aria-hidden="true">→</span>
-          </a>
-        </div>
+    <footer class="shell">
+      <div class="page-footer">
+        <span class="footer-text" data-curriculum-completion-label>VIDEO GEN LAB · MODEL ARCHITECTURE · BÀI 1.6 / SELF &amp; CROSS-ATTENTION</span>
+        <a class="button" href="video-generation-part-1-lesson-5.html" data-curriculum-prev data-curriculum-title-fallback>← Bài 1.5: U-Net vs DiT Backbone</a>
+        <a class="button primary" href="video-generation-part-1-lesson-7.html" data-curriculum-next data-curriculum-title-fallback>Bài 1.7: Temporal Context Window →</a>
       </div>
-    </section>
-  </div>
+    </footer>
+  </main>
 
-  <!-- 06: Checkpoint -->
-  <div class="shell">
-    <section class="section reveal" id="checkpoint" aria-labelledby="checkpoint-heading">
-      <p class="section-label">06 — Kiểm tra</p>
-      <h2 class="section-heading" id="checkpoint-heading">Checkpoint</h2>
-      <p class="section-intro">Bốn câu hỏi nhanh phủ cả U-Net lẫn DiT — chọn đáp án để xem giải thích ngay.</p>
+  <script>
+    /* ── Scroll progress ──────────────────────────── */
+    (() => {
+      const fill = document.getElementById('progressFill');
+      if (!fill) return;
+      const update = () => {
+        const el = document.documentElement;
+        const pct = el.scrollTop / (el.scrollHeight - el.clientHeight) * 100;
+        fill.style.width = Math.min(100, Math.max(0, pct)) + '%';
+      };
+      window.addEventListener('scroll', update, { passive: true });
+      update();
+    })();
 
-      <div class="checkpoint-list" role="list">
+    /* ── IntersectionObserver scroll-reveal ───────── */
+    (() => {
+      const items = document.querySelectorAll('.reveal');
+      if (!items.length) return;
+      const io = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+            io.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.07 });
+      items.forEach(el => io.observe(el));
+    })();
 
-        <!-- Q1 -->
-        <div class="q-block" role="listitem">
-          <div class="q-number">Câu 1 / 4</div>
-          <div class="q-text">Trong diffusion, "backbone" đóng vai trò gì ở mỗi bước?</div>
-          <div class="q-options" role="group" aria-labelledby="q1-label">
-            <span id="q1-label" class="sr-only">Chọn một đáp án cho câu 1</span>
-            <button class="q-option" data-q="1" type="button" onclick="checkAnswer(this, false, 'q1-exp')"><span class="q-option-mark" aria-hidden="true"></span>Giải mã latent cuối cùng thành pixel (vai trò của VAE decoder)</button>
-            <button class="q-option" data-q="1" type="button" onclick="checkAnswer(this, true, 'q1-exp')"><span class="q-option-mark" aria-hidden="true"></span>Nhận latent nhiễu + timestep + điều kiện, dự đoán noise cần loại bỏ</button>
-            <button class="q-option" data-q="1" type="button" onclick="checkAnswer(this, false, 'q1-exp')"><span class="q-option-mark" aria-hidden="true"></span>Thêm noise vào ảnh gốc trong quá trình forward</button>
-          </div>
-          <div class="q-explanation" id="q1-exp" aria-live="polite">
-            <strong>Đúng!</strong> Backbone (U-Net hoặc DiT) được scheduler gọi ở mỗi bước để đoán noise (hoặc mục tiêu tương đương),
-            giúp đi tới latent ít nhiễu hơn. VAE decoder chỉ chạy một lần ở cuối.
-          </div>
-          <button class="button q-reset q-reset-hidden" id="q1-reset" onclick="resetQ(1)" type="button">Thử lại</button>
-        </div>
+    /* ── Copy buttons (formula) ───────────────────── */
+    (() => {
+      document.querySelectorAll('.copy-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const text = btn.dataset.copy || '';
+          navigator.clipboard.writeText(text).then(() => {
+            const orig = btn.textContent;
+            btn.textContent = 'Đã copy!';
+            btn.style.borderColor = 'var(--acid)';
+            btn.style.color = 'var(--acid)';
+            setTimeout(() => {
+              btn.textContent = orig;
+              btn.style.borderColor = '';
+              btn.style.color = '';
+            }, 1800);
+          }).catch(() => {});
+        });
+      });
+    })();
 
-        <!-- Q2 -->
-        <div class="q-block" role="listitem">
-          <div class="q-number">Câu 2 / 4</div>
-          <div class="q-text">Mục đích chính của skip connections trong U-Net là gì?</div>
-          <div class="q-options" role="group" aria-labelledby="q2-label">
-            <span id="q2-label" class="sr-only">Chọn một đáp án cho câu 2</span>
-            <button class="q-option" data-q="2" type="button" onclick="checkAnswer(this, false, 'q2-exp')"><span class="q-option-mark" aria-hidden="true"></span>Giảm số tham số của mô hình</button>
-            <button class="q-option" data-q="2" type="button" onclick="checkAnswer(this, true, 'q2-exp')"><span class="q-option-mark" aria-hidden="true"></span>Truyền chi tiết không gian từ encoder sang decoder cùng cấp</button>
-            <button class="q-option" data-q="2" type="button" onclick="checkAnswer(this, false, 'q2-exp')"><span class="q-option-mark" aria-hidden="true"></span>Tăng tốc training bằng cách bỏ qua bottleneck</button>
-          </div>
-          <div class="q-explanation" id="q2-exp" aria-live="polite">
-            <strong>Đúng!</strong> Skip connections nối encoder → decoder cùng resolution, trả lại spatial detail (cạnh, texture) bị nén mất qua bottleneck.
-          </div>
-          <button class="button q-reset q-reset-hidden" id="q2-reset" onclick="resetQ(2)" type="button">Thử lại</button>
-        </div>
+    /* ── Copy buttons (terminal) ──────────────────── */
+    (() => {
+      document.querySelectorAll('.terminal-copy-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const block = btn.closest('.terminal-block');
+          const pre = block ? block.querySelector('pre') : null;
+          const text = pre ? pre.textContent : '';
+          navigator.clipboard.writeText(text).then(() => {
+            const orig = btn.textContent;
+            btn.textContent = 'Copied!';
+            btn.style.borderColor = '#7ee787';
+            btn.style.color = '#7ee787';
+            setTimeout(() => {
+              btn.textContent = orig;
+              btn.style.borderColor = '';
+              btn.style.color = '';
+            }, 1800);
+          }).catch(() => {});
+        });
+      });
+    })();
 
-        <!-- Q3 -->
-        <div class="q-block" role="listitem">
-          <div class="q-number">Câu 3 / 4</div>
-          <div class="q-text">DiT xử lý latent input bằng cách nào trước khi đưa vào Transformer?</div>
-          <div class="q-options" role="group" aria-labelledby="q3-label">
-            <span id="q3-label" class="sr-only">Chọn một đáp án cho câu 3</span>
-            <button class="q-option" data-q="3" type="button" onclick="checkAnswer(this, false, 'q3-exp')"><span class="q-option-mark" aria-hidden="true"></span>Chia thành nhiều resolution level như U-Net encoder</button>
-            <button class="q-option" data-q="3" type="button" onclick="checkAnswer(this, true, 'q3-exp')"><span class="q-option-mark" aria-hidden="true"></span>Patchify — chia thành các patch nhỏ rồi flatten thành token sequence</button>
-            <button class="q-option" data-q="3" type="button" onclick="checkAnswer(this, false, 'q3-exp')"><span class="q-option-mark" aria-hidden="true"></span>Áp dụng convolution để trích xuất feature map trước</button>
-          </div>
-          <div class="q-explanation" id="q3-exp" aria-live="polite">
-            <strong>Đúng!</strong> DiT "patchify" latent — chia thành ô nhỏ (patch) rồi flatten thành chuỗi token, cho phép Transformer xử lý ảnh/video như language model xử lý text.
-          </div>
-          <button class="button q-reset q-reset-hidden" id="q3-reset" onclick="resetQ(3)" type="button">Thử lại</button>
-        </div>
+    /* ── Interactive attention explorer ──────────── */
+    (() => {
+      const SELF = {
+        label: 'Self-Attention · các patch của latent video',
+        note: 'Q, K và V đều là các patch của chính latent. Patch có nội dung tương tự (vd cùng là "chủ thể") thường chú ý lẫn nhau — kể cả xuyên frame để giữ nhất quán thời gian.',
+        tokens: [
+          { name: 'P1 · nền', v: [0.9, 0.1, 0.2, 0.0] },
+          { name: 'P2 · chủ thể f1', v: [0.1, 0.9, 0.2, 0.3] },
+          { name: 'P3 · chủ thể f2', v: [0.15, 0.85, 0.25, 0.35] },
+          { name: 'P4 · cạnh', v: [0.3, 0.2, 0.9, 0.1] },
+          { name: 'P5 · nền', v: [0.85, 0.15, 0.25, 0.05] }
+        ]
+      };
+      const CROSS = {
+        label: 'Cross-Attention · patch ảnh (Q) ↔ token prompt (K/V)',
+        note: 'Query là các patch ảnh; Key/Value là token của prompt "con mèo cam chạy trên cỏ". Mỗi patch dồn trọng số vào từ prompt liên quan tới vùng nó phụ trách.',
+        queries: [
+          { name: 'Patch bầu trời', v: [0.9, 0.1, 0.1, 0.2] },
+          { name: 'Patch chủ thể',  v: [0.1, 0.9, 0.2, 0.1] },
+          { name: 'Patch mặt đất',  v: [0.2, 0.1, 0.9, 0.1] },
+          { name: 'Patch chuyển động', v: [0.15, 0.4, 0.2, 0.9] }
+        ],
+        keys: [
+          { name: '"mèo"',  v: [0.1, 0.95, 0.1, 0.1] },
+          { name: '"cam"',  v: [0.2, 0.8, 0.15, 0.1] },
+          { name: '"chạy"', v: [0.1, 0.35, 0.2, 0.95] },
+          { name: '"cỏ"',   v: [0.15, 0.1, 0.95, 0.1] },
+          { name: '"trời"', v: [0.95, 0.1, 0.1, 0.15] }
+        ]
+      };
 
-        <!-- Q4 -->
-        <div class="q-block" role="listitem">
-          <div class="q-number">Câu 4 / 4</div>
-          <div class="q-text">Vì sao các video model như Wan2.2 nghiêng về DiT thay vì U-Net?</div>
-          <div class="q-options" role="group" aria-labelledby="q4-label">
-            <span id="q4-label" class="sr-only">Chọn một đáp án cho câu 4</span>
-            <button class="q-option" data-q="4" type="button" onclick="checkAnswer(this, false, 'q4-exp')"><span class="q-option-mark" aria-hidden="true"></span>U-Net không tương thích với VAE latent space</button>
-            <button class="q-option" data-q="4" type="button" onclick="checkAnswer(this, true, 'q4-exp')"><span class="q-option-mark" aria-hidden="true"></span>Kiến trúc đồng nhất dễ scale, và attention xử lý token không gian–thời gian tự nhiên hơn</button>
-            <button class="q-option" data-q="4" type="button" onclick="checkAnswer(this, false, 'q4-exp')"><span class="q-option-mark" aria-hidden="true"></span>DiT luôn dùng ít memory hơn U-Net</button>
-          </div>
-          <div class="q-explanation" id="q4-exp" aria-live="polite">
-            <strong>Đúng!</strong> DiT có kiến trúc đồng nhất (chỉ thêm block giống nhau để tăng capacity) và attention toàn cục hợp với token 3D của video.
-            Nghiên cứu DiT ghi nhận chất lượng cải thiện khi tăng Gflops — không có nghĩa DiT luôn tốn ít memory hơn.
-          </div>
-          <button class="button q-reset q-reset-hidden" id="q4-reset" onclick="resetQ(4)" type="button">Thử lại</button>
-        </div>
+      const matrixEl    = document.getElementById('attnMatrix');
+      const queryNameEl = document.getElementById('attnQueryName');
+      const barsEl      = document.getElementById('attnBars');
+      const noteEl      = document.getElementById('attnModeNote');
+      const selfBtn     = document.getElementById('attnSelfBtn');
+      const crossBtn    = document.getElementById('attnCrossBtn');
 
-      </div>
-    </section>
-  </div>
+      let mode = 'self';
+      let activeRow = 0;
 
-</main>
+      const dot = (a, b) => a.reduce((s, x, i) => s + x * b[i], 0);
+      const softmax = (arr) => {
+        const m = Math.max(...arr);
+        const ex = arr.map(x => Math.exp(x - m));
+        const sum = ex.reduce((s, x) => s + x, 0);
+        return ex.map(x => x / sum);
+      };
 
-<!-- ── Footer pager ───────────────────────────────────────── -->
-<footer class="shell">
-  <div class="page-footer">
-    <span class="footer-text">VIDEO GEN LAB · PART 1 · BÀI 6 / U-NET vs DiT</span>
-    <a class="button" href="video-generation-part-1-lesson-5.html">← Bài 5</a>
-    <a class="button primary" href="index.html">Trang chủ →</a>
-  </div>
-</footer>
-
-<script>
-  // ── Scroll reveal (IntersectionObserver) ────────────────
-  (function() {
-    if (!window.IntersectionObserver) return;
-    var obs = new IntersectionObserver(function(entries) {
-      entries.forEach(function(e) {
-        if (e.isIntersecting) {
-          e.target.classList.add('visible');
-          obs.unobserve(e.target);
+      const buildData = () => {
+        if (mode === 'self') {
+          const t = SELF.tokens;
+          const d = t[0].v.length;
+          const weights = t.map(q =>
+            softmax(t.map(k => dot(q.v, k.v) / Math.sqrt(d)))
+          );
+          return { rows: t, cols: t, weights, note: SELF.note };
         }
-      });
-    }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
-    document.querySelectorAll('.reveal').forEach(function(el) { obs.observe(el); });
-  })();
+        const qs = CROSS.queries, ks = CROSS.keys;
+        const d = qs[0].v.length;
+        const weights = qs.map(q =>
+          softmax(ks.map(k => dot(q.v, k.v) / Math.sqrt(d)))
+        );
+        return { rows: qs, cols: ks, weights, note: CROSS.note };
+      };
 
-  // ── Progress bar (target #progressFill) ─────────────────
-  (function() {
-    var fill = document.getElementById('progressFill');
-    if (!fill) return;
-    function updateProgress() {
-      var scrollTop = window.scrollY || document.documentElement.scrollTop;
-      var docHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight;
-      var pct = docHeight > 0 ? Math.min(100, (scrollTop / docHeight) * 100) : 0;
-      fill.style.width = pct + '%';
-    }
-    window.addEventListener('scroll', updateProgress, { passive: true });
-    updateProgress();
-  })();
+      const heat = (w) => {
+        const pct = Math.round(w * 100);
+        return 'color-mix(in srgb, var(--acid) ' + pct + '%, var(--panel-2))';
+      };
 
-  // ── DiT animated pipeline ───────────────────────────────
-  var animState = { step: 0, playing: false, timer: null };
+      const render = () => {
+        const data = buildData();
+        const nCols = data.cols.length;
 
-  var STEP_DESCS = [
-    'Nhấn <strong>Play</strong> để bắt đầu — xem từng bước DiT xử lý latent input.',
-    '<strong>Bước 1 — Latent Input z<sub>t</sub>:</strong> VAE encoder đã nén video thành latent nhỏ gọn. Latent này chứa noise ở bước timestep t. DiT nhận đây làm đầu vào.',
-    '<strong>Bước 2 — Patchify:</strong> Latent 3D (C×T×H×W) được chia thành các patch nhỏ 2×2. Mỗi patch được flatten và chiếu thành một token vector. Positional embedding (RoPE 3D) được cộng vào để mã hóa vị trí.',
-    '<strong>Bước 3 — N × DiT Block:</strong> Với Wan2.2 T2V-A14B, expert đang hoạt động đưa chuỗi token qua 40 block. Mỗi block kết hợp self-attention, cross-attention, FFN và conditioning theo timestep.',
-    '<strong>Bước 4 — Unpatchify:</strong> Các token output được reshape trở lại thành latent 3D. Một linear layer cuối chiếu về số channel gốc. Kết quả là ước tính noise cần loại bỏ.',
-    '<strong>Bước 5 — Latent z<sub>t−1</sub>:</strong> Scheduler dùng dự đoán của model để tiến tới latent ít noise hơn một bước. Chỉ sau khi lặp đủ bước, latent cuối mới được VAE decoder giải mã thành video.'
-  ];
+        matrixEl.style.gridTemplateColumns = 'minmax(96px, auto) repeat(' + nCols + ', minmax(34px, 1fr))';
+        matrixEl.innerHTML = '';
 
-  var NODE_CX = [61, 196, 343, 491, 624];
+        const corner = document.createElement('div');
+        corner.className = 'attn-corner';
+        corner.textContent = mode === 'self' ? 'Q ＼ K' : 'patch ＼ token';
+        matrixEl.appendChild(corner);
 
-  function setAnimStep(step) {
-    animState.step = step;
-    var nodes = document.querySelectorAll('.pipe-node');
-    var arrows = document.querySelectorAll('.pipe-arrow');
-    var dot = document.getElementById('token-dot');
-    var desc = document.getElementById('anim-desc');
-    var counter = document.getElementById('anim-step-counter');
+        data.cols.forEach(c => {
+          const ch = document.createElement('div');
+          ch.className = 'attn-colhead';
+          ch.textContent = c.name;
+          matrixEl.appendChild(ch);
+        });
 
-    nodes.forEach(function(n) { n.classList.remove('active', 'done'); });
-    arrows.forEach(function(a) { a.classList.remove('lit'); });
-    if (dot) { dot.classList.remove('visible'); dot.setAttribute('cx', NODE_CX[0]); }
+        data.rows.forEach((r, ri) => {
+          const rh = document.createElement('div');
+          rh.className = 'attn-rowhead' + (ri === activeRow ? ' active-row' : '');
+          rh.textContent = r.name;
+          rh.setAttribute('role', 'button');
+          rh.tabIndex = 0;
+          rh.addEventListener('click', () => { activeRow = ri; render(); });
+          rh.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activeRow = ri; render(); }
+          });
+          matrixEl.appendChild(rh);
 
-    if (step !== 0) {
-      var nodeIdx = step - 1;
-      for (var i = 0; i < nodeIdx; i++) { if (nodes[i]) nodes[i].classList.add('done'); }
-      if (nodes[nodeIdx]) nodes[nodeIdx].classList.add('active');
-      for (var j = 0; j < nodeIdx; j++) { if (arrows[j]) arrows[j].classList.add('lit'); }
-      if (dot && NODE_CX[nodeIdx] !== undefined) {
-        dot.setAttribute('cx', NODE_CX[nodeIdx]);
-        dot.classList.add('visible');
-      }
-      if (step === 5) {
-        nodes.forEach(function(n) { n.classList.remove('active'); n.classList.add('done'); });
-        arrows.forEach(function(a) { a.classList.add('lit'); });
-        if (dot) { dot.classList.remove('visible'); }
-      }
-    }
+          data.weights[ri].forEach((w, ci) => {
+            const cell = document.createElement('div');
+            cell.className = 'attn-cell'
+              + (ri === activeRow ? '' : ' dim-row')
+              + (ri === activeRow && w === Math.max(...data.weights[ri]) ? ' active-cell' : '');
+            cell.style.background = heat(w);
+            cell.textContent = w >= 0.12 ? Math.round(w * 100) : '';
+            cell.title = data.rows[ri].name + ' → ' + data.cols[ci].name + ': ' + Math.round(w * 100) + '%';
+            cell.addEventListener('click', () => { activeRow = ri; render(); });
+            matrixEl.appendChild(cell);
+          });
+        });
 
-    if (desc) desc.innerHTML = STEP_DESCS[step] || '';
-    if (counter) counter.textContent = 'Bước ' + (step === 0 ? '0' : step) + ' / 5';
-  }
+        queryNameEl.textContent = data.rows[activeRow].name;
+        barsEl.innerHTML = '';
+        const rw = data.weights[activeRow];
+        data.cols.forEach((c, ci) => {
+          const row = document.createElement('div');
+          row.className = 'attn-bar-row';
+          const head = document.createElement('div');
+          head.className = 'attn-bar-head';
+          head.innerHTML = '<span>' + c.name + '</span><span>' + Math.round(rw[ci] * 100) + '%</span>';
+          const track = document.createElement('div');
+          track.className = 'attn-bar-track';
+          const fillEl = document.createElement('div');
+          fillEl.className = 'attn-bar-fill';
+          fillEl.style.width = '0%';
+          track.appendChild(fillEl);
+          row.appendChild(head);
+          row.appendChild(track);
+          barsEl.appendChild(row);
+          requestAnimationFrame(() => { fillEl.style.width = (rw[ci] * 100) + '%'; });
+        });
+        noteEl.textContent = data.note;
+      };
 
-  function animStep() {
-    if (!animState.playing) return;
-    var next = animState.step + 1;
-    if (next > 5) {
-      animState.playing = false;
-      animState.timer = null;
-      var btn = document.getElementById('anim-play-btn');
-      var icon = document.getElementById('anim-play-icon');
-      var txt = document.getElementById('anim-play-text');
-      if (btn) { btn.classList.remove('active'); btn.setAttribute('aria-label', 'Phát animation pipeline'); }
-      if (icon) icon.textContent = '▶';
-      if (txt) txt.textContent = 'Play';
-      return;
-    }
-    setAnimStep(next);
-    animState.timer = setTimeout(animStep, 1400);
-  }
+      const setMode = (m) => {
+        mode = m;
+        activeRow = 0;
+        selfBtn.setAttribute('aria-pressed', String(m === 'self'));
+        crossBtn.setAttribute('aria-pressed', String(m === 'cross'));
+        render();
+      };
 
-  function animControl(action) {
-    var btn = document.getElementById('anim-play-btn');
-    var icon = document.getElementById('anim-play-icon');
-    var txt = document.getElementById('anim-play-text');
+      selfBtn.addEventListener('click', () => setMode('self'));
+      crossBtn.addEventListener('click', () => setMode('cross'));
+      render();
+    })();
 
-    if (action === 'reset') {
-      animState.playing = false;
-      if (animState.timer) { clearTimeout(animState.timer); animState.timer = null; }
-      setAnimStep(0);
-      if (btn) { btn.classList.remove('active'); btn.setAttribute('aria-label', 'Phát animation pipeline'); }
-      if (icon) icon.textContent = '▶';
-      if (txt) txt.textContent = 'Play';
-      return;
-    }
+    /* ── Checkpoint quiz + confetti ──────────────── */
+    (() => {
+      const ANSWERS = { '1': 'b', '2': 'b', '3': 'a' };
+      let score = 0;
+      let answered = 0;
+      const total = Object.keys(ANSWERS).length;
 
-    if (action === 'play') {
-      if (animState.playing) {
-        animState.playing = false;
-        if (animState.timer) { clearTimeout(animState.timer); animState.timer = null; }
-        if (btn) { btn.classList.remove('active'); btn.setAttribute('aria-label', 'Tiếp tục animation pipeline'); }
-        if (icon) icon.textContent = '▶';
-        if (txt) txt.textContent = 'Tiếp tục';
-        return;
-      }
-      if (animState.step >= 5) { setAnimStep(0); }
-      animState.playing = true;
-      if (btn) { btn.classList.add('active'); btn.setAttribute('aria-label', 'Tạm dừng animation pipeline'); }
-      if (icon) icon.textContent = '⏸';
-      if (txt) txt.textContent = 'Pause';
-      animState.timer = setTimeout(animStep, 300);
-    }
-  }
-
-  // ── DiT architecture click-to-explore ───────────────────
-  var nodeDetails = {
-    latent: { title: 'Latent Input z_t', body: 'Đây là latent representation của ảnh/video đã bị thêm noise ở bước t. VAE encoder đã nén video gốc xuống không gian nhỏ hơn nhiều (thường 8× hoặc 16×) trước bước này. DiT nhận latent này làm đầu vào và học cách dự đoán noise cần loại bỏ.' },
-    patchify: { title: 'Patchify', body: 'Latent 3D (C×T×H×W) được chia thành các patch nhỏ, ví dụ 2×2 pixel mỗi patch. Mỗi patch được flatten và chiếu (linear projection) thành một token vector có chiều d_model. Positional embedding (RoPE 3D trong Wan2.2) được cộng vào để mã hóa vị trí không gian và thời gian.' },
-    blocks: { title: 'N × DiT Block', body: 'Chuỗi token được xử lý tuần tự qua N block giống nhau. Mỗi expert của Wan2.2 T2V-A14B dùng 40 block; chỉ high-noise hoặc low-noise expert hoạt động tại một timestep. Block kết hợp self-attention, cross-attention, FFN và conditioning theo timestep.' },
-    unpatchify: { title: 'Unpatchify', body: 'Ngược lại với Patchify — các token output được reshape trở lại thành latent 3D có cùng shape với input. Một linear layer cuối chiếu từ d_model về số channel của latent (ví dụ 16 channel). Kết quả là ước tính noise (hoặc denoised latent tùy scheduler).' },
-    output: { title: 'Denoised Latent z_{t-1}', body: 'Output của DiT là latent ít noise hơn một bước. Scheduler (DDIM, Flow Matching, v.v.) dùng output này để tính z_{t-1}. Sau T bước denoising, z_0 được VAE decoder giải mã thành video pixel thực sự.' }
-  };
-
-  var activeNode = null;
-
-  function activateNode(node) {
-    if (activeNode && activeNode !== node) { activeNode.setAttribute('aria-pressed', 'false'); }
-    var key = node.dataset.detail;
-    var info = nodeDetails[key];
-    if (!info) return;
-    var panel = document.getElementById('arch-detail-panel');
-    var title = document.getElementById('arch-detail-title');
-    var body  = document.getElementById('arch-detail-body');
-    if (activeNode === node && panel.classList.contains('visible')) {
-      panel.classList.remove('visible');
-      node.setAttribute('aria-pressed', 'false');
-      activeNode = null;
-    } else {
-      title.textContent = info.title;
-      body.textContent  = info.body;
-      panel.classList.add('visible');
-      node.setAttribute('aria-pressed', 'true');
-      activeNode = node;
-    }
-  }
-
-  document.querySelectorAll('.arch-node').forEach(function(node) {
-    node.addEventListener('click', function() { activateNode(node); });
-  });
-
-  // ── Wan2.2 MoE routing explainer ────────────────────────
-  document.querySelectorAll('input[name="moe-stage"]').forEach(function(input) {
-    input.addEventListener('change', function() {
-      var highNode = document.getElementById('moe-high-node');
-      var lowNode = document.getElementById('moe-low-node');
-      var output = document.getElementById('moe-output');
-      var isHigh = input.value === 'high';
-      highNode.classList.toggle('active', isHigh);
-      lowNode.classList.toggle('active', !isHigh);
-      output.innerHTML = isHigh
-        ? '<strong>High-noise expert đang hoạt động:</strong> ưu tiên bố cục tổng thể khi tín hiệu còn chìm trong noise.'
-        : '<strong>Low-noise expert đang hoạt động:</strong> tinh chỉnh chi tiết khi cấu trúc tổng thể đã rõ hơn.';
-    });
-  });
-
-  // ── DiT block layer accordion ───────────────────────────
-  function toggleLayer(btn) {
-    var layer = btn.closest('.block-layer');
-    var isOpen = layer.hasAttribute('open');
-    document.querySelectorAll('.block-layer[open]').forEach(function(l) {
-      if (l !== layer) {
-        l.removeAttribute('open');
-        l.querySelector('button').setAttribute('aria-expanded', 'false');
-      }
-    });
-    if (isOpen) {
-      layer.removeAttribute('open');
-      btn.setAttribute('aria-expanded', 'false');
-    } else {
-      layer.setAttribute('open', '');
-      btn.setAttribute('aria-expanded', 'true');
-    }
-  }
-
-  // ── Quiz logic ──────────────────────────────────────────
-  var answeredQs = {};
-
-  function checkAnswer(btn, isCorrect, expId) {
-    var q = btn.dataset.q;
-    if (answeredQs[q]) return;
-    answeredQs[q] = true;
-
-    var options = btn.closest('.q-options').querySelectorAll('.q-option');
-    options.forEach(function(opt) { opt.disabled = true; opt.style.cursor = 'default'; });
-
-    btn.classList.add(isCorrect ? 'correct' : 'wrong');
-    btn.querySelector('.q-option-mark').textContent = isCorrect ? '✓' : '✗';
-
-    if (!isCorrect) {
-      options.forEach(function(opt) {
-        var handler = opt.getAttribute('onclick');
-        if (handler && handler.includes('true')) {
-          opt.classList.add('correct');
-          opt.querySelector('.q-option-mark').textContent = '✓';
+      const spawnConfetti = (x, y) => {
+        const colors = ['#c8f241', '#22d3ee', '#f97316', '#a78bfa', '#fb7185'];
+        for (let i = 0; i < 18; i++) {
+          const piece = document.createElement('div');
+          piece.className = 'confetti-piece';
+          piece.style.cssText = [
+            'left:' + (x + (Math.random() - 0.5) * 120) + 'px',
+            'top:' + (y - 10) + 'px',
+            'background:' + colors[Math.floor(Math.random() * colors.length)],
+            'width:' + (6 + Math.random() * 6) + 'px',
+            'height:' + (6 + Math.random() * 6) + 'px',
+            'animation-duration:' + (.6 + Math.random() * .5) + 's',
+            'animation-delay:' + (Math.random() * .15) + 's'
+          ].join(';');
+          document.body.appendChild(piece);
+          piece.addEventListener('animationend', () => piece.remove());
         }
+      };
+
+      document.querySelectorAll('.cp-option').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const q   = btn.dataset.q;
+          const val = btn.dataset.val;
+          const allInGroup  = document.querySelectorAll('.cp-option[data-q="' + q + '"]');
+          const explanation = document.getElementById('q' + q + '-exp');
+
+          if (btn.disabled) return;
+
+          answered++;
+          allInGroup.forEach(b => {
+            b.disabled = true;
+            b.setAttribute('aria-disabled', 'true');
+          });
+
+          const correct = ANSWERS[q];
+          const isCorrect = val === correct;
+          if (isCorrect) score++;
+
+          allInGroup.forEach(b => {
+            b.classList.remove('selected');
+            if (b.dataset.val === correct) {
+              b.classList.add('correct');
+              b.querySelector('.cp-opt-mark').textContent = '✓';
+            } else if (b.dataset.val === val && !isCorrect) {
+              b.classList.add('wrong');
+              b.querySelector('.cp-opt-mark').textContent = '✗';
+            }
+          });
+
+          if (explanation) {
+            const verdict = explanation.querySelector('strong');
+            if (verdict) verdict.textContent = isCorrect ? 'Đúng rồi!' : 'Chưa đúng.';
+            explanation.classList.add('visible');
+          }
+
+          // Confetti on correct answer
+          if (isCorrect) {
+            const rect = btn.getBoundingClientRect();
+            spawnConfetti(rect.left + rect.width / 2, rect.top + window.scrollY);
+          }
+
+          // Score flash when all answered
+          if (answered === total) {
+            const cpHeading = document.getElementById('cp-heading');
+            if (cpHeading) {
+              const flash = document.createElement('span');
+              flash.className = 'score-flash';
+              flash.textContent = score + '/' + total;
+              cpHeading.appendChild(flash);
+            }
+            // Big confetti burst on perfect score
+            if (score === total) {
+              const h = document.getElementById('cp-heading');
+              if (h) {
+                const r = h.getBoundingClientRect();
+                for (let i = 0; i < 4; i++) {
+                  setTimeout(() => spawnConfetti(r.left + r.width / 2, r.top + window.scrollY), i * 180);
+                }
+              }
+            }
+          }
+        });
       });
-    }
-
-    var exp = document.getElementById(expId);
-    if (exp) exp.classList.add('visible');
-
-    var resetBtn = document.getElementById('q' + q + '-reset');
-    if (resetBtn) { resetBtn.classList.remove('q-reset-hidden'); resetBtn.style.display = 'inline-flex'; }
-  }
-
-  function resetQ(q) {
-    delete answeredQs[q];
-    var qBlock = document.querySelector('[data-q="' + q + '"]');
-    if (!qBlock) return;
-    qBlock = qBlock.closest('.q-block');
-    if (!qBlock) return;
-    qBlock.querySelectorAll('.q-option').forEach(function(opt) {
-      opt.disabled = false;
-      opt.style.cursor = '';
-      opt.classList.remove('correct', 'wrong');
-      opt.querySelector('.q-option-mark').textContent = '';
-    });
-    var exp = qBlock.querySelector('.q-explanation');
-    if (exp) exp.classList.remove('visible');
-    var resetBtn = document.getElementById('q' + q + '-reset');
-    if (resetBtn) { resetBtn.classList.add('q-reset-hidden'); resetBtn.style.display = ''; }
-  }
-
-  // ── U-Net deterministic trace (self-contained) ──────────
-  (function() {
-    'use strict';
-    var ANIM_STEPS = [
-      { visible: ['enc-l1'], kicker: 'Encoder · nhận đầu vào', title: 'Noisy latent đi vào U-Net', copy: 'Tầng đầu giữ resolution cao để đọc cấu trúc cục bộ. Timestep cho mạng biết mức nhiễu hiện tại.', resolution: '64 × 64', info: 'Cạnh + texture + noise', skip: 'Lưu feature L1' },
-      { visible: ['enc-l1', 'enc-l2'], kicker: 'Encoder · downsample', title: 'Nhìn rộng hơn ở resolution thấp hơn', copy: 'Downsampling giảm chiều rộng và chiều cao; nhiều channels hơn cho phép biểu diễn nhiều loại feature.', resolution: '32 × 32', info: 'Hình khối + bố cục cục bộ', skip: 'Lưu feature L2' },
-      { visible: ['enc-l1', 'enc-l2', 'enc-l3'], kicker: 'Encoder · downsample', title: 'Feature ngày càng cô đọng', copy: 'Mỗi ô feature map đại diện vùng lớn hơn của latent, nhưng vị trí chính xác dần khó giữ nếu chỉ đi qua bottleneck.', resolution: '16 × 16', info: 'Cấu trúc lớn hơn', skip: 'Lưu feature L3' },
-      { visible: ['enc-l1', 'enc-l2', 'enc-l3', 'bottleneck-g'], kicker: 'Đáy chữ U · bottleneck', title: 'Ngữ cảnh rộng, vị trí thô', copy: 'Luồng chính đã nén xuống mức nhỏ nhất trong sơ đồ. Đây là đáy chữ U, không phải latent space của VAE.', resolution: '8 × 8', info: 'Ngữ cảnh cô đọng', skip: 'Chưa ghép skip' },
-      { visible: ['enc-l1', 'enc-l2', 'enc-l3', 'bottleneck-g', 'dec-l3', 'skip-l3'], kicker: 'Decoder · upsample + concat', title: 'Skip L3 trả lại tọa độ chi tiết', copy: 'Decoder upsample về 16×16 rồi ghép feature 16×16 đã lưu từ encoder. Hai luồng có cùng resolution nên có thể kết hợp theo vị trí.', resolution: '16 × 16', info: 'Ngữ nghĩa + feature L3', skip: 'Concat L3' },
-      { visible: ['enc-l1', 'enc-l2', 'enc-l3', 'bottleneck-g', 'dec-l3', 'dec-l2', 'skip-l3', 'skip-l2'], kicker: 'Decoder · upsample + concat', title: 'Skip L2 bổ sung cấu trúc trung tần', copy: 'Mỗi tầng decoder nhận cả luồng từ tầng dưới và feature cùng cấp từ encoder — đó là nét ngang của chữ U.', resolution: '32 × 32', info: 'Cấu trúc + vị trí', skip: 'Concat L2' },
-      { visible: ['enc-l1', 'enc-l2', 'enc-l3', 'bottleneck-g', 'dec-l3', 'dec-l2', 'dec-l1', 'skip-l1', 'skip-l2', 'skip-l3'], kicker: 'Decoder · đầu ra', title: 'Khép chữ U và dự đoán denoising target', copy: 'Skip L1 đưa feature resolution cao nhất trở lại. Đầu ra có cùng kích thước không gian với noisy latent để sampler thực hiện bước tiếp theo.', resolution: '64 × 64', info: 'Dự đoán cần cho denoising', skip: 'Concat L1' }
-    ];
-
-    var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    var ALL_ANIM_IDS = ['enc-l1','enc-l2','enc-l3','bottleneck-g','dec-l3','dec-l2','dec-l1','skip-l1','skip-l2','skip-l3'];
-
-    var currentStep = 0;
-    var animTimer = null;
-    var isPlaying = false;
-
-    var btnPrev  = document.getElementById('btn-prev');
-    var btnNext  = document.getElementById('btn-next');
-    var btnPlay  = document.getElementById('btn-play');
-    var btnReset = document.getElementById('btn-reset');
-    var stepLabel = document.getElementById('step-label');
-    var traceKicker = document.getElementById('trace-kicker');
-    var traceTitle = document.getElementById('trace-title');
-    var traceCopy = document.getElementById('trace-copy');
-    var traceResolution = document.getElementById('trace-resolution');
-    var traceInfo = document.getElementById('trace-info');
-    var traceSkip = document.getElementById('trace-skip');
-    if (!btnPrev) return;
-
-    function stopPlay() {
-      clearInterval(animTimer);
-      isPlaying = false;
-      btnPlay.classList.remove('active');
-      btnPlay.setAttribute('aria-pressed', 'false');
-      btnPlay.textContent = '▶ Tự chạy';
-    }
-
-    function renderStep() {
-      var step = ANIM_STEPS[currentStep];
-      ALL_ANIM_IDS.forEach(function(id) {
-        var el = document.getElementById(id);
-        if (!el) return;
-        el.classList.toggle('show', step.visible.indexOf(id) !== -1);
-      });
-      stepLabel.textContent = 'Bước ' + (currentStep + 1) + ' / ' + ANIM_STEPS.length;
-      traceKicker.textContent = step.kicker;
-      traceTitle.textContent = step.title;
-      traceCopy.textContent = step.copy;
-      traceResolution.textContent = step.resolution;
-      traceInfo.textContent = step.info;
-      traceSkip.textContent = step.skip;
-      btnPrev.disabled = currentStep === 0;
-      btnNext.disabled = currentStep === ANIM_STEPS.length - 1;
-    }
-
-    function advanceStep() {
-      if (currentStep >= ANIM_STEPS.length - 1) { stopPlay(); return; }
-      currentStep += 1;
-      renderStep();
-    }
-
-    function togglePlay() {
-      if (isPlaying) { stopPlay(); return; }
-      if (currentStep === ANIM_STEPS.length - 1) currentStep = 0;
-      renderStep();
-      isPlaying = true;
-      btnPlay.classList.add('active');
-      btnPlay.setAttribute('aria-pressed', 'true');
-      btnPlay.textContent = '⏸ Tạm dừng';
-      animTimer = setInterval(advanceStep, prefersReducedMotion ? 2400 : 1600);
-    }
-
-    btnPrev.addEventListener('click', function() { stopPlay(); currentStep = Math.max(0, currentStep - 1); renderStep(); });
-    btnNext.addEventListener('click', function() { stopPlay(); advanceStep(); });
-    btnPlay.addEventListener('click', togglePlay);
-    btnReset.addEventListener('click', function() { stopPlay(); currentStep = 0; renderStep(); });
-    renderStep();
-  })();
-</script>
+    })();
+  </script>
 </body>
 </html>

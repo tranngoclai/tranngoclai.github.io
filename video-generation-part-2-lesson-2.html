@@ -1,1540 +1,1283 @@
 <!DOCTYPE html>
-<html lang="vi" data-theme="dark">
+<html lang="vi" data-theme="dark" data-curriculum-id="dreambooth-trigger">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Scheduler — Lịch trình noise | Video Gen Lab</title>
-  <meta name="description" content="Tìm hiểu Scheduler là gì, các loại lịch trình noise phổ biến (linear, cosine, Karras) và ảnh hưởng của chúng đến quá trình diffusion." />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="video-generation-favicon.svg" />
+  <meta name="description" content="DreamBooth, identifier/trigger convention và DreamBooth-style LoRA: tách paper method khỏi trainer workflow, A/B identity và chẩn đoán fail mode." />
+  <title>Training Design · Bài 2.2 — DreamBooth, Identifier & Trigger</title>
   <script src="video-generation-theme.js"></script>
   <link rel="stylesheet" href="video-generation-design-system.css" />
+  <script src="video-generation-curriculum.js"></script>
+  <script src="video-generation-navigation.js"></script>
   <style>
-    /* ── Hero ── */
-    .hero {
-      position: relative;
-      overflow: hidden;
-      padding: 80px 0 64px;
-      border-bottom: 1px solid var(--line);
-      background:
-        linear-gradient(90deg, transparent 49.8%, color-mix(in srgb, var(--cyan) 8%, transparent) 50%, transparent 50.2%),
-        repeating-linear-gradient(0deg, transparent 0 26px, color-mix(in srgb, var(--line) 45%, transparent) 27px);
-    }
-    .hero::after {
-      content: "";
-      position: absolute;
-      inset: auto 0 0;
-      height: 2px;
-      background: linear-gradient(90deg, transparent, var(--acid), var(--cyan), transparent);
-      opacity: .65;
-      animation: signal-scan 4.8s ease-in-out infinite;
-      pointer-events: none;
-    }
-    @keyframes signal-scan {
-      0%, 100% { opacity: .18; transform: translateX(-35%); }
-      50% { opacity: .8; transform: translateX(35%); }
-    }
+    main { overflow: hidden; }
+    section { scroll-margin-top: 86px; }
+
+    /* ── Hero ──────────────────────────────────────────────── */
+    .hero { padding: 80px 0 64px; border-bottom: 1px solid var(--line); }
     .hero-meta {
-      display: flex;
-      align-items: center;
-      gap: 10px;
       font-family: var(--font-mono);
       font-size: .72rem;
-      letter-spacing: .1em;
+      letter-spacing: .14em;
+      color: var(--dim);
       text-transform: uppercase;
-      color: var(--muted);
-      margin-bottom: 20px;
-      flex-wrap: wrap;
+      margin: 0 0 20px;
     }
-    .hero-meta .part-tag {
-      color: var(--cyan);
-      border: 1px solid color-mix(in srgb, var(--cyan) 40%, transparent);
-      border-radius: 6px;
-      padding: 2px 8px;
-    }
-    .hero-meta .sep { color: var(--line); }
     .hero-title {
-      font-size: clamp(2.2rem, 6vw, 4rem);
+      max-width: 900px;
+      font-size: clamp(2.6rem, 7vw, 5.4rem);
       font-weight: 900;
-      letter-spacing: -.03em;
-      line-height: 1.05;
-      margin: 0 0 10px;
-    }
-    .hero-title em {
-      font-style: normal;
-      color: var(--acid);
-    }
-    .hero-sub {
-      font-family: var(--font-mono);
-      font-size: .88rem;
-      color: var(--muted);
-      margin: 0 0 22px;
-    }
-    .hero-lead {
-      font-size: 1.1rem;
-      color: var(--muted);
-      max-width: 640px;
-      margin: 0 0 32px;
-    }
-    .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; }
-
-    /* ── Reading progress ── */
-    #reading-progress { transition: width .1s linear; }
-
-    /* ── Content sections ── */
-    .lesson-body { padding: 64px 0 80px; }
-    .section { margin-bottom: 72px; }
-    .section-label {
-      font-family: var(--font-mono);
-      font-size: .7rem;
-      text-transform: uppercase;
-      letter-spacing: .14em;
-      color: var(--dim);
-      margin-bottom: 10px;
-    }
-    .section-heading {
-      font-size: clamp(1.5rem, 3.5vw, 2.1rem);
-      font-weight: 800;
-      letter-spacing: -.02em;
-      line-height: 1.15;
-      margin: 0 0 16px;
-    }
-    .section-lead {
-      font-size: 1rem;
-      color: var(--muted);
-      max-width: 700px;
-      margin: 0 0 32px;
-    }
-
-    /* ── Definition panel ── */
-    .def-panel {
-      border-left: 3px solid var(--acid);
-      background: var(--panel);
-      border-radius: 0 var(--radius) var(--radius) 0;
-      padding: 22px 28px;
+      letter-spacing: -.05em;
+      line-height: .96;
       margin: 0 0 24px;
-    }
-    .def-panel .def-term {
-      font-family: var(--font-mono);
-      font-size: .8rem;
-      text-transform: uppercase;
-      letter-spacing: .1em;
-      color: var(--acid);
-      margin-bottom: 8px;
-    }
-    .def-panel p { margin: 0; color: var(--ink); line-height: 1.7; }
-
-    /* ── Schedule types grid ── */
-    .schedule-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 16px;
-      margin-bottom: 32px;
-    }
-    .schedule-card {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 22px 24px;
-      transition: transform .2s ease, border-color .2s ease;
-    }
-    .schedule-card:hover { transform: translateY(-3px); border-color: var(--dim); }
-    .schedule-card .card-accent {
-      display: inline-block;
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      margin-bottom: 12px;
-    }
-    .schedule-card h3 {
-      font-size: 1rem;
-      font-weight: 800;
-      letter-spacing: -.01em;
-      margin: 0 0 6px;
-    }
-    .schedule-card .card-tag {
-      font-family: var(--font-mono);
-      font-size: .68rem;
-      text-transform: uppercase;
-      letter-spacing: .1em;
-      color: var(--dim);
-      margin-bottom: 10px;
-    }
-    .schedule-card p { font-size: .9rem; color: var(--muted); margin: 0; line-height: 1.6; }
-
-    /* ── Comparison panel ── */
-    .compare-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin-bottom: 32px;
-    }
-    .compare-cell {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 22px 24px;
-    }
-    .compare-cell .compare-icon {
-      font-size: 1.2rem;
-      margin-bottom: 8px;
-    }
-    .compare-cell h3 { font-size: 1rem; font-weight: 800; margin: 0 0 8px; }
-    .compare-cell p { font-size: .9rem; color: var(--muted); margin: 0; line-height: 1.6; }
-    .compare-cell.highlight { border-color: color-mix(in srgb, var(--cyan) 40%, transparent); }
-
-    /* ── Interactive chart ── */
-    .chart-lab {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 20px;
-      padding: 28px;
-      margin-bottom: 32px;
-    }
-    .chart-lab-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 12px;
-      margin-bottom: 24px;
-    }
-    .chart-lab-title {
-      font-size: 1rem;
-      font-weight: 800;
-      margin: 0;
-    }
-    .chart-controls {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-    .chart-toggle {
-      min-height: 36px;
-      padding: 6px 14px;
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      background: var(--panel-2);
-      color: var(--muted);
-      font-family: var(--font-mono);
-      font-size: .76rem;
-      letter-spacing: .06em;
-      transition: background .15s, border-color .15s, color .15s;
-    }
-    .chart-toggle[aria-pressed="true"] {
-      border-color: var(--acid-fill);
-      color: var(--ink);
-      background: color-mix(in srgb, var(--acid-fill) 14%, var(--panel-2));
-    }
-    .chart-toggle[aria-pressed="true"].linear-btn { border-color: var(--orange); background: color-mix(in srgb, var(--orange) 12%, var(--panel-2)); color: var(--ink); }
-    .chart-toggle[aria-pressed="true"].cosine-btn { border-color: var(--cyan); background: color-mix(in srgb, var(--cyan) 12%, var(--panel-2)); color: var(--ink); }
-    .chart-toggle[aria-pressed="true"].karras-btn { border-color: var(--acid); background: color-mix(in srgb, var(--acid) 12%, var(--panel-2)); color: var(--ink); }
-
-    .chart-canvas-wrap {
-      position: relative;
-    }
-    #schedule-canvas {
-      display: block;
-      width: 100%;
-      height: auto;
-      border-radius: 10px;
-      background: var(--panel-2);
-    }
-    .chart-legend {
-      display: flex;
-      gap: 20px;
-      margin-top: 16px;
-      flex-wrap: wrap;
-    }
-    .legend-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-family: var(--font-mono);
-      font-size: .75rem;
-      color: var(--muted);
-    }
-    .legend-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-    .chart-description {
-      font-size: .88rem;
-      color: var(--muted);
-      margin-top: 16px;
-      line-height: 1.6;
-      font-style: italic;
-    }
-    .chart-note {
-      font-family: var(--font-mono);
-      font-size: .72rem;
-      letter-spacing: .06em;
-      text-transform: uppercase;
-      color: var(--dim);
-      margin-top: 8px;
-    }
-
-    /* ── Denoising control room ── */
-    .control-room {
-      display: grid;
-      grid-template-columns: minmax(0, 1.3fr) minmax(280px, .7fr);
-      gap: 1px;
-      overflow: hidden;
-      border: 1px solid var(--line);
-      border-radius: 20px;
-      background: var(--line);
-      margin-top: 24px;
-    }
-    .denoise-stage {
-      --noise: .9;
-      --structure: .28;
-      --color-shape: .15;
-      --detail: .04;
-      position: relative;
-      min-height: 390px;
-      overflow: hidden;
-      background: #10171c;
-      isolation: isolate;
-    }
-    .denoise-stage svg {
-      display: block;
-      width: 100%;
-      height: 100%;
-      min-height: 390px;
-      object-fit: cover;
-    }
-    .scene-sky,
-    .scene-mountains,
-    .scene-lake,
-    .scene-details { transition: opacity .3s ease-out, filter .3s ease-out; }
-    .scene-details { opacity: var(--detail, .1); }
-    .scene-mountains { opacity: var(--structure, .35); }
-    .scene-lake { opacity: var(--color-shape, .2); }
-    .noise-field {
-      position: absolute;
-      inset: 0;
-      z-index: 3;
-      opacity: var(--noise, .9);
-      pointer-events: none;
-      background-image:
-        repeating-radial-gradient(circle at 20% 30%, rgba(255,255,255,.75) 0 1px, transparent 1px 4px),
-        repeating-radial-gradient(circle at 70% 60%, rgba(98,231,245,.55) 0 1px, transparent 1px 5px);
-      background-size: 9px 11px, 13px 9px;
-      mix-blend-mode: screen;
-      transition: opacity .3s ease-out;
-      animation: noise-shift .22s steps(2, end) infinite;
-    }
-    .stage-hud {
-      position: absolute;
-      z-index: 4;
-      inset: 16px 16px auto;
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      pointer-events: none;
-      color: #f6f3ea;
-      font-family: var(--font-mono);
-      font-size: .68rem;
-      letter-spacing: .08em;
-      text-transform: uppercase;
-      text-shadow: 0 1px 8px #000;
-    }
-    .stage-phase {
-      position: absolute;
-      z-index: 4;
-      left: 18px;
-      bottom: 18px;
-      max-width: min(430px, calc(100% - 36px));
-      padding: 12px 14px;
-      border: 1px solid rgba(255,255,255,.28);
-      border-radius: 12px;
-      background: rgba(8, 13, 16, .76);
-      color: #f6f3ea;
-      backdrop-filter: blur(10px);
-    }
-    .stage-phase strong { display: block; font-size: .9rem; margin-bottom: 2px; }
-    .stage-phase span { display: block; color: #c3cbce; font-size: .78rem; line-height: 1.45; }
-    .control-console {
-      padding: 24px;
-      background: var(--panel);
-    }
-    .console-kicker {
-      margin: 0 0 8px;
-      color: var(--cyan);
-      font-family: var(--font-mono);
-      font-size: .68rem;
-      letter-spacing: .12em;
-      text-transform: uppercase;
-    }
-    .control-console h3 { margin: 0 0 8px; font-size: 1.15rem; }
-    .console-copy { margin: 0 0 22px; color: var(--muted); font-size: .88rem; }
-    .schedule-picker { border: 0; padding: 0; margin: 0 0 22px; }
-    .schedule-picker legend {
-      margin-bottom: 10px;
-      color: var(--dim);
-      font-family: var(--font-mono);
-      font-size: .7rem;
-      letter-spacing: .08em;
-      text-transform: uppercase;
-    }
-    .schedule-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-    .schedule-choice {
-      position: relative;
-      min-height: 44px;
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      background: var(--panel-2);
-      color: var(--muted);
-      font-family: var(--font-mono);
-      font-size: .72rem;
-      font-weight: 800;
-      transition: border-color .2s ease, background .2s ease, color .2s ease;
-    }
-    .schedule-choice[aria-pressed="true"] {
-      border-color: var(--acid);
-      background: color-mix(in srgb, var(--acid) 12%, var(--panel-2));
       color: var(--ink);
     }
-    .step-control { display: grid; gap: 10px; }
-    .step-label { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-    .step-label label { font-weight: 800; font-size: .88rem; }
-    .step-value { color: var(--acid); font-family: var(--font-mono); font-size: .82rem; }
-    #denoise-step { width: 100%; min-height: 44px; accent-color: var(--acid-fill); cursor: pointer; }
-    .step-scale { display: flex; justify-content: space-between; color: var(--dim); font-family: var(--font-mono); font-size: .64rem; }
-    .play-control {
-      width: 100%;
-      min-height: 48px;
-      margin-top: 18px;
-      border: 1px solid var(--acid-fill);
-      border-radius: 999px;
-      background: var(--acid-fill);
-      color: #111;
-      font-weight: 900;
-      transition: background .2s ease;
-    }
-    .play-control:hover { background: #dcff82; }
-    .sigma-readout {
-      margin: 18px 0 0;
-      padding-top: 16px;
-      border-top: 1px solid var(--line);
+    .hero-title span { color: var(--acid); }
+    .hero-lead {
+      font-size: clamp(1.05rem, 1.8vw, 1.25rem);
       color: var(--muted);
-      font-size: .82rem;
-      line-height: 1.55;
-    }
-    .sigma-readout strong { color: var(--ink); }
-
-    /* ── Knowledge checkpoint ── */
-    .checkpoint {
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      padding: 26px;
-      background: var(--panel);
-      margin-top: 28px;
-    }
-    .checkpoint h3 { margin: 0 0 6px; font-size: 1.05rem; }
-    .checkpoint > p { margin: 0 0 18px; color: var(--muted); font-size: .9rem; }
-    .checkpoint-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .checkpoint-option {
-      min-height: 52px;
-      padding: 10px 14px;
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      background: var(--panel-2);
-      color: var(--ink);
-      text-align: left;
-      font-weight: 800;
-      transition: border-color .2s ease, background .2s ease;
-    }
-    .checkpoint-option:hover { border-color: var(--dim); }
-    .checkpoint-option[data-state="correct"] { border-color: var(--acid); background: color-mix(in srgb, var(--acid) 10%, var(--panel-2)); }
-    .checkpoint-option[data-state="incorrect"] { border-color: var(--orange); background: color-mix(in srgb, var(--orange) 9%, var(--panel-2)); }
-    .checkpoint-feedback { min-height: 48px; margin: 14px 0 0; color: var(--muted); font-size: .88rem; }
-    .checkpoint-feedback strong { color: var(--ink); }
-
-    @keyframes noise-shift {
-      from { transform: translate3d(-2px, 1px, 0); }
-      to { transform: translate3d(2px, -1px, 0); }
-    }
-
-    /* ── Inline-style replacements ── */
-    .accent-dot-orange { background: var(--orange); }
-    .accent-dot-cyan   { background: var(--cyan); }
-    .accent-dot-acid   { background: var(--acid); }
-    .legend-dot-orange { background: var(--orange); }
-    .legend-dot-cyan   { background: var(--cyan); }
-    .legend-dot-acid   { background: var(--acid); }
-    .def-panel-cyan    { border-left-color: var(--cyan); }
-    .def-panel-cyan .def-term { color: var(--cyan); }
-    .live-region { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-    .lesson-nav-meta { font-family: var(--font-mono); font-size: .75rem; color: var(--dim); }
-    .faq-group { margin-top: 24px; }
-
-    /* ── Steps block ── */
-    .step-list { list-style: none; padding: 0; margin: 0 0 32px; display: flex; flex-direction: column; gap: 14px; }
-    .step-item {
-      display: grid;
-      grid-template-columns: 36px 1fr;
-      gap: 14px;
-      align-items: start;
-    }
-    .step-num {
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      border: 1px solid var(--line);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: var(--font-mono);
-      font-size: .78rem;
-      font-weight: 800;
-      color: var(--acid);
-      flex-shrink: 0;
-      margin-top: 2px;
-    }
-    .step-body h4 { font-size: .95rem; font-weight: 800; margin: 0 0 4px; }
-    .step-body p { font-size: .9rem; color: var(--muted); margin: 0; line-height: 1.6; }
-
-    /* ── Note callout ── */
-    .callout {
-      display: flex;
-      gap: 14px;
-      background: color-mix(in srgb, var(--cyan) 8%, var(--panel));
-      border: 1px solid color-mix(in srgb, var(--cyan) 30%, transparent);
-      border-radius: 14px;
-      padding: 18px 22px;
-      margin-bottom: 24px;
-    }
-    .callout-icon { font-size: 1.2rem; flex-shrink: 0; line-height: 1.4; }
-    .callout-body p { margin: 0; font-size: .9rem; color: var(--muted); line-height: 1.65; }
-    .callout-body strong { color: var(--ink); }
-
-    /* ── Disclosure ── */
-    details.faq { margin-bottom: 10px; }
-    details.faq summary {
-      list-style: none;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      padding: 16px 20px;
-      cursor: pointer;
-      font-weight: 700;
-      font-size: .95rem;
-    }
-    details.faq summary::-webkit-details-marker { display: none; }
-    details.faq summary::after {
-      content: '+';
-      font-size: 1.2rem;
-      font-weight: 300;
-      color: var(--dim);
-      flex-shrink: 0;
-    }
-    details.faq[open] summary {
-      border-radius: 12px 12px 0 0;
-      border-bottom-color: transparent;
-    }
-    details.faq[open] summary::after { content: '−'; }
-    .faq-body {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-top: none;
-      border-radius: 0 0 12px 12px;
-      padding: 16px 20px;
-      font-size: .9rem;
-      color: var(--muted);
-      line-height: 1.65;
-    }
-    .faq-body p { margin: 0; }
-
-    /* ── Takeaway block ── */
-    .takeaway {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-top: 3px solid var(--acid);
-      border-radius: 0 0 16px 16px;
-      padding: 28px 32px;
-    }
-    .takeaway-title {
-      font-family: var(--font-mono);
-      font-size: .72rem;
-      text-transform: uppercase;
-      letter-spacing: .14em;
-      color: var(--acid);
-      margin-bottom: 14px;
-    }
-    .takeaway ul {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    .takeaway ul li {
-      display: flex;
-      gap: 10px;
-      font-size: .95rem;
+      max-width: 660px;
+      margin: 0 0 28px;
       line-height: 1.6;
     }
-    .takeaway ul li::before {
-      content: '→';
-      color: var(--acid);
-      font-weight: 800;
-      flex-shrink: 0;
-    }
-
-    /* ── Production run sheet ── */
-    .run-sheet {
-      display: grid;
-      grid-template-columns: minmax(0, 1.3fr) minmax(240px, .7fr);
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      overflow: hidden;
-      background: var(--panel);
-    }
-    .run-table { width: 100%; border-collapse: collapse; }
-    .run-table caption {
-      text-align: left;
-      padding: 22px 24px 12px;
-      font-weight: 800;
-      caption-side: top;
-    }
-    .run-table th,
-    .run-table td { padding: 13px 24px; border-top: 1px solid var(--line); text-align: left; vertical-align: top; }
-    .run-table th {
-      width: 34%;
-      font-family: var(--font-mono);
-      font-size: .68rem;
-      letter-spacing: .1em;
-      text-transform: uppercase;
-      color: var(--dim);
-    }
-    .run-table td { color: var(--muted); font-size: .9rem; }
-    .run-decision {
-      padding: 24px;
-      border-left: 1px solid var(--line);
-      background: linear-gradient(145deg, color-mix(in srgb, var(--acid-fill) 9%, var(--panel-2)), var(--panel-2));
-    }
-    .run-decision .section-label { color: var(--acid); }
-    .run-decision h3 { margin: 10px 0; font-size: 1.15rem; }
-    .run-decision p { color: var(--muted); font-size: .9rem; }
-    .run-verdict {
-      display: block;
-      margin-top: 20px;
-      padding: 13px 14px;
-      border: 1px solid color-mix(in srgb, var(--acid) 40%, var(--line));
-      border-radius: 10px;
-      color: var(--ink);
-      font-weight: 800;
-    }
-
-    /* ── Related knowledge ── */
-    .related-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-    .related-card {
-      min-height: 164px;
-      display: flex;
-      flex-direction: column;
-      padding: 20px;
-      color: var(--ink);
-      text-decoration: none;
-      border: 1px solid var(--line);
-      border-radius: 4px 16px 16px 4px;
-      background: var(--panel);
-      box-shadow: inset 3px 0 0 var(--cyan);
-      transition: transform .2s ease, background .2s ease, box-shadow .2s ease;
-    }
-    .related-card:nth-child(2) { box-shadow: inset 3px 0 0 var(--acid); }
-    .related-card:nth-child(3) { box-shadow: inset 3px 0 0 var(--orange); }
-    .related-card:hover { transform: translateX(4px); background: var(--panel-2); }
-    .related-card:focus-visible { outline: 3px solid var(--cyan); outline-offset: 3px; }
-    .related-tag {
+    .hero-badges { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 30px; }
+    .hero-badge {
       font-family: var(--font-mono);
       font-size: .65rem;
-      letter-spacing: .11em;
+      letter-spacing: .12em;
       text-transform: uppercase;
+      padding: 5px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
       color: var(--dim);
     }
-    .related-card strong { margin: 14px 0 7px; }
-    .related-card span:last-child { color: var(--muted); font-size: .84rem; line-height: 1.5; }
+    .hero-badge.acid { border-color: var(--acid); color: var(--acid); }
+    .hero-badge.cyan { border-color: var(--cyan); color: var(--cyan); }
+    .hero-badge.orange { border-color: var(--orange); color: var(--orange); }
+    .hero-cta-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    .button svg { width: 18px; height: 18px; }
 
-    /* ── Footer ── */
-    .site-footer {
-      border-top: 1px solid var(--line);
-      padding: 40px 0;
+    .label {
+      color: var(--acid);
+      font-family: var(--font-mono);
+      font-size: .76rem;
+      font-weight: 800;
+      letter-spacing: .14em;
+      text-transform: uppercase;
     }
-    .footer-inner {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 16px;
+    h2, h3, p { margin-top: 0; }
+
+    /* ── Section scaffolding ───────────────────────────────── */
+    .content-section { padding-block: 100px; border-top: 1px solid var(--line); }
+    .section-head { display: grid; grid-template-columns: 1fr 1.3fr; gap: 48px; margin-bottom: 54px; align-items: end; }
+    .section-index { color: var(--dim); font-family: var(--font-mono); font-size: .82rem; }
+    h2 { margin: 10px 0 0; font-size: clamp(2.2rem, 5vw, 4.2rem); line-height: 1; letter-spacing: -.055em; }
+    .section-intro { max-width: 670px; margin: 0; color: var(--muted); font-size: 1.08rem; }
+
+    /* ── Definition panel ──────────────────────────────────── */
+    .definition {
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 24px;
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--acid);
+      border-radius: var(--radius);
+      padding: 30px;
+      background: linear-gradient(110deg, rgba(200,255,61,.055), transparent 55%), var(--panel);
     }
-    .footer-brand {
+    .definition strong { color: var(--acid); font-family: var(--font-mono); font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; }
+    .definition p { margin: 0; font-size: clamp(1.25rem, 2.5vw, 1.75rem); line-height: 1.4; }
+
+    .definition.cyan-def {
+      border-left-color: var(--cyan);
+      background: linear-gradient(110deg, rgba(98,231,245,.055), transparent 55%), var(--panel);
+    }
+    .definition.cyan-def strong { color: var(--cyan); }
+
+    /* ── Utility spacing ───────────────────────────────────── */
+    .mt-36 { margin-top: 36px; }
+
+    /* ── Process flow ──────────────────────────────────────── */
+    .process-flow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; align-items: center; margin: 36px 0; }
+    .flow-node {
+      min-height: 140px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      background: var(--panel);
+    }
+    .flow-node strong { display: block; margin-bottom: 7px; font-size: 1rem; }
+    .flow-node span { color: var(--muted); font-size: .78rem; }
+    .flow-node.subject-images { border-color: #4d617a; background: linear-gradient(135deg, rgba(98,231,245,.07), var(--panel)); }
+    .flow-node.fine-tune { border-color: var(--orange); background: linear-gradient(135deg, rgba(255,138,76,.07), var(--panel)); }
+    .flow-node.lora-out { border-color: var(--acid); background: linear-gradient(135deg, rgba(200,255,61,.1), var(--panel)); }
+    .flow-arrow { color: var(--dim); text-align: center; font-size: 1.35rem; }
+
+    /* ── Comparison pair grid ──────────────────────────────── */
+    .pair-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 28px; }
+    .pair-card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 28px;
+      background: var(--panel);
+    }
+    .pair-card .pair-label { font: 800 .76rem var(--font-mono); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 14px; }
+    .pair-card.without .pair-label { color: var(--muted); }
+    .pair-card.with .pair-label { color: var(--acid); }
+    .pair-card.with { border-color: rgba(200,255,61,.3); background: linear-gradient(135deg, rgba(200,255,61,.05), var(--panel)); }
+    .pair-card h3 { font-size: 1.1rem; margin-bottom: 10px; }
+    .pair-card p { color: var(--muted); font-size: .92rem; margin: 0; }
+
+    /* ── Trigger word highlight ────────────────────────────── */
+    .trigger-highlight {
+      display: inline;
+      background: var(--acid);
+      color: #111;
+      font-family: var(--font-mono);
+      font-weight: 800;
+      border-radius: 5px;
+      padding: 0 5px;
+    }
+
+    /* ── Trigger word table ────────────────────────────────── */
+    .trigger-table {
+      width: 100%;
+      border-collapse: collapse;
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin-top: 28px;
+      font-size: .95rem;
+    }
+    .trigger-table thead tr { background: var(--panel-2); }
+    .trigger-table th {
+      text-align: left;
+      padding: 14px 20px;
       font-family: var(--font-mono);
       font-size: .72rem;
-      text-transform: uppercase;
       letter-spacing: .12em;
+      text-transform: uppercase;
       color: var(--dim);
+      border-bottom: 1px solid var(--line);
     }
-    .footer-nav { display: flex; gap: 20px; }
-    .footer-nav a {
-      font-size: .82rem;
-      color: var(--dim);
-      text-decoration: none;
-      transition: color .15s;
+    .trigger-table td {
+      padding: 14px 20px;
+      vertical-align: top;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
     }
-    .footer-nav a:hover { color: var(--ink); }
+    .trigger-table tbody tr { background: var(--panel); }
+    .trigger-table tbody tr:last-child td { border-bottom: none; }
+    .trigger-table .token-cell {
+      font-family: var(--font-mono);
+      font-weight: 800;
+      color: var(--ink);
+    }
+    .verdict { font: 700 .75rem var(--font-mono); letter-spacing: .07em; text-transform: uppercase; }
+    .verdict.good { color: var(--acid); }
+    .verdict.bad { color: var(--red); }
+    .verdict.ok { color: var(--orange); }
 
-    /* ── Lesson nav ── */
-    .lesson-nav {
+    /* ── Interactive prompt builder ─────────────────────────── */
+    .prompt-lab {
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      background: var(--panel);
+      overflow: hidden;
+      box-shadow: 0 24px 80px rgba(0,0,0,.22);
+    }
+    .prompt-lab-header {
       display: flex;
-      justify-content: space-between;
       align-items: center;
       gap: 16px;
-      flex-wrap: wrap;
-      padding: 40px 0;
-      border-top: 1px solid var(--line);
+      padding: 20px 28px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel-2);
+    }
+    .prompt-lab-header .label { margin: 0; }
+    .prompt-lab-header-sub {
+      color: var(--dim);
+      font-size: .82rem;
+      font-family: var(--font-mono);
+    }
+    .prompt-lab-body { display: grid; grid-template-columns: 1fr 1fr; min-height: 380px; }
+    .prompt-lab-controls { padding: 28px; border-right: 1px solid var(--line); }
+    .prompt-lab-output { padding: 28px; }
+
+    .field-group { margin-bottom: 22px; }
+    .field-group label { display: block; font-weight: 800; font-size: .9rem; margin-bottom: 8px; }
+    .field-group input[type="text"] {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--night);
+      color: var(--ink);
+      font: inherit;
+      font-size: .92rem;
+      transition: border-color .2s;
+    }
+    .field-group input[type="text"]:focus { outline: none; border-color: var(--cyan); }
+    .field-group input[type="text"]::placeholder { color: var(--dim); }
+
+    .token-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .token-chip {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 9px 14px;
+      background: var(--panel-2);
+      color: var(--ink);
+      font: 800 .84rem var(--font-mono);
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+    }
+    .token-chip:hover { border-color: var(--acid); background: rgba(200,255,61,.08); }
+    .token-chip.active { border-color: var(--acid); background: rgba(200,255,61,.15); color: var(--acid); }
+    .token-chip .chip-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--dim); }
+    .token-chip.active .chip-dot { background: var(--acid); }
+
+    .prompt-result-label { font: 700 .72rem var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--dim); margin-bottom: 10px; }
+    .prompt-result-label.mb-16 { margin-bottom: 16px; }
+    .prompt-display {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px 16px;
+      background: var(--night);
+      font-size: .95rem;
+      line-height: 1.7;
+      min-height: 56px;
+      margin-bottom: 20px;
+      word-break: break-word;
     }
 
-    /* ── Responsive ── */
-    @media (max-width: 700px) {
-      .compare-grid { grid-template-columns: 1fr; }
-      .control-room { grid-template-columns: 1fr; }
-      .denoise-stage, .denoise-stage svg { min-height: 310px; }
-      .hero { padding: 52px 0 44px; }
-      .lesson-body { padding: 44px 0 60px; }
-      .chart-lab { padding: 20px; }
-      .run-sheet { grid-template-columns: 1fr; }
-      .run-decision { border-left: 0; border-top: 1px solid var(--line); }
-      .related-grid { grid-template-columns: 1fr; }
+    .output-pair { display: grid; gap: 14px; margin-top: 8px; }
+    .output-block {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px 16px;
+      background: var(--night);
+      font-size: .88rem;
     }
-    @media (max-width: 520px) {
-      .control-console { padding: 20px; }
-      .checkpoint { padding: 20px; }
-      .checkpoint-options { grid-template-columns: 1fr; }
-      .stage-hud { font-size: .6rem; }
+    .output-block .out-label {
+      font: 700 .68rem var(--font-mono);
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
     }
-    @media (max-width: 500px) {
+    .output-block.without .out-label { color: var(--muted); }
+    .output-block.with .out-label { color: var(--acid); }
+    .output-block p { margin: 0; color: var(--muted); font-size: .85rem; }
+
+    /* ── Class preservation lab ─────────────────────────────── */
+    .prior-lab { margin-top: 30px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 26px; }
+    .prior-lab-head { display: flex; justify-content: space-between; align-items: center; gap: 18px; margin-bottom: 20px; }
+    .prior-lab-head h3 { margin: 0 0 5px; }
+    .prior-lab-head p { margin: 0; color: var(--muted); font-size: .86rem; }
+    .prior-toggle { min-height: 48px; flex: 0 0 auto; border: 1px solid var(--acid); border-radius: 999px; padding: 9px 15px; background: color-mix(in srgb, var(--acid-fill) 10%, var(--panel)); color: var(--ink); font-weight: 800; }
+    .prior-toggle[aria-pressed="false"] { border-color: var(--red); background: color-mix(in srgb, var(--red) 8%, var(--panel)); }
+    .prior-grid { display: grid; grid-template-columns: .8fr auto 1.4fr; align-items: center; gap: 18px; }
+    .identity-sample, .class-samples { border: 1px solid var(--line); border-radius: 14px; padding: 16px; background: var(--panel-2); }
+    .sample-label { display: block; margin-bottom: 12px; color: var(--dim); font: 700 .65rem var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
+    .prior-arrow { color: var(--dim); font-size: 1.4rem; }
+    .face-row { display: flex; justify-content: space-around; gap: 10px; }
+    .face { position: relative; width: 58px; height: 68px; flex: 0 0 auto; border-radius: 46% 46% 42% 42%; background: var(--face-skin, #cf9b78); border: 2px solid var(--face-hair, #32251e); box-shadow: inset 0 13px 0 var(--face-hair, #32251e); transition: background .3s ease, border-color .3s ease, box-shadow .3s ease, transform .3s ease; }
+    .face::before { content: ""; position: absolute; left: 13px; right: 13px; top: 32px; height: 4px; border-radius: 99px; background: radial-gradient(circle, #172126 0 2px, transparent 3px) left center/16px 4px repeat-x; }
+    .face::after { content: ""; position: absolute; left: 21px; bottom: 12px; width: 13px; height: 5px; border-bottom: 2px solid #8d4e45; border-radius: 50%; }
+    .identity-face { --face-skin: #c78d66; --face-hair: #1c2026; margin-inline: auto; }
+    .identity-face .identity-mark, .stage-face .identity-mark { position: absolute; right: 8px; top: 39px; width: 8px; height: 2px; background: #f6d06c; transform: rotate(-22deg); }
+    .class-face:nth-child(1) { --face-skin: #8c5c43; --face-hair: #171717; }
+    .class-face:nth-child(2) { --face-skin: #efc2a0; --face-hair: #bc7b37; border-radius: 43% 43% 48% 48%; }
+    .class-face:nth-child(3) { --face-skin: #c99a7b; --face-hair: #403029; border-radius: 50% 50% 40% 40%; }
+    .prior-lab[data-preserved="false"] .class-face { --face-skin: #c78d66; --face-hair: #1c2026; border-radius: 46% 46% 42% 42%; transform: scale(.98); }
+    .prior-lab[data-preserved="false"] .class-face::after { border-color: #8d4e45; }
+    .prior-status { min-height: 48px; margin: 16px 0 0; color: var(--muted); font-size: .84rem; }
+    .prior-status strong { color: var(--ink); }
+
+    /* ── Prompt injection visual ────────────────────────────── */
+    .trigger-control-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .trigger-toggle { min-height: 44px; border: 1px solid var(--acid); border-radius: 999px; padding: 8px 13px; background: color-mix(in srgb, var(--acid-fill) 11%, var(--panel)); color: var(--ink); font-weight: 800; }
+    .trigger-toggle[aria-pressed="false"] { border-color: var(--line); background: var(--panel-2); color: var(--muted); }
+    .injection-stage { position: relative; min-height: 220px; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: #101c2b; color: #fff; margin-bottom: 18px; isolation: isolate; }
+    .stage-scene { position: absolute; inset: 0; transition: opacity .32s ease, transform .32s ease, filter .32s ease; }
+    .stage-scene::before, .stage-scene::after { content: ""; position: absolute; }
+    .injection-stage[data-context="paris"] .stage-scene { background: linear-gradient(#7594ac 0 55%, #d8c6a8 56%); }
+    .injection-stage[data-context="paris"] .stage-scene::before { left: 17%; bottom: 31%; width: 35px; height: 100px; background: #2f3940; clip-path: polygon(42% 0, 58% 0, 68% 32%, 100% 100%, 0 100%, 32% 32%); }
+    .injection-stage[data-context="mars"] .stage-scene { background: radial-gradient(circle at 75% 18%, #f4d58b 0 11px, transparent 12px), linear-gradient(#291d36 0 53%, #b64e36 54%); }
+    .injection-stage[data-context="mars"] .stage-scene::before { inset: auto 0 0; height: 45%; background: repeating-radial-gradient(ellipse at 30% 100%, #8b342d 0 12px, #b64e36 14px 34px); }
+    .injection-stage[data-context="studio"] .stage-scene { background: radial-gradient(circle at 50% 34%, #f7e9cd 0 20%, #403d48 58%, #181a21 100%); }
+    .stage-subject { position: absolute; z-index: 2; left: 50%; bottom: 16px; transform: translateX(-50%); transition: opacity .3s ease, filter .3s ease; }
+    .stage-face { --face-skin: #c78d66; --face-hair: #1c2026; width: 74px; height: 86px; box-shadow: inset 0 17px 0 var(--face-hair), 0 16px 24px rgba(0,0,0,.28); }
+    .stage-face::before { left: 21px; right: 21px; top: 40px; }
+    .stage-face::after { left: 29px; bottom: 15px; }
+    .injection-stage[data-trigger="off"] .stage-face { --face-skin: #d7b294; --face-hair: #765236; border-radius: 40% 47% 45% 44%; }
+    .injection-stage[data-trigger="off"] .identity-mark { opacity: 0; }
+    .stage-caption { position: absolute; z-index: 3; inset: auto 12px 12px; display: flex; justify-content: space-between; gap: 10px; pointer-events: none; }
+    .stage-caption span { padding: 5px 8px; border-radius: 6px; background: rgba(4,8,12,.78); color: #fff; font: 700 .64rem var(--font-mono); text-transform: uppercase; letter-spacing: .06em; }
+    .injection-stage.is-transitioning .stage-scene { animation: context-in .42s ease-out; }
+    .injection-stage.is-transitioning .stage-subject { animation: identity-lock .42s ease-out; }
+    @keyframes context-in { from { opacity: .2; transform: scale(1.04); filter: blur(4px); } to { opacity: 1; transform: scale(1); filter: blur(0); } }
+    @keyframes identity-lock { 0% { opacity: .4; transform: translateX(-50%) scale(.92); } 100% { opacity: 1; transform: translateX(-50%) scale(1); } }
+    .context-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 18px; }
+    .context-button { min-height: 44px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); color: var(--muted); font-weight: 800; }
+    .context-button:hover { color: var(--ink); border-color: var(--dim); }
+    .context-button[aria-pressed="true"] { color: var(--ink); border-color: var(--cyan); background: color-mix(in srgb, var(--cyan-fill) 8%, var(--panel)); }
+    .injection-status { min-height: 52px; margin: 0; color: var(--muted); font-size: .82rem; }
+    .injection-status strong { color: var(--ink); }
+
+    /* ── Note block ────────────────────────────────────────── */
+    .note { margin-top: 20px; display: flex; gap: 10px; color: var(--muted); font-size: .82rem; }
+    .note svg { width: 18px; min-width: 18px; color: var(--cyan); margin-top: 3px; }
+
+    /* ── Training steps ────────────────────────────────────── */
+    .training-loop { counter-reset: training; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .training-step {
+      position: relative;
+      min-height: 210px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 58px 22px 24px;
+      background: var(--panel);
+    }
+    .training-step::before {
+      counter-increment: training;
+      content: "0" counter(training);
+      position: absolute;
+      left: 20px;
+      top: 18px;
+      color: var(--orange);
+      font: 800 .76rem var(--font-mono);
+    }
+    .training-step h3 { font-size: 1.05rem; }
+    .training-step p { color: var(--muted); font-size: .88rem; }
+
+    /* ── DreamBooth + LoRA comparison card ─────────────────── */
+    .lora-card {
+      margin-top: 36px;
+      border: 1px solid rgba(200,255,61,.25);
+      border-left: 4px solid var(--acid);
+      border-radius: var(--radius);
+      padding: 30px;
+      background: linear-gradient(110deg, rgba(200,255,61,.055), transparent 55%), var(--panel);
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+    }
+    .lora-card h3 { font-size: 1.4rem; margin-bottom: 12px; }
+    .lora-card p { color: var(--muted); font-size: .92rem; }
+    .lora-card ul { margin: 0; padding-left: 20px; color: var(--muted); font-size: .9rem; }
+    .lora-card ul li { margin-bottom: 6px; }
+    .lora-card .lora-tag {
+      display: inline-block;
+      font: 700 .7rem var(--font-mono);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--acid);
+      margin-bottom: 8px;
+    }
+
+    /* ── Production brief + knowledge links ───────────────── */
+    .scope-grid, .brief-grid, .related-grid { display: grid; gap: 14px; }
+    .scope-grid { grid-template-columns: repeat(3, 1fr); margin-top: 30px; }
+    .scope-card, .brief-card, .related-card {
+      border: 1px solid var(--line); border-radius: 14px; padding: 20px; background: var(--panel);
+    }
+    .scope-card h3, .brief-card h3, .related-card h3 { margin: 7px 0 9px; font-size: 1.05rem; }
+    .scope-card p, .brief-card p, .related-card p { margin: 0; color: var(--muted); font-size: .9rem; line-height: 1.55; }
+    .scope-card .label, .brief-card .label { font-size: .66rem; }
+    .brief-grid { grid-template-columns: repeat(2, 1fr); }
+    .production-brief { border: 1px solid var(--cyan); border-radius: 18px; overflow: hidden; background: var(--panel); }
+    .production-brief > header { padding: 24px 26px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--cyan-fill) 8%, var(--panel)); }
+    .production-brief > header h3 { margin: 7px 0 0; font-size: clamp(1.25rem, 3vw, 1.7rem); }
+    .brief-grid { padding: 22px 26px; }
+    .brief-card { border-left: 3px solid var(--cyan); }
+    .brief-card strong { color: var(--ink); }
+    .related-grid { grid-template-columns: repeat(3, 1fr); }
+    .related-card { display: block; color: inherit; text-decoration: none; min-height: 150px; transition: transform .2s ease, border-color .2s ease; }
+    .related-card:hover { transform: translateY(-2px); border-color: var(--acid); }
+    .related-card .label { color: var(--cyan); }
+    .sources-list { margin: 28px 0 0; padding-left: 20px; color: var(--muted); }
+    .sources-list li { margin: 10px 0; }
+    .sources-list a { color: var(--cyan); }
+
+    /* ── Quiz ──────────────────────────────────────────────── */
+    .quiz-shell { display: grid; grid-template-columns: .72fr 1.28fr; gap: 24px; }
+    .score-card { border-radius: var(--radius); padding: 28px; background: var(--acid); color: #101410; }
+    .score-card .score { display: block; margin: 22px 0 6px; font-size: clamp(3.5rem, 8vw, 6.5rem); font-weight: 900; line-height: .85; letter-spacing: -.07em; }
+    .score-card p { color: #3b4623; }
+    .score-label { color: #344015; }
+    .quiz-card { border: 1px solid var(--line); border-radius: var(--radius); padding: 28px; background: var(--panel); }
+    fieldset { margin: 0; padding: 0; border: 0; }
+    legend { margin-bottom: 20px; font-size: 1.2rem; font-weight: 800; line-height: 1.4; }
+    .answers { display: grid; gap: 10px; }
+    .answer {
+      min-height: 52px;
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px 14px;
+      background: #0e1215;
+      color: var(--ink);
+      text-align: left;
+      transition: border-color .2s, background .2s;
+    }
+    .answer:hover:not(:disabled) { border-color: #657178; background: #161c20; }
+    .answer.correct { border-color: var(--acid); background: rgba(200,255,61,.1); }
+    .answer.wrong { border-color: var(--red); background: rgba(255,107,107,.09); }
+    .answer:disabled { cursor: default; }
+    .feedback { min-height: 78px; margin-top: 16px; border-radius: 12px; padding: 14px; background: #0e1215; color: var(--muted); }
+    .quiz-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 18px; }
+    .quiz-progress { color: var(--dim); font: .76rem var(--font-mono); }
+
+    /* ── Takeaways + next ──────────────────────────────────── */
+    .takeaways { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .takeaway { border-top: 2px solid var(--acid); padding: 22px 0; }
+    .takeaway strong { display: block; margin-bottom: 8px; font-size: 1.1rem; }
+    .takeaway p { color: var(--muted); }
+    .next-card {
+      margin-top: 54px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      border-radius: 22px;
+      padding: 30px;
+      background: var(--cyan);
+      color: #092024;
+    }
+    .next-card p { margin: 5px 0 0; color: #29565c; }
+    .next-card h3 { margin: 6px 0 0; font-size: 1.6rem; }
+    .next-card .button { border-color: #092024; background: #092024; color: #f6f3ea; }
+    .next-label { color: #24535a; }
+
+    /* ── Footer pager ──────────────────────────────────────── */
+    .page-footer {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 16px;
+      padding: 34px 0 52px;
+      border-top: 1px solid var(--line);
+    }
+    .footer-text { color: var(--dim); font: .78rem var(--font-mono); letter-spacing: .06em; margin-right: auto; }
+
+    /* ── Quiz result text ─────────────────────────────────── */
+    .quiz-result-heading { font-size: 1.5rem; margin-bottom: 10px; }
+    .quiz-result-body { color: var(--muted); }
+
+    /* ── Light-mode overrides ──────────────────────────────── */
+    :root[data-theme="light"] .prompt-lab { box-shadow: 0 24px 80px rgba(23,33,38,.12); }
+    :root[data-theme="light"] .field-group input[type="text"],
+    :root[data-theme="light"] .prompt-display,
+    :root[data-theme="light"] .output-block,
+    :root[data-theme="light"] .answer,
+    :root[data-theme="light"] .feedback { background: var(--panel-2); color: var(--ink); }
+    :root[data-theme="light"] .answer:hover:not(:disabled) { border-color: var(--dim); background: #e3e9e5; }
+    :root[data-theme="light"] .score-card { background: #dfff82; color: #172126; }
+    :root[data-theme="light"] .next-card { background: #baf4f7; color: #092024; }
+    :root[data-theme="light"] .token-chip { background: var(--panel); }
+    :root[data-theme="light"] .trigger-highlight { color: #111; }
+
+    /* ── Responsive ────────────────────────────────────────── */
+    @media (max-width: 900px) {
       .topnav { display: none; }
+      .section-head, .quiz-shell { grid-template-columns: 1fr; }
+      .definition { grid-template-columns: 1fr; }
+      .pair-grid { grid-template-columns: 1fr; }
+      .process-flow { grid-template-columns: 1fr; }
+      .flow-arrow { transform: rotate(90deg); min-height: 44px; }
+      .training-loop { grid-template-columns: 1fr 1fr; }
+      .lora-card { grid-template-columns: 1fr; }
+      .scope-grid, .related-grid { grid-template-columns: 1fr; }
+      .prompt-lab-body { grid-template-columns: 1fr; }
+      .prompt-lab-controls { border-right: none; border-bottom: 1px solid var(--line); }
+      .trigger-table { font-size: .85rem; }
+      .trigger-table th, .trigger-table td { padding: 11px 14px; }
+      .prior-grid { grid-template-columns: 1fr; }
+      .prior-arrow { transform: rotate(90deg); text-align: center; }
     }
+
+    @media (max-width: 640px) {
+      .content-section { padding-block: 72px; }
+      .training-loop, .takeaways { grid-template-columns: 1fr; }
+      .training-step { min-height: auto; }
+      .next-card { flex-direction: column; }
+      .hero-cta-row .button { width: 100%; }
+      .trigger-table { display: block; overflow-x: auto; }
+      .prior-lab-head { align-items: flex-start; flex-direction: column; }
+      .prior-toggle { width: 100%; }
+      .context-row { grid-template-columns: 1fr; }
+      .brief-grid { grid-template-columns: 1fr; padding: 18px; }
+      .production-brief > header { padding: 20px 18px; }
+    }
+
     @media (prefers-reduced-motion: reduce) {
-      .hero::after,
-      .noise-field { animation: none; }
-      .schedule-card,
-      .related-card { transition: none; }
+      *, *::before, *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: .01ms !important;
+      }
     }
   </style>
 </head>
 <body>
-  <a class="skip-link" href="#main">Bỏ qua navigation</a>
+  <a class="skip-link" href="#main-content">Bỏ qua điều hướng</a>
 
-  <!-- Topbar -->
-  <header class="topbar" role="banner">
+  <header class="topbar">
     <div class="topbar-inner">
-      <a class="brand" href="index.html" aria-label="Video Gen Lab — Trang chủ">
+      <a class="brand" href="index.html" data-curriculum-home aria-label="Video Gen Lab — về trang chủ">
         <span class="brand-mark" aria-hidden="true"></span>
         VIDEO GEN LAB
       </a>
-      <nav class="topnav" aria-label="Điều hướng chính">
-        <a href="index.html">Trang chủ</a>
-        <a href="video-generation-part-2-lesson-2.html" aria-current="page">Part 2 · Bài 2</a>
+      <nav class="topnav" aria-label="Điều hướng bài học">
+        <a href="video-generation-part-2-lesson-1.html" data-curriculum-prev>← Bài 2.1</a>
+        <a href="index.html" data-curriculum-home>Trang chủ</a>
+        <a href="video-generation-part-2-lesson-3.html" data-curriculum-next>Bài 2.3 →</a>
       </nav>
-    </div>
-    <div class="progress-track" role="presentation" aria-hidden="true">
-      <div class="progress-fill" id="reading-progress"></div>
+      <div class="progress-track" aria-hidden="true"><div class="progress-fill" id="progressFill"></div></div>
     </div>
   </header>
 
-  <main id="main">
-    <!-- Hero -->
-    <section class="hero" aria-labelledby="hero-heading">
+  <main id="main-content">
+    <!-- HERO -->
+    <div class="shell">
+      <section class="hero" aria-labelledby="hero-heading">
+        <p class="hero-meta" data-curriculum-hero-label>TRAINING DESIGN · BÀI 2.2 · IDENTITY</p>
+        <h1 class="hero-title" id="hero-heading">DreamBooth<br />&amp; <span>Trigger Word.</span></h1>
+        <p class="hero-lead">DreamBooth là một phương pháp cá nhân hoá text-to-image bằng tập ảnh nhỏ. Bài này tách rõ phương pháp trong paper, adapter LoRA và quy ước trigger của từng workflow để bạn A/B test identity thay vì tin vào một preset chung.</p>
+        <div class="hero-badges" aria-hidden="true">
+          <span class="hero-badge acid">DreamBooth</span>
+          <span class="hero-badge orange">Trigger Word</span>
+          <span class="hero-badge cyan">DreamBooth + LoRA</span>
+          <span class="hero-badge">Class Preservation</span>
+        </div>
+<!-- OUTPUT ARTIFACT BADGE -->
+<div class="output-artifact" role="note">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+  <span class="output-artifact-label">Đầu ra bài học:</span>
+  <span class="output-artifact-text">Biết cách chọn trigger word, xác định class noun, và thiết lập subject identifier cho DreamBooth-style LoRA training với Wan2.2</span>
+</div>
+        <div class="hero-cta-row">
+          <a class="button primary" href="#demo">
+            Thử Prompt Builder
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m5 12 14 0M13 6l6 6-6 6" /></svg>
+          </a>
+          <a class="button" href="#checkpoint">Kiểm tra hiểu biết</a>
+        </div>
+      </section>
+    </div>
+
+<!-- FLOW POSITION MINI-MAP -->
+<div class="shell">
+  <nav class="flow-minimap" aria-label="Vị trí trong lộ trình">
+    <span class="flow-minimap-label">LỘ TRÌNH</span>
+    <span class="flow-minimap-sep">›</span>
+    <a class="flow-minimap-item" href="video-generation-part-2-lesson-1.html">2.1: Training Brief</a>
+    <span class="flow-minimap-sep">›</span>
+    <strong class="flow-minimap-item current" aria-current="step">2.2: DreamBooth & Trigger</strong>
+    <span class="flow-minimap-sep">›</span>
+    <a class="flow-minimap-item" href="video-generation-part-2-lesson-3.html">2.3: LoRA Mechanics</a>
+  </nav>
+</div>
+
+    <!-- 01 · DREAMBOOTH LÀ GÌ -->
+    <section class="content-section" id="concept" data-nav="Khái niệm">
       <div class="shell">
-        <p class="hero-meta">
-          <span class="part-tag">Part 2 — Sampling / Inference</span>
-          <span class="sep">·</span>
-          <span>Bài 2 / 6</span>
-          <span class="sep">·</span>
-          <span>Intermediate</span>
-        </p>
-        <h1 class="hero-title" id="hero-heading">
-          <em>Scheduler</em> —<br />Lịch trình noise
-        </h1>
-        <p class="hero-sub">KEYWORD: SCHEDULER</p>
-        <p class="hero-lead">
-          Scheduler quy định mức độ nhiễu tại mỗi bước diffusion. Hiểu rõ loại lịch trình
-          nào đang dùng giúp bạn kiểm soát chất lượng video tốt hơn mà không cần tăng số bước.
-        </p>
-        <div class="hero-actions">
-          <a href="#schedule-chart" class="button primary">Xem biểu đồ so sánh</a>
-          <a href="#takeaway" class="button">Tổng kết bài</a>
+        <div class="section-head">
+          <div><span class="section-index">01 / KHÁI NIỆM</span><h2>Dạy model<br />nhận khuôn mặt.</h2></div>
+          <p class="section-intro">Model gốc có prior về lớp “person”, nhưng không có identity của nhân vật chiến dịch. DreamBooth (Ruiz và cộng sự) liên kết một <em>unique identifier</em> với subject và class noun bằng tập tham chiếu nhỏ; paper minh hoạ khoảng 3–5 ảnh, không đặt ngưỡng ảnh phổ quát.</p>
+        </div>
+
+<!-- PREREQUISITE CALLOUT -->
+<div class="prereq-callout" role="note" aria-label="Yêu cầu trước bài học">
+  <div class="prereq-icon" aria-hidden="true">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 8v4m0 4h.01"/></svg>
+  </div>
+  <div>
+    <p class="prereq-title">Cần biết trước</p>
+    <p class="prereq-body">Bài này yêu cầu đọc Training Brief (2.1) để biết mục tiêu training và exemplar dataset đã được định nghĩa.</p>
+    <a class="prereq-link" href="video-generation-part-2-lesson-1.html">← Xem lại bài trước: Training Brief</a>
+  </div>
+</div>
+
+        <div class="definition">
+          <strong>DreamBooth</strong>
+          <p><b>Trong paper, DreamBooth</b> fine-tune model text-to-image để gắn một <em>identifier</em> với subject trong prompt có class noun, ví dụ <code>“a [V] dog”</code>. Identifier có thể bị tokenizer tách thành nhiều token; điều quan trọng là nó được dùng nhất quán trong run đó, không phải cứ một chuỗi lạ là tự động “trống nghĩa”.</p>
+        </div>
+
+        <div class="pair-grid mt-36">
+          <article class="pair-card without">
+            <div class="pair-label">Model gốc — không biết</div>
+            <h3>Prompt: "a photo of a person"</h3>
+            <p>Model sinh ra một người ngẫu nhiên. Không có cách nào ra đúng khuôn mặt của Lan, chiếc xe đặc biệt của bạn, hay phong cách vẽ riêng của một nghệ sĩ.</p>
+          </article>
+          <article class="pair-card with">
+            <div class="pair-label">Sau DreamBooth — biết</div>
+            <h3>Prompt: "a photo of <span class="trigger-highlight">sks</span> person"</h3>
+            <p>Nếu captions và inference convention của run đều dùng <code>sks person</code>, identifier có thể gọi identity đã học. Nhưng đây là hành vi của run/model cụ thể; một LoRA khác có thể dùng class token, caption khác hoặc không công bố trigger.</p>
+          </article>
+        </div>
+
+        <div class="note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+          <span><strong>Phạm vi:</strong> paper DreamBooth đánh giá text-to-image subject-driven generation. Không suy ra rằng một DreamBooth/LoRA image model sẽ giữ identity trong video; temporal consistency cần được kiểm tra trong pipeline video riêng.</span>
         </div>
       </div>
     </section>
 
-    <div class="lesson-body">
+    <!-- 02 · CÁCH HOẠT ĐỘNG -->
+    <section class="content-section" id="how-it-works" data-nav="Cách hoạt động">
       <div class="shell">
+        <div class="section-head">
+          <div><span class="section-index">02 / CƠ CHẾ</span><h2>Hai luồng dữ liệu<br />trong fine-tuning.</h2></div>
+          <p class="section-intro">Paper đề xuất class-specific prior preservation để khuyến khích prior của class. Trong Diffusers, đây là lựa chọn <code>--with_prior_preservation</code> với <code>--class_prompt</code> và class images; availability, defaults và tác động phụ thuộc script/version.</p>
+        </div>
 
-        <!-- Section 1: Definition -->
-        <section class="section" aria-labelledby="s1-heading">
-          <p class="section-label">01 — Định nghĩa</p>
-          <h2 class="section-heading" id="s1-heading">Scheduler là gì?</h2>
-          <p class="section-lead">
-            Trước khi đi vào chi tiết từng loại, hãy nắm chắc khái niệm cốt lõi.
-          </p>
+        <div class="training-loop">
+          <article class="training-step">
+            <h3>Ảnh chủ thể</h3>
+            <p>Tập ảnh subject + instance prompt, ví dụ <code>"a photo of <strong>sks</strong> person"</code>. Đa dạng pose/ánh sáng là giả thuyết dữ liệu cần kiểm tra bằng validation, không phải số lượng ảnh tự bảo đảm.</p>
+          </article>
+          <article class="training-step">
+            <h3>Ảnh lớp chung</h3>
+            <p>Class images cùng class, với class prompt như <code>"a photo of a person"</code>. Diffusers có thể sinh chúng từ base model khi bật prior preservation.</p>
+          </article>
+          <article class="training-step">
+            <h3>Loss kép</h3>
+            <p>Fine-tuning tối thiểu hoá cả hai loss: <em>tái tạo chủ thể</em> và <em>giữ nguyên lớp chung</em>. Gọi là <strong>Prior Preservation Loss</strong>.</p>
+          </article>
+          <article class="training-step">
+            <h3>Kết quả</h3>
+            <p>Trong mục tiêu của run, identifier + class có thể gọi subject; prior preservation nhằm giữ class prompt control có tính đa dạng. Cả hai cần validation thực tế.</p>
+          </article>
+        </div>
 
-          <div class="def-panel">
-            <p class="def-term">Scheduler</p>
-            <p>
-              Scheduler (lịch trình noise) là bảng quy định giá trị sigma (σ) hoặc beta (β)
-              tại mỗi timestep trong quá trình diffusion. Nói đơn giản, nó trả lời câu hỏi:
-              <strong>"Ở bước t, mức noise là bao nhiêu?"</strong>
-            </p>
+        <div class="prior-lab" id="prior-lab" data-preserved="true">
+          <div class="prior-lab-head">
+            <div>
+              <h3>Class preservation switch</h3>
+              <p>Quan sát prior “person” khi training có hoặc không có ảnh lớp chung.</p>
+            </div>
+            <button class="prior-toggle" id="prior-toggle" type="button" aria-pressed="true">Mô phỏng preservation: Bật</button>
           </div>
-
-          <p>
-            Trong quá trình training, mô hình học cách khử nhiễu từ ảnh gốc được thêm noise
-            theo một lịch trình cụ thể. Khi inference (sinh ảnh/video), scheduler xác định
-            chuỗi sigma từ mức noise cao nhất (timestep T) xuống gần 0, tức là từ "hoàn toàn là noise"
-            tiến dần về ảnh sắc nét.
-          </p>
-
-          <div class="callout" role="note">
-            <span class="callout-icon" aria-hidden="true">i</span>
-            <div class="callout-body">
-              <p>
-                <strong>Sigma (σ) hay Beta (β)?</strong> — Beta thường biểu diễn lượng variance
-                được thêm ở từng bước trong forward process; sigma biểu diễn noise level mà
-                sampler đang xử lý. Chúng liên hệ toán học nhưng không phải hai tên thay thế
-                trực tiếp cho cùng một ô cấu hình.
-              </p>
+          <div class="prior-grid" aria-hidden="true">
+            <div class="identity-sample">
+              <span class="sample-label">Instance · “sks person”</span>
+              <div class="face identity-face"><span class="identity-mark"></span></div>
             </div>
-          </div>
-        </section>
-
-        <!-- Section 2: Types -->
-        <section class="section" aria-labelledby="s2-heading">
-          <p class="section-label">02 — Các loại phổ biến</p>
-          <h2 class="section-heading" id="s2-heading">Ba lịch trình chính</h2>
-          <p class="section-lead">
-            Mỗi schedule phân bổ noise theo cách khác nhau. Cách phân bổ đó ảnh hưởng trực tiếp
-            đến chất lượng hình ảnh cuối cùng.
-          </p>
-
-          <div class="schedule-grid">
-            <div class="schedule-card">
-              <span class="card-accent accent-dot-orange" aria-hidden="true"></span>
-              <p class="card-tag">Linear Schedule</p>
-              <h3>Tuyến tính</h3>
-              <p>
-                Sigma giảm đều đặn từ max xuống min ở mỗi bước. Đơn giản nhất, nhưng dành
-                quá nhiều bước ở vùng noise rất cao hoặc rất thấp — nơi không có nhiều thông tin.
-                Kết quả thường kém hơn các schedule hiện đại.
-              </p>
-            </div>
-            <div class="schedule-card">
-              <span class="card-accent accent-dot-cyan" aria-hidden="true"></span>
-              <p class="card-tag">Cosine Schedule</p>
-              <h3>Hình Cosine</h3>
-              <p>
-                Sigma thay đổi theo đường cong cosine: chậm ở đầu và cuối, nhanh ở giữa.
-                Phân bổ bước sampling hợp lý hơn, ít mất thông tin hơn so với linear.
-                Được dùng phổ biến trong nhiều mô hình thế hệ thứ hai.
-              </p>
-            </div>
-            <div class="schedule-card">
-              <span class="card-accent accent-dot-acid" aria-hidden="true"></span>
-              <p class="card-tag">Karras Schedule</p>
-              <h3>Karras</h3>
-              <p>
-                Lịch trình được tối ưu bởi Karras et al. (2022). Tập trung nhiều bước
-                sampling hơn vào vùng sigma thấp — nơi chi tiết tinh tế được hình thành.
-                Nó phổ biến trong các pipeline hỗ trợ sigma schedule, nhưng không phải
-                mặc định đúng cho mọi model hay mọi node.
-              </p>
+            <span class="prior-arrow">→</span>
+            <div class="class-samples">
+              <span class="sample-label">Class prior · “a person”</span>
+              <div class="face-row">
+                <div class="face class-face"></div>
+                <div class="face class-face"></div>
+                <div class="face class-face"></div>
+              </div>
             </div>
           </div>
-        </section>
+          <p class="prior-status" id="prior-status" aria-live="polite"><strong>Mô phỏng: prior được giữ.</strong> Control “a person” còn đa dạng trong tình huống minh hoạ này.</p>
+        </div>
 
-        <!-- Section 3: Interactive chart -->
-        <section class="section" aria-labelledby="s3-heading">
-          <p class="section-label">03 — Trực quan hóa</p>
-          <h2 class="section-heading" id="s3-heading">So sánh ba lịch trình</h2>
-          <p class="section-lead">
-            Bật/tắt từng đường cong để quan sát cách mỗi schedule phân bổ sigma qua các bước.
-            Trục X là bước inference (1 → N), trục Y là mức sigma (noise level).
-          </p>
+        <div class="definition cyan-def mt-36">
+          <strong>Prior Preservation</strong>
+          <p><b>Language drift</b> xảy ra khi fine-tuning quá mức khiến từ <em>person</em> luôn ra mặt của bạn. Class preservation loss ngăn điều này bằng cách nhắc model nhớ rằng <em>person</em> vẫn là lớp chung.</p>
+        </div>
 
-          <div class="chart-lab" id="schedule-chart">
-            <div class="chart-lab-header">
-              <h3 class="chart-lab-title">Phân bổ Sigma theo các lịch trình</h3>
-              <div class="chart-controls" role="group" aria-label="Bật tắt đường cong">
-                <button class="chart-toggle linear-btn" data-curve="linear" aria-pressed="true" type="button">Linear</button>
-                <button class="chart-toggle cosine-btn" data-curve="cosine" aria-pressed="true" type="button">Cosine</button>
-                <button class="chart-toggle karras-btn" data-curve="karras" aria-pressed="true" type="button">Karras</button>
-              </div>
-            </div>
+        <div class="note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+          <span><strong>Heuristic dữ liệu:</strong> ảnh lặp nền/pose có thể làm validation kém tổng quát, nhưng không có ngưỡng “dưới 5” hay số ảnh tối ưu cho mọi base model. Giữ một prompt/seed validation cố định để so các checkpoint.</span>
+        </div>
+      </div>
+    </section>
 
-            <div class="chart-canvas-wrap">
-              <canvas id="schedule-canvas" width="900" height="380"
-                aria-label="Biểu đồ so sánh đường cong sigma theo bước inference cho ba loại scheduler: Linear, Cosine và Karras"
-                role="img">
-                <p>Biểu đồ mô tả sự phân bổ sigma (mức noise) qua 20 bước inference:
-                  Linear giảm đều, Cosine giảm theo hình chữ S, Karras tập trung nhiều bước ở vùng sigma thấp.</p>
-              </canvas>
-            </div>
+    <!-- 03 · TRIGGER WORD -->
+    <section class="content-section" id="trigger-word" data-nav="Trigger Word">
+      <div class="shell">
+        <div class="section-head">
+          <div><span class="section-index">03 / PROMPT CONVENTION</span><h2>Identifier + class<br />của một run.</h2></div>
+          <p class="section-intro">“Trigger word” là cách nhiều trainer/LoRA card gọi identifier hoặc caption token dùng khi inference; đó không phải tham số chuẩn của DreamBooth paper. Hãy lấy convention từ dataset/config/model card của chính artifact và thử nghiệm thay vì suy đoán theo tên file.</p>
+        </div>
 
-            <div class="chart-legend" aria-label="Chú thích biểu đồ">
-              <div class="legend-item">
-                <span class="legend-dot legend-dot-orange" aria-hidden="true"></span>
-                <span>Linear — đều đặn</span>
-              </div>
-              <div class="legend-item">
-                <span class="legend-dot legend-dot-cyan" aria-hidden="true"></span>
-                <span>Cosine — chậm đầu/cuối, nhanh giữa</span>
-              </div>
-              <div class="legend-item">
-                <span class="legend-dot legend-dot-acid" aria-hidden="true"></span>
-                <span>Karras — tập trung vào vùng sigma thấp</span>
-              </div>
-            </div>
+        <div class="definition">
+          <strong>Trigger Word</strong>
+          <p>Một <b>trigger convention</b> là cụm identifier + class/caption mà một run đã dùng, ví dụ <code>“sks person”</code>. Nó chỉ có ý nghĩa khi trainer đã thấy đúng convention đó trong training. Chuỗi như <code>sks</code> hay <code>ohwx</code> chỉ là ví dụ, không phải danh sách token “tốt” cho mọi tokenizer.</p>
+        </div>
 
-            <p class="chart-description">
-              Chú ý: Karras và Cosine có nhiều bước hơn ở vùng sigma thấp (chi tiết ảnh),
-              trong khi Linear phân bổ bước đồng đều không phân biệt vùng quan trọng.
-            </p>
-            <p class="chart-note">Số bước = 20 · Sigma max = 14.6 · Sigma min ≈ 0.03</p>
-            <p id="chart-status" class="live-region" aria-live="polite" aria-atomic="true"></p>
+        <table class="trigger-table" aria-label="Các candidate identifier và giả thuyết collision">
+          <thead>
+            <tr>
+              <th scope="col">Token</th>
+              <th scope="col">Vai trò thử nghiệm</th>
+              <th scope="col">Lý do</th>
+              <th scope="col">Kết quả</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="token-cell">sks</td>
+              <td><span class="verdict good">CANDIDATE</span></td>
+              <td>Identifier minh hoạ; tokenizer/base model có thể tách chuỗi này theo cách riêng.</td>
+              <td>Chỉ đánh giá được bằng validation của run; dùng nhất quán với class noun.</td>
+            </tr>
+            <tr>
+              <td class="token-cell">ohwx</td>
+              <td><span class="verdict good">CANDIDATE</span></td>
+              <td>Identifier minh hoạ khác, không phải preset của Diffusers hay DreamBooth paper.</td>
+              <td>Kiểm tra tokenization và model card trước khi lấy làm trigger.</td>
+            </tr>
+            <tr>
+              <td class="token-cell">zkj</td>
+              <td><span class="verdict good">CANDIDATE</span></td>
+              <td>Chuỗi tự chọn; “hiếm” trong văn bản không chứng minh nó là một token đơn.</td>
+              <td>Một candidate A/B, không phải bảo đảm kết quả.</td>
+            </tr>
+            <tr>
+              <td class="token-cell">john</td>
+              <td><span class="verdict ok">COLLISION RISK</span></td>
+              <td>Identifier có prior ngữ nghĩa mạnh trong base model.</td>
+              <td>Đặt rủi ro collision thành giả thuyết để test, không kết luận trước.</td>
+            </tr>
+            <tr>
+              <td class="token-cell">person</td>
+              <td><span class="verdict bad">KHÔNG DÙNG LÀM ID</span></td>
+              <td>Class noun không nên bị nhầm với identifier trong instance prompt.</td>
+              <td>Có thể làm identity/class bị lẫn; prior-preservation và validation dùng để chẩn đoán.</td>
+            </tr>
+            <tr>
+              <td class="token-cell">beautiful</td>
+              <td><span class="verdict bad">KHÔNG DÙNG LÀM ID</span></td>
+              <td>Tính từ mô tả đã có semantics ở base model.</td>
+              <td>Không phải identifier trung tính; nếu dùng, so với control prompt để đo interference.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+          <span><strong>Quy tắc thao tác, không phải định luật:</strong> log instance prompt/captions và dùng chúng nhất quán trong một run để diễn giải A/B. Nếu artifact do người khác train, đọc model card/workflow trước: một số LoRA không yêu cầu identifier riêng.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 04 · DREAMBOOTH + LoRA -->
+    <section class="content-section" id="lora" data-nav="DreamBooth + LoRA">
+      <div class="shell">
+        <div class="section-head">
+          <div><span class="section-index">04 / DREAMBOOTH + LoRA</span><h2>Kỹ thuật hiện đại:<br />nhỏ gọn &amp; hiệu quả.</h2></div>
+          <p class="section-intro">DreamBooth paper báo cáo fine-tuning các layer; LoRA là kỹ thuật parameter-efficient khác, đóng băng base weights và thêm low-rank trainable updates. “DreamBooth LoRA” là tên workflow kết hợp objective/data convention với LoRA, không phải bản thân phương pháp gốc.</p>
+        </div>
+
+        <div class="process-flow" aria-label="Quy trình DreamBooth + LoRA">
+          <div class="flow-node subject-images">
+            <strong>Tập subject<br />+ prompt log</strong>
+            <span>identifier + class<br />của run</span>
           </div>
-
-          <div class="control-room" aria-labelledby="control-room-heading">
-            <div class="denoise-stage" id="denoise-stage">
-              <svg viewBox="0 0 720 440" role="img" aria-labelledby="scene-title scene-desc" preserveAspectRatio="xMidYMid slice">
-                <title id="scene-title">Cảnh hồ trên núi được khử nhiễu theo từng bước</title>
-                <desc id="scene-desc">Khi tăng bước inference, bố cục núi và hồ xuất hiện trước, sau đó màu sắc ổn định và cuối cùng các chi tiết như cây, phản chiếu và chim trở nên rõ hơn.</desc>
-                <defs>
-                  <linearGradient id="sky-gradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0" stop-color="#173b55" />
-                    <stop offset="1" stop-color="#e18a58" />
-                  </linearGradient>
-                  <linearGradient id="lake-gradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0" stop-color="#31566b" />
-                    <stop offset="1" stop-color="#0e242f" />
-                  </linearGradient>
-                </defs>
-                <rect class="scene-sky" width="720" height="440" fill="url(#sky-gradient)" />
-                <circle class="scene-details" cx="564" cy="100" r="46" fill="#ffd98a" />
-                <g class="scene-mountains">
-                  <path d="M0 260 150 94 258 238 368 126 530 260Z" fill="#273c44" />
-                  <path d="M260 260 468 70 720 260Z" fill="#1e3038" />
-                  <path d="m122 125 28-31 25 39-24-10-18 15Z" fill="#d5d8d1" opacity=".78" />
-                  <path d="m420 120 48-50 45 55-40-18-30 23Z" fill="#d5d8d1" opacity=".78" />
-                </g>
-                <path class="scene-lake" d="M0 240h720v200H0z" fill="url(#lake-gradient)" />
-                <g class="scene-details" fill="none" stroke="#f2b879" stroke-width="3" opacity=".75">
-                  <path d="M454 276c72-22 146-22 218 0M420 302c92-24 188-24 280 0M470 332c56-13 112-13 168 0" />
-                </g>
-                <g class="scene-details" fill="#10262d">
-                  <path d="M52 324 78 224l26 100ZM92 336l35-132 35 132ZM580 334l31-118 31 118ZM630 348l38-144 38 144Z" />
-                </g>
-                <g class="scene-details" fill="none" stroke="#172126" stroke-width="3" stroke-linecap="round">
-                  <path d="m156 76 10-6 10 6m-2 18 10-6 10 6" />
-                </g>
-              </svg>
-              <div class="noise-field" aria-hidden="true"></div>
-              <div class="stage-hud" aria-hidden="true">
-                <span id="hud-schedule">Karras schedule</span>
-                <span id="hud-step">Step 01 / 20</span>
-              </div>
-              <div class="stage-phase" aria-hidden="true">
-                <strong id="phase-name">Pha 1 · Dựng bố cục</strong>
-                <span id="phase-copy">Noise còn cao: mô hình đang tìm đường chân trời, khối núi và vùng sáng lớn.</span>
-              </div>
-            </div>
-
-            <div class="control-console">
-              <p class="console-kicker">Interactive lab</p>
-              <h3 id="control-room-heading">Theo dõi một cảnh thành hình</h3>
-              <p class="console-copy">Đổi schedule, kéo từng bước và quan sát thời điểm bố cục, màu và chi tiết xuất hiện.</p>
-
-              <fieldset class="schedule-picker">
-                <legend>Chọn lịch trình</legend>
-                <div class="schedule-options">
-                  <button class="schedule-choice" type="button" data-schedule="linear" aria-pressed="false">Linear</button>
-                  <button class="schedule-choice" type="button" data-schedule="cosine" aria-pressed="false">Cosine</button>
-                  <button class="schedule-choice" type="button" data-schedule="karras" aria-pressed="true">Karras</button>
-                </div>
-              </fieldset>
-
-              <div class="step-control">
-                <div class="step-label">
-                  <label for="denoise-step">Bước inference</label>
-                  <output class="step-value" id="step-output" for="denoise-step">01 / 20</output>
-                </div>
-                <input id="denoise-step" type="range" min="1" max="20" value="1" step="1" />
-                <div class="step-scale" aria-hidden="true"><span>Noise cao</span><span>Chi tiết</span></div>
-              </div>
-
-              <button class="play-control" id="play-denoise" type="button" aria-pressed="false">Phát 20 bước</button>
-              <p class="sigma-readout" id="sigma-readout" aria-live="polite"><strong>σ 14.60</strong> · Gần như toàn bộ là noise; ưu tiên cấu trúc lớn.</p>
-            </div>
+          <div class="flow-arrow" aria-hidden="true">→</div>
+          <div class="flow-node fine-tune">
+            <strong>Objective/data<br />DreamBooth-style</strong>
+            <span>prior preservation<br />nếu script hỗ trợ</span>
           </div>
-        </section>
-
-        <!-- Section 4: Why it matters -->
-        <section class="section" aria-labelledby="s4-heading">
-          <p class="section-label">04 — Tại sao quan trọng</p>
-          <h2 class="section-heading" id="s4-heading">Cùng số bước, chất lượng khác nhau</h2>
-          <p class="section-lead">
-            Không phải cứ thêm bước là ảnh tốt hơn. Cách phân bổ bước mới là yếu tố quyết định.
-          </p>
-
-          <ul class="step-list" role="list">
-            <li class="step-item">
-              <span class="step-num" aria-hidden="true">1</span>
-              <div class="step-body">
-                <h4>Vùng sigma cao — xây cấu trúc lớn</h4>
-                <p>Các bước đầu (sigma cao) xác định bố cục tổng thể: hình dạng, màu sắc lớn, vị trí đối tượng.
-                   Không cần quá nhiều bước ở đây.</p>
-              </div>
-            </li>
-            <li class="step-item">
-              <span class="step-num" aria-hidden="true">2</span>
-              <div class="step-body">
-                <h4>Vùng sigma thấp — hoàn thiện chi tiết</h4>
-                <p>Các bước cuối (sigma thấp) quyết định độ nét, texture, và chi tiết nhỏ.
-                   Đây là vùng Karras và Cosine phân bổ nhiều bước hơn.</p>
-              </div>
-            </li>
-            <li class="step-item">
-              <span class="step-num" aria-hidden="true">3</span>
-              <div class="step-body">
-                <h4>Linear "lãng phí" bước ở vùng noise cao</h4>
-                <p>Với Linear, nhiều bước bị dùng ở vùng sigma rất cao, nơi mô hình chỉ làm
-                   việc thô. Kết quả: chi tiết cuối kém hơn dù tốn cùng số bước.</p>
-              </div>
-            </li>
-            <li class="step-item">
-              <span class="step-num" aria-hidden="true">4</span>
-              <div class="step-body">
-                <h4>Cosine / Karras hiệu quả hơn</h4>
-                <p>Bằng cách dồn bước về vùng sigma thấp, hai schedule này cho chất lượng
-                   ảnh/video tốt hơn với cùng số bước inference.</p>
-              </div>
-            </li>
-          </ul>
-
-          <div class="callout" role="note">
-            <span class="callout-icon" aria-hidden="true">i</span>
-            <div class="callout-body">
-              <p>
-                <strong>Thực tế:</strong> Hãy bắt đầu từ scheduler được workflow/model khuyến nghị.
-                Khi A/B, giữ nguyên seed, prompt, sampler và số steps; scheduler tốt hơn là scheduler
-                cho clip ổn định hơn trong pipeline cụ thể, không phải cái có tên “hiện đại” hơn.
-              </p>
-            </div>
+          <div class="flow-arrow" aria-hidden="true">→</div>
+          <div class="flow-node lora-out">
+            <strong>LoRA adapter<br />hoặc checkpoint</strong>
+            <span>format/size phụ thuộc<br />base + target modules</span>
           </div>
-        </section>
+        </div>
 
-        <section class="section" aria-labelledby="production-heading">
-          <p class="section-label">05 — Production test</p>
-          <h2 class="section-heading" id="production-heading">A/B scheduler như một shot thật</h2>
-          <p class="section-lead">
-            Đừng đổi cả prompt, seed và scheduler cùng lúc. Một test hữu ích phải cô lập đúng một biến và chấm cả chuyển động, không chỉ frame cuối.
-          </p>
-          <div class="run-sheet">
-            <table class="run-table">
-              <caption>Shot quảng cáo · chai nước hoa xoay trên mặt kính · 5 giây</caption>
-              <tbody>
-                <tr><th scope="row">Giữ cố định</th><td>Model, prompt, negative prompt, seed 28491, 81 frames, 16 FPS, CFG và 20 steps.</td></tr>
-                <tr><th scope="row">Run A</th><td>Linear — kiểm tra silhouette chai, nhãn và phản chiếu qua toàn bộ clip.</td></tr>
-                <tr><th scope="row">Run B</th><td>Karras — chỉ đổi lịch trình sigma; render cùng resolution và cùng pipeline.</td></tr>
-                <tr><th scope="row">Chấm điểm</th><td>Bố cục 25% · motion coherence 35% · nhãn/texture 25% · flicker 15%.</td></tr>
-              </tbody>
-            </table>
-            <aside class="run-decision" aria-label="Cách ra quyết định">
-              <p class="section-label">Decision rule</p>
-              <h3>Chọn clip ổn định hơn, không chọn frame đẹp nhất</h3>
-              <p>Karras có thể dành nhiều bước cho vùng noise thấp, nhưng scheduler không tự chữa prompt sai, camera motion quá khó hay temporal flicker do model.</p>
-              <span class="run-verdict">So sánh clip-to-clip, cùng seed.</span>
-            </aside>
-          </div>
-        </section>
-
-        <!-- Section 5: Scheduler vs Sampler -->
-        <section class="section" aria-labelledby="s5-heading">
-          <p class="section-label">06 — Phân biệt</p>
-          <h2 class="section-heading" id="s5-heading">Scheduler vs. Sampler</h2>
-          <p class="section-lead">
-            Hai khái niệm này hay bị nhầm lẫn vì đều liên quan đến quá trình inference.
-          </p>
-
-          <div class="compare-grid">
-            <div class="compare-cell">
-              <div class="compare-icon" aria-hidden="true">S</div>
-              <h3>Scheduler</h3>
-              <p>
-                Định nghĩa <strong>danh sách các điểm dừng</strong> — sigma tại mỗi bước.
-                Nó trả lời: <em>"Ở bước này, mức noise là bao nhiêu?"</em>
-                Scheduler là bản đồ đường đi, không phải cách đi.
-              </p>
-            </div>
-            <div class="compare-cell highlight">
-              <div class="compare-icon" aria-hidden="true">M</div>
-              <h3>Sampler</h3>
-              <p>
-                Quyết định <strong>cách di chuyển</strong> giữa các điểm sigma đó.
-                Ví dụ: DPM++, Euler, DDIM đều có thể dùng chung một Karras schedule,
-                nhưng cách tính gradient và cập nhật khác nhau.
-              </p>
-            </div>
-          </div>
-
-          <div class="def-panel def-panel-cyan">
-            <p class="def-term">Ví dụ thực tế</p>
-            <p>
-              Bạn chọn <strong>"DPM++ 2M Karras"</strong> trong ComfyUI: DPM++ 2M là
-              <em>sampler</em> (phương pháp giải ODE), Karras là <em>scheduler</em>
-              (lịch trình sigma). Chúng kết hợp với nhau — bạn có thể đổi thành
-              "Euler Karras" hoặc "DPM++ 2M Cosine" một cách độc lập.
-            </p>
-          </div>
-
-          <div class="checkpoint" aria-labelledby="checkpoint-heading">
-            <h3 id="checkpoint-heading">Kiểm tra nhanh · Ai chịu trách nhiệm?</h3>
-            <p>Trong “DPM++ 2M Karras”, thành phần nào quyết định danh sách mức sigma?</p>
-            <div class="checkpoint-options">
-              <button class="checkpoint-option" type="button" data-answer="sampler">DPM++ 2M · Sampler</button>
-              <button class="checkpoint-option" type="button" data-answer="scheduler">Karras · Scheduler</button>
-            </div>
-            <p class="checkpoint-feedback" id="checkpoint-feedback" aria-live="polite">Chọn một đáp án để tự kiểm tra.</p>
-          </div>
-
-          <div class="faq-group">
-            <details class="faq">
-              <summary>Có phải lúc nào cũng cần chọn scheduler riêng không?</summary>
-              <div class="faq-body">
-                <p>
-                  Không nhất thiết. Nhiều framework gộp sampler + scheduler vào một tên duy nhất
-                  (ví dụ: "DDIM", "PNDM"). Khi bạn thấy tên riêng biệt (như trong ComfyUI
-                  hay diffusers) thì mới cần chọn độc lập. Nếu không chắc, dùng mặc định
-                  của model là an toàn nhất.
-                </p>
-              </div>
-            </details>
-
-            <details class="faq">
-              <summary>WanVideo dùng scheduler nào mặc định?</summary>
-              <div class="faq-body">
-                <p>
-                  WanVideo sử dụng Flow Matching với Uniform timestep schedule trong quá trình
-                  training. Khi inference qua pipeline bên thứ ba, lựa chọn scheduler phụ thuộc
-                  node và workflow đang dùng. Vì vậy hãy đọc preset của workflow, rồi A/B có kiểm soát
-                  thay vì mặc định thay bằng Karras.
-                </p>
-              </div>
-            </details>
-          </div>
-        </section>
-
-        <!-- Takeaway -->
-        <section class="section" id="takeaway" aria-labelledby="takeaway-heading">
-          <p class="section-label">Tổng kết</p>
-          <h2 class="section-heading" id="takeaway-heading">Những điều cần nhớ</h2>
-          <div class="takeaway">
-            <p class="takeaway-title">KEY TAKEAWAYS</p>
+        <div class="lora-card">
+          <div>
+            <span class="lora-tag">Paper method</span>
+            <h3>Full fine-tune</h3>
+            <p>Paper mô tả fine-tuning model text-to-image cùng identifier/class prompt và prior preservation loss. Layer nào được train, checkpoint format và VRAM là quyết định implementation—not a universal DreamBooth setting.</p>
             <ul>
-              <li>Scheduler quy định sigma (mức noise) tại mỗi timestep trong quá trình diffusion.</li>
-              <li>Linear phân bổ đều; Cosine phân bổ chậm đầu/cuối; Karras dồn bước vào vùng sigma thấp.</li>
-              <li>Cosine và Karras thường cho chất lượng tốt hơn Linear với cùng số bước inference.</li>
-              <li>Scheduler định nghĩa "điểm dừng"; Sampler quyết định "cách di chuyển" — hai thứ độc lập.</li>
+              <li>Nguyên lý: subject binding + class-specific prior preservation</li>
+              <li>Không định nghĩa một “trigger parameter” của trainer</li>
+              <li>Không suy ra preset/VRAM cho model khác</li>
             </ul>
           </div>
-        </section>
+          <div>
+            <span class="lora-tag">Workflow implementation</span>
+            <h3>LoRA adapter</h3>
+            <p>LoRA đóng băng base weights và học cập nhật low-rank ở các module được chọn. Diffusers có script <code>train_dreambooth_lora.py</code>; các flag, target modules, precision và memory profile phải đọc theo version/script.</p>
+            <ul>
+              <li>Adapter size phụ thuộc rank, target modules, dtype và architecture</li>
+              <li>Chỉ load khi base/architecture và loader tương thích</li>
+              <li>Stack/blend là khả năng của inference tool và có thể gây conflict</li>
+            </ul>
+          </div>
+        </div>
 
-        <section class="section" aria-labelledby="related-heading">
-          <p class="section-label">Bài liên quan</p>
-          <h2 class="section-heading" id="related-heading">Tiếp tục pipeline sampling</h2>
-          <p class="section-lead">Scheduler chỉ định các điểm sigma; những bài này giải thích nguồn của sigma và cách model đi giữa các điểm đó.</p>
+        <div class="note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+          <span><strong>Chẩn đoán theo artifact:</strong> khóa base model, scheduler, resolution, seed và LoRA weight; A/B <em>model-card prompt convention</em> với control prompt. Nếu identity không ra, đừng kết luận “quên trigger” trước khi kiểm tra compatibility, weight, captions và checkpoint.</span>
+        </div>
+        <div class="note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+          <span><strong>Lưu ý:</strong> Cấu hình LoRA (rank, alpha, learning rate) sẽ được đề cập trong bài tiếp theo — ở đây tập trung vào cách định danh subject.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 05 · PRODUCTION BRIEF -->
+    <section class="content-section" id="production-brief" data-nav="Production brief">
+      <div class="shell">
+        <div class="section-head">
+          <div><span class="section-index">05 / PRODUCTION BRIEF</span><h2>A/B identity<br />trước khi giao.</h2></div>
+          <p class="section-intro">Case giả định dưới đây là một protocol kiểm tra, không phải benchmark hay preset. Nó buộc team tách lỗi identity từ lỗi base model, sampler hoặc prompt, rồi chọn checkpoint theo bằng chứng.</p>
+        </div>
+        <article class="production-brief" aria-labelledby="brief-heading">
+          <header><span class="label">Case study · mô phỏng workflow</span><h3 id="brief-heading">Hero still cho trailer: nhân vật “sks person” ở ba bối cảnh</h3></header>
+          <div class="brief-grid">
+            <section class="brief-card"><span class="label">Mục tiêu & bối cảnh</span><h3>Key visual trước storyboard</h3><p>Agency cần 3 ảnh chân dung cùng một diễn viên giả định để duyệt art direction: studio, Paris đêm và sa mạc. Đây là still-image approval; không khẳng định temporal consistency cho video.</p></section>
+            <section class="brief-card"><span class="label">Input & workflow</span><h3>DreamBooth-style LoRA</h3><p>Tập subject đã có consent, instance prompt <code>“a sks person”</code>, base model và trainer/version được ghi trong run log. Prior preservation chỉ bật nếu chính script/version hỗ trợ.</p></section>
+            <section class="brief-card"><span class="label">Giữ cố định</span><h3>Để A/B đọc được</h3><p>Khóa base checkpoint, resolution, seed list, sampler/schedule, LoRA weight, negative prompt và 3 prompt bối cảnh. Render cùng batch; không đổi nhiều biến trong một lượt.</p></section>
+            <section class="brief-card"><span class="label">Biến thử nghiệm</span><h3>Một giả thuyết mỗi run</h3><p>A: prompt convention từ dataset/model card. B: checkpoint step. C: có/không prior preservation trong <em>cùng trainer version</em>. Đây là biến workflow, không phải thuộc tính chung của DreamBooth.</p></section>
+            <section class="brief-card"><span class="label">Ngân sách</span><h3>Giới hạn minh bạch</h3><p>Ví dụ lab: GPU 24 GB VRAM, batch size 1, giới hạn 2 giờ/run. Nếu OOM, ghi lại precision/gradient checkpointing thay vì so số step với run khác; Diffusers nêu các tùy chọn này để giảm memory.</p></section>
+            <section class="brief-card"><span class="label">Đánh giá & bước tiếp</span><h3>Chọn bằng fail mode</h3><p>Pass khi reviewer nhận đúng identity ở 3 bối cảnh và class prompt control vẫn đa dạng. Fail: identity drift, background memorization, class leakage hoặc artifact. Sau fail, kiểm tra compatibility/caption trước; chỉ rồi mới chạy biến A/B tiếp theo.</p></section>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- 06 · INTERACTIVE DEMO -->
+    <section class="content-section" id="demo" data-nav="Prompt Builder">
+      <div class="shell">
+        <div class="section-head">
+          <div><span class="section-index">06 / MÔ PHỎNG</span><h2>Kiểm tra prompt<br />convention.</h2></div>
+          <p class="section-intro">Mô phỏng này minh hoạ quan hệ nhân quả giả định: khi inference dùng đúng convention của run, identity có cơ hội được gọi; khi bỏ nó, output quay về class prior. Nó không render ảnh, không đo quality và không thay thế A/B thật.</p>
+        </div>
+
+        <div class="prompt-lab" role="region" aria-label="Prompt builder tương tác">
+          <div class="prompt-lab-header">
+            <span class="label">Prompt convention simulator</span>
+            <span class="prompt-lab-header-sub">MÔ PHỎNG · KHÔNG PHẢI BENCHMARK</span>
+          </div>
+          <div class="prompt-lab-body">
+            <!-- Controls -->
+            <div class="prompt-lab-controls">
+              <div class="field-group">
+                <label for="base-prompt">Prompt control (không có identifier)</label>
+                <input
+                  type="text"
+                  id="base-prompt"
+                  placeholder="a cinematic portrait of a person in Paris"
+                  value="a cinematic portrait of a person in Paris"
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+              </div>
+
+              <div class="field-group">
+                <label id="token-label">Chọn identifier mô phỏng</label>
+                <div class="token-row" role="group" aria-labelledby="token-label">
+                  <button class="token-chip active" type="button" data-token="sks" aria-pressed="true">
+                    <span class="chip-dot" aria-hidden="true"></span>sks
+                  </button>
+                  <button class="token-chip" type="button" data-token="ohwx" aria-pressed="false">
+                    <span class="chip-dot" aria-hidden="true"></span>ohwx
+                  </button>
+                  <button class="token-chip" type="button" data-token="zkj" aria-pressed="false">
+                    <span class="chip-dot" aria-hidden="true"></span>zkj
+                  </button>
+                  <button class="token-chip" type="button" data-token="mlx" aria-pressed="false">
+                    <span class="chip-dot" aria-hidden="true"></span>mlx
+                  </button>
+                </div>
+              </div>
+
+              <p class="prompt-result-label">Prompt theo convention mô phỏng</p>
+              <div class="prompt-display" id="prompt-result" aria-live="polite" aria-label="Prompt cuối cùng có trigger word"></div>
+            </div>
+
+            <!-- Output previews -->
+            <div class="prompt-lab-output">
+              <div class="trigger-control-row">
+                <p class="prompt-result-label mb-16">Identity / bối cảnh (mô phỏng)</p>
+                <button class="trigger-toggle" id="trigger-toggle" type="button" aria-pressed="true">Identifier: Bật</button>
+              </div>
+              <div class="injection-stage" id="injection-stage" data-context="paris" data-trigger="on" role="img" aria-label="Mô phỏng identity sks trong bối cảnh Paris" aria-describedby="injection-status">
+                <div class="stage-scene" aria-hidden="true"></div>
+                <div class="stage-subject" aria-hidden="true">
+                  <div class="face stage-face"><span class="identity-mark"></span></div>
+                </div>
+                <div class="stage-caption" aria-hidden="true">
+                  <span id="stage-token">sks identity</span>
+                  <span id="stage-context">Paris</span>
+                </div>
+              </div>
+              <div class="context-row" aria-label="Chọn bối cảnh mô phỏng">
+                <button class="context-button" type="button" data-context="paris" aria-pressed="true">Paris</button>
+                <button class="context-button" type="button" data-context="mars" aria-pressed="false">Sao Hỏa</button>
+                <button class="context-button" type="button" data-context="studio" aria-pressed="false">Studio</button>
+              </div>
+              <p class="injection-status" id="injection-status" aria-live="polite"><strong>Mô phỏng: identity được gọi.</strong> Convention “sks person” và bối cảnh Paris là giả định của run này.</p>
+
+              <p class="prompt-result-label mb-16">So sánh giả thuyết output (văn bản minh hoạ)</p>
+              <div class="output-pair">
+                <div class="output-block without">
+              <div class="out-label">Control: không identifier</div>
+                  <p id="output-without">Model sinh ra một người ngẫu nhiên. Ngoại hình, tuổi tác, cấu trúc khuôn mặt hoàn toàn do model tự quyết định dựa trên prior của dataset huấn luyện.</p>
+                </div>
+                <div class="output-block with">
+              <div class="out-label">Convention có identifier <span id="active-token-label" class="trigger-highlight">sks</span></div>
+                  <p id="output-with">Model kích hoạt khái niệm đã học từ DreamBooth. Khuôn mặt, cấu trúc xương, nét đặc trưng của chủ thể xuất hiện — nhưng vẫn trong ngữ cảnh Paris theo prompt.</p>
+                </div>
+              </div>
+
+              <div class="note">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+                <span>Output ở đây là <em>mô tả văn bản minh hoạ</em>, không phải ảnh thật. Mục đích là hiểu giả thuyết về <em>prompt convention</em>, không chứng minh token nào tốt hơn.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 07 · CHECKPOINT -->
+    <section class="content-section" id="checkpoint" data-nav="Kiểm tra">
+      <div class="shell">
+        <div class="section-head">
+          <div><span class="section-index">07 / CHECKPOINT</span><h2>Kiểm tra<br />phạm vi.</h2></div>
+          <p class="section-intro">Ba câu hỏi — phản hồi ngay. Mục tiêu là phân biệt paper method, workflow LoRA và giới hạn của một mô phỏng/preset.</p>
+        </div>
+
+        <div class="quiz-shell">
+          <aside class="score-card">
+            <div class="label score-label">Kết quả</div>
+            <output class="score" id="score-output" aria-live="polite">0/3</output>
+            <p id="score-message">Trả lời câu đầu tiên để bắt đầu.</p>
+          </aside>
+          <div class="quiz-card">
+            <div id="quiz-content"></div>
+            <div class="feedback" id="quiz-feedback" aria-live="polite">Chọn một đáp án. Bạn sẽ thấy giải thích ngay tại đây.</div>
+            <div class="quiz-actions">
+              <span class="quiz-progress" id="quiz-progress">CÂU 1 / 3</span>
+              <button class="button primary" id="next-question" type="button" disabled>Câu tiếp theo</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 08 · KẾT BÀI -->
+    <section class="content-section" id="summary" data-nav="Tóm tắt">
+      <div class="shell">
+        <div class="section-head">
+          <div><span class="section-index">08 / KẾT BÀI</span><h2>Ba điều<br />cần nhớ.</h2></div>
+          <p class="section-intro">Nếu tự giải thích được ba ý dưới đây, bạn đã nắm cơ chế DreamBooth và trigger word đủ để dùng trong thực tế.</p>
+        </div>
+
+        <div class="takeaways">
+          <article class="takeaway">
+            <strong>DreamBooth = dạy khái niệm mới</strong>
+            <p>Paper liên kết identifier + class với subject và đề xuất class-specific prior preservation. Nó không quy định một con số ảnh hay preset chung.</p>
+          </article>
+          <article class="takeaway">
+            <strong>Trigger word = chìa khoá kích hoạt</strong>
+            <p>“Trigger” là convention của artifact/workflow. Xác nhận bằng captions, config hoặc model card rồi A/B với control; một LoRA không nhất thiết yêu cầu token riêng.</p>
+          </article>
+          <article class="takeaway">
+            <strong>DreamBooth + LoRA = thực hành hiện đại</strong>
+            <p>LoRA là adapter low-rank, không đồng nghĩa DreamBooth. Compatibility, size, VRAM và stack/blend phụ thuộc architecture, tool và version.</p>
+          </article>
+        </div>
+
+        <section class="content-section" id="related" aria-labelledby="related-heading">
+          <div class="section-head">
+            <div><span class="section-index">KNOWLEDGE LINKS</span><h2 id="related-heading">Bài liên quan.</h2></div>
+            <p class="section-intro">Đi theo quan hệ cơ chế và chẩn đoán, không theo từ khoá trùng lặp.</p>
+          </div>
           <div class="related-grid">
-            <a class="related-card" href="video-generation-part-2-lesson-1.html">
-              <span class="related-tag">Timestep · Sigma</span>
-              <strong>Trục thời gian diffusion</strong>
-              <span>Ôn lại ý nghĩa của từng vị trí noise trước khi chọn lịch trình.</span>
-            </a>
-            <a class="related-card" href="video-generation-part-2-lesson-3.html">
-              <span class="related-tag">Sampler · bài kế tiếp</span>
-              <strong>Thuật toán khử nhiễu</strong>
-              <span>Hiểu cách Euler, DDIM hay DPM++ cập nhật latent giữa hai sigma.</span>
-            </a>
-            <a class="related-card" href="video-generation-part-2-lesson-4.html">
-              <span class="related-tag">CFG · guidance</span>
-              <strong>Điều khiển độ bám prompt</strong>
-              <span>Tách ảnh hưởng của guidance khỏi scheduler trong một phép A/B test.</span>
-            </a>
+            <a class="related-card" href="video-generation-part-2-lesson-3.html"><span class="label">Kiến thức nền</span><h3>3.1 · LoRA là gì?</h3><p>Phân biệt update low-rank của LoRA với objective/data convention của DreamBooth trước khi chọn artifact để load.</p></a>
+            <a class="related-card" href="video-generation-part-3-lesson-1.html"><span class="label">Biến capacity</span><h3>3.2 · Rank &amp; Alpha</h3><p>Rank/alpha là biến adapter; khóa chúng khi A/B identity để không quy sai fail mode cho identifier hay dataset.</p></a>
+            <a class="related-card" href="video-generation-part-2-lesson-4.html"><span class="label">Workflow kế tiếp</span><h3>3.5 · Dataset &amp; Captioning</h3><p>Đi sâu vào dữ liệu và caption—nơi instance/class convention được tạo và nơi background memorization cần được phát hiện.</p></a>
           </div>
         </section>
 
-        <!-- Lesson navigation -->
-        <nav class="lesson-nav" aria-label="Điều hướng bài học">
-          <a href="video-generation-part-2-lesson-1.html" class="button">← Bài 1 · Timestep &amp; Sigma</a>
-          <span class="lesson-nav-meta">PART 2 · BÀI 2 / 6</span>
-          <a href="video-generation-part-2-lesson-3.html" class="button primary">Bài 3 · Sampler →</a>
-        </nav>
+        <section class="content-section" id="sources" aria-labelledby="sources-heading">
+          <div class="section-head">
+            <div><span class="section-index">SOURCES</span><h2 id="sources-heading">Phạm vi nguồn.</h2></div>
+            <p class="section-intro">Nguồn chính chủ dùng để tách nguyên lý paper khỏi lựa chọn của implementation. Không biến các ví dụ command thành “cấu hình tốt nhất”.</p>
+          </div>
+          <ol class="sources-list">
+            <li><a href="https://arxiv.org/abs/2208.12242">Ruiz et al., DreamBooth: Fine Tuning Text-to-Image Diffusion Models for Subject-Driven Generation (2022)</a> — identifier + class và class-specific prior preservation.</li>
+            <li><a href="https://arxiv.org/abs/2106.09685">Hu et al., LoRA: Low-Rank Adaptation of Large Language Models (2021)</a> — base weights frozen, trainable low-rank updates.</li>
+            <li><a href="https://huggingface.co/docs/diffusers/en/training/dreambooth">Hugging Face Diffusers: DreamBooth training documentation</a> — scope của <code>--with_prior_preservation</code>, class prompt/images, memory options và script-specific parameters.</li>
+          </ol>
+        </section>
+      </div>
+    </section>
 
+<!-- HANDOFF CARD -->
+<section class="content-section" id="handoff" aria-labelledby="handoff-heading">
+  <div class="shell">
+    <div class="handoff-card">
+      <div class="handoff-card-icon" aria-hidden="true">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </div>
+      <div>
+        <p class="handoff-card-label">Bài tiếp theo</p>
+        <h2 class="handoff-card-title" id="handoff-heading">LoRA Mechanics</h2>
+        <p class="handoff-card-body">Sau khi có trigger word và subject definition, bài tiếp theo giải thích cơ chế LoRA: tại sao low-rank adaptation hiệu quả và các trade-off so với full fine-tuning.</p>
+        <a class="button primary" href="video-generation-part-2-lesson-3.html" data-curriculum-next>Sang Bài 2.3 →</a>
       </div>
     </div>
+  </div>
+</section>
+
   </main>
 
-  <!-- Footer -->
-  <footer class="site-footer" role="contentinfo">
-    <div class="shell">
-      <div class="footer-inner">
-        <span class="footer-brand">VIDEO GEN LAB</span>
-        <nav class="footer-nav" aria-label="Footer navigation">
-          <a href="index.html">Trang chủ</a>
-        </nav>
-      </div>
+  <footer class="shell">
+    <div class="page-footer">
+      <span class="footer-text" data-curriculum-completion-label>VIDEO GEN LAB · TRAINING DESIGN · BÀI 2.2 / DREAMBOOTH, IDENTIFIER &amp; TRIGGER</span>
+      <a class="button" href="video-generation-part-2-lesson-1.html" data-curriculum-prev data-curriculum-title-fallback>← Bài 2.1: Training Brief &amp; Baseline</a>
+      <a class="button primary" href="video-generation-part-2-lesson-3.html" data-curriculum-next data-curriculum-title-fallback>Bài 2.3: LoRA Mechanics →</a>
     </div>
   </footer>
 
   <script>
+    'use strict';
+
+    // ── Scroll progress ──────────────────────────────────────
+    const progressFill = document.getElementById('progressFill');
+    const updateProgress = () => {
+      const available = document.documentElement.scrollHeight - window.innerHeight;
+      if (!progressFill) return;
+      const pct = available > 0 ? Math.min(100, Math.max(0, window.scrollY / available * 100)) : 0;
+      progressFill.style.width = `${pct}%`;
+    };
+    window.addEventListener('scroll', updateProgress, {passive: true});
+    updateProgress();
+
+    // ── Class preservation switch ─────────────────────────────
     (() => {
-      // Reading progress
-      const fill = document.getElementById('reading-progress');
-      if (fill) {
-        const updateProgress = () => {
-          const docHeight = document.documentElement.scrollHeight - window.innerHeight;
-          const progress = docHeight > 0 ? (window.scrollY / docHeight) * 100 : 0;
-          fill.style.width = Math.min(progress, 100) + '%';
-        };
-        window.addEventListener('scroll', updateProgress, { passive: true });
-        updateProgress();
-      }
+      const lab = document.getElementById('prior-lab');
+      const toggle = document.getElementById('prior-toggle');
+      const status = document.getElementById('prior-status');
+      if (!lab || !toggle || !status) return;
 
-      // ── Schedule chart ──
-      const canvas = document.getElementById('schedule-canvas');
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
+      toggle.addEventListener('click', () => {
+        const preserved = toggle.getAttribute('aria-pressed') !== 'true';
+        toggle.setAttribute('aria-pressed', String(preserved));
+        toggle.textContent = `Mô phỏng preservation: ${preserved ? 'Bật' : 'Tắt'}`;
+        lab.dataset.preserved = String(preserved);
+        status.innerHTML = preserved
+          ? '<strong>Mô phỏng: prior được giữ.</strong> Control “a person” còn đa dạng trong tình huống minh hoạ này.'
+          : '<strong>Mô phỏng fail mode: class leakage.</strong> Khi tắt prior preservation trong minh hoạ, control bị kéo về subject. Kết quả thật phụ thuộc model/run.';
+      });
+    })();
 
-      const STEPS = 20;
-      const SIGMA_MAX = 14.6;
-      const SIGMA_MIN = 0.03;
+    // ── Prompt Builder ───────────────────────────────────────
+    (() => {
+      const baseInput = document.getElementById('base-prompt');
+      const promptResult = document.getElementById('prompt-result');
+      const activeTokenLabel = document.getElementById('active-token-label');
+      const chips = document.querySelectorAll('.token-chip');
+      const triggerToggle = document.getElementById('trigger-toggle');
+      const stage = document.getElementById('injection-stage');
+      const stageToken = document.getElementById('stage-token');
+      const stageContext = document.getElementById('stage-context');
+      const injectionStatus = document.getElementById('injection-status');
+      const contextButtons = document.querySelectorAll('.context-button');
+      const outputWith = document.getElementById('output-with');
+      let activeToken = 'sks';
+      let activeContext = 'paris';
+      let triggerEnabled = true;
 
-      // Compute sigma sequences
-      function linearSigmas(n, max, min) {
-        return Array.from({ length: n }, (_, i) => max - (max - min) * (i / (n - 1)));
-      }
-
-      function cosineSigmas(n, max, min) {
-        // sigma = max * cos(pi/2 * t)^2 blended to min, approximated via schedule
-        return Array.from({ length: n }, (_, i) => {
-          const t = i / (n - 1);
-          const angle = (Math.PI / 2) * t;
-          const cos2 = Math.cos(angle) ** 2;
-          return min + (max - min) * cos2;
-        });
-      }
-
-      function karrasSigmas(n, max, min, rho = 7) {
-        // Karras et al. 2022: sigma_i = (max^(1/rho) + i/(n-1)*(min^(1/rho)-max^(1/rho)))^rho
-        return Array.from({ length: n }, (_, i) => {
-          const maxRho = Math.pow(max, 1 / rho);
-          const minRho = Math.pow(min, 1 / rho);
-          return Math.pow(maxRho + (i / (n - 1)) * (minRho - maxRho), rho);
-        });
-      }
-
-      const curves = {
-        linear: { sigmas: linearSigmas(STEPS, SIGMA_MAX, SIGMA_MIN), visible: true },
-        cosine: { sigmas: cosineSigmas(STEPS, SIGMA_MAX, SIGMA_MIN), visible: true },
-        karras: { sigmas: karrasSigmas(STEPS, SIGMA_MAX, SIGMA_MIN), visible: true },
+      const contexts = {
+        paris: { label: 'Paris', prompt: 'a cinematic portrait of a person in Paris' },
+        mars: { label: 'Sao Hỏa', prompt: 'a cinematic portrait of a person exploring Mars' },
+        studio: { label: 'Studio', prompt: 'a dramatic studio portrait of a person' }
       };
-      const preview = { schedule: 'karras', step: 0 };
 
-      // Resolve CSS variable colors at draw time
-      function getCSSVar(name) {
-        return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-      }
-
-      function drawChart() {
-        const dpr = window.devicePixelRatio || 1;
-        const W = canvas.clientWidth;
-        const H = Math.max(260, Math.round(W * 380 / 900));
-        canvas.width = W * dpr;
-        canvas.height = H * dpr;
-        canvas.style.height = H + 'px';
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-        const pad = { top: 24, right: 24, bottom: 40, left: 52 };
-        const chartW = W - pad.left - pad.right;
-        const chartH = H - pad.top - pad.bottom;
-
-        const bg = getCSSVar('--panel-2');
-        const lineColor = getCSSVar('--line');
-        const dimColor = getCSSVar('--dim');
-        const inkColor = getCSSVar('--ink');
-        const orange = getCSSVar('--orange');
-        const cyan = getCSSVar('--cyan');
-        const acid = getCSSVar('--acid');
-
-        // Background
-        ctx.fillStyle = bg;
-        ctx.beginPath();
-        ctx.roundRect(0, 0, W, H, 10);
-        ctx.fill();
-
-        // Grid lines
-        ctx.strokeStyle = lineColor;
-        ctx.lineWidth = 1;
-        const yTicks = [0, 3, 6, 9, 12, 14.6];
-        yTicks.forEach(val => {
-          const y = pad.top + chartH - (val / SIGMA_MAX) * chartH;
-          ctx.beginPath();
-          ctx.setLineDash([4, 4]);
-          ctx.moveTo(pad.left, y);
-          ctx.lineTo(pad.left + chartW, y);
-          ctx.stroke();
-
-          ctx.setLineDash([]);
-          ctx.fillStyle = dimColor;
-          ctx.font = `10px ui-monospace, monospace`;
-          ctx.textAlign = 'right';
-          ctx.fillText(val.toFixed(0), pad.left - 8, y + 4);
-        });
-
-        // X axis labels
-        [1, 5, 10, 15, 20].forEach(step => {
-          const x = pad.left + ((step - 1) / (STEPS - 1)) * chartW;
-          ctx.fillStyle = dimColor;
-          ctx.font = `10px ui-monospace, monospace`;
-          ctx.textAlign = 'center';
-          ctx.fillText(step, x, pad.top + chartH + 22);
-        });
-
-        // Axis labels
-        ctx.fillStyle = dimColor;
-        ctx.font = `10px ui-monospace, monospace`;
-        ctx.textAlign = 'center';
-        ctx.fillText('Bước (step)', pad.left + chartW / 2, H - 4);
-
-        ctx.save();
-        ctx.translate(12, pad.top + chartH / 2);
-        ctx.rotate(-Math.PI / 2);
-        ctx.textAlign = 'center';
-        ctx.fillText('Sigma (σ)', 0, 0);
-        ctx.restore();
-
-        // Draw curves
-        const colorMap = { linear: orange, cosine: cyan, karras: acid };
-        Object.entries(curves).forEach(([name, { sigmas, visible }]) => {
-          if (!visible) return;
-          const color = colorMap[name];
-          ctx.strokeStyle = color;
-          ctx.lineWidth = 2.5;
-          ctx.setLineDash([]);
-          ctx.beginPath();
-          sigmas.forEach((sigma, i) => {
-            const x = pad.left + (i / (STEPS - 1)) * chartW;
-            const y = pad.top + chartH - (sigma / SIGMA_MAX) * chartH;
-            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-          });
-          ctx.stroke();
-
-          // Dots
-          sigmas.forEach((sigma, i) => {
-            const x = pad.left + (i / (STEPS - 1)) * chartW;
-            const y = pad.top + chartH - (sigma / SIGMA_MAX) * chartH;
-            ctx.beginPath();
-            ctx.arc(x, y, 3, 0, Math.PI * 2);
-            ctx.fillStyle = color;
-            ctx.fill();
-          });
-        });
-
-        // Active inference point shared with the denoising control room.
-        const activeSigmas = curves[preview.schedule].sigmas;
-        const activeSigma = activeSigmas[preview.step];
-        const markerX = pad.left + (preview.step / (STEPS - 1)) * chartW;
-        const markerY = pad.top + chartH - (activeSigma / SIGMA_MAX) * chartH;
-        ctx.beginPath();
-        ctx.arc(markerX, markerY, 7, 0, Math.PI * 2);
-        ctx.fillStyle = bg;
-        ctx.fill();
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = colorMap[preview.schedule];
-        ctx.stroke();
-
-        // Y axis line
-        ctx.strokeStyle = lineColor;
-        ctx.lineWidth = 1;
-        ctx.setLineDash([]);
-        ctx.beginPath();
-        ctx.moveTo(pad.left, pad.top);
-        ctx.lineTo(pad.left, pad.top + chartH);
-        ctx.stroke();
-        // X axis line
-        ctx.beginPath();
-        ctx.moveTo(pad.left, pad.top + chartH);
-        ctx.lineTo(pad.left + chartW, pad.top + chartH);
-        ctx.stroke();
-      }
-
-      // Toggle buttons with live region feedback
-      const chartStatus = document.getElementById('chart-status');
-      const curveNames = { linear: 'Linear', cosine: 'Cosine', karras: 'Karras' };
-      document.querySelectorAll('.chart-toggle').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const curve = btn.dataset.curve;
-          const current = curves[curve];
-          if (current) {
-            current.visible = !current.visible;
-            btn.setAttribute('aria-pressed', String(current.visible));
-            if (chartStatus) {
-              chartStatus.textContent = `${curveNames[curve] || curve} ${current.visible ? 'đang hiển thị' : 'đã ẩn'}.`;
-            }
+      const insertToken = (base, token) => {
+        const classNouns = ['person', 'man', 'woman', 'girl', 'boy', 'face', 'character', 'figure'];
+        let result = base;
+        for (const noun of classNouns) {
+          const re = new RegExp('\\b(' + noun + ')\\b', 'i');
+          if (re.test(base)) {
+            result = base.replace(re, token + ' $1');
+            break;
           }
-          drawChart();
+        }
+        if (result === base) {
+          result = token + ' ' + base;
+        }
+        return result;
+      };
+
+      const escapeHtml = (str) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+      const highlightToken = (str, token) => {
+        const safe = escapeHtml(str);
+        const escapedToken = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const re = new RegExp('\\b(' + escapedToken + ')\\b', 'g');
+        return safe.replace(re, '<mark class="trigger-highlight">$1</mark>');
+      };
+
+      const animateStage = () => {
+        stage.classList.remove('is-transitioning');
+        void stage.offsetWidth;
+        stage.classList.add('is-transitioning');
+      };
+
+      const render = (animate = false) => {
+        const base = baseInput.value.trim() || 'a cinematic portrait of a person in Paris';
+        const withToken = triggerEnabled ? insertToken(base, activeToken) : base;
+        if (triggerEnabled) promptResult.innerHTML = highlightToken(withToken, activeToken);
+        else promptResult.textContent = withToken;
+        activeTokenLabel.textContent = activeToken;
+        stage.dataset.trigger = triggerEnabled ? 'on' : 'off';
+        stage.dataset.context = activeContext;
+        stageToken.textContent = triggerEnabled ? `${activeToken} identity` : 'random prior';
+        stageContext.textContent = contexts[activeContext].label;
+        stage.setAttribute('aria-label', triggerEnabled
+          ? `Mô phỏng identity ${activeToken} trong bối cảnh ${contexts[activeContext].label}`
+          : `Mô phỏng class prior không có identifier trong bối cảnh ${contexts[activeContext].label}`);
+        triggerToggle.setAttribute('aria-pressed', String(triggerEnabled));
+        triggerToggle.textContent = `Identifier: ${triggerEnabled ? 'Bật' : 'Tắt'}`;
+        injectionStatus.innerHTML = triggerEnabled
+          ? `<strong>Mô phỏng: identity được gọi.</strong> Convention “${activeToken} person” là giả định; bối cảnh là ${contexts[activeContext].label}.`
+          : `<strong>Mô phỏng: không có identifier.</strong> Bối cảnh ${contexts[activeContext].label} giữ nguyên, còn subject dùng class prior giả định.`;
+        outputWith.textContent = triggerEnabled
+          ? `Giả thuyết: convention “${activeToken} person” gọi identity đã học và đặt subject vào ${contexts[activeContext].label}. Hãy xác minh bằng render A/B thật.`
+          : 'Giả thuyết control: không có identifier nên output dùng class prior. Đây không phải kết quả model hay benchmark.';
+        if (animate) animateStage();
+      };
+
+      chips.forEach(chip => {
+        chip.addEventListener('click', () => {
+          chips.forEach(c => { c.classList.remove('active'); c.setAttribute('aria-pressed', 'false'); });
+          chip.classList.add('active');
+          chip.setAttribute('aria-pressed', 'true');
+          activeToken = chip.dataset.token;
+          render(true);
         });
       });
 
-      // ── Denoising control room ──
-      const stage = document.getElementById('denoise-stage');
-      const stepInput = document.getElementById('denoise-step');
-      const stepOutput = document.getElementById('step-output');
-      const sigmaReadout = document.getElementById('sigma-readout');
-      const hudSchedule = document.getElementById('hud-schedule');
-      const hudStep = document.getElementById('hud-step');
-      const phaseName = document.getElementById('phase-name');
-      const phaseCopy = document.getElementById('phase-copy');
-      const playButton = document.getElementById('play-denoise');
-      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-      let playTimer = null;
+      triggerToggle.addEventListener('click', () => {
+        triggerEnabled = !triggerEnabled;
+        render(true);
+      });
 
-      const phaseFor = (step) => {
-        if (step <= 6) return {
-          name: 'Pha 1 · Dựng bố cục',
-          copy: 'Noise còn cao: mô hình đang tìm đường chân trời, khối núi và vùng sáng lớn.',
-          readout: 'Ưu tiên cấu trúc lớn; chi tiết lúc này chưa ổn định.'
-        };
-        if (step <= 14) return {
-          name: 'Pha 2 · Ổn định hình và màu',
-          copy: 'Các vùng núi, mặt hồ và ánh sáng đã tách nhau; hình dạng bắt đầu nhất quán.',
-          readout: 'Bố cục đã rõ; màu sắc và đường biên đang được hiệu chỉnh.'
-        };
-        return {
-          name: 'Pha 3 · Hoàn thiện chi tiết',
-          copy: 'Noise thấp: phản chiếu, tán cây và đường nét nhỏ được hoàn thiện.',
-          readout: 'Vùng sigma thấp dành phần lớn công việc cho texture và chi tiết tinh.'
-        };
-      };
-
-      const stopPlayback = () => {
-        if (playTimer) window.clearInterval(playTimer);
-        playTimer = null;
-        if (playButton) {
-          playButton.setAttribute('aria-pressed', 'false');
-          playButton.textContent = 'Phát 20 bước';
-        }
-      };
-
-      const updatePreview = (announce = false) => {
-        if (!stage || !stepInput) return;
-        const step = Number(stepInput.value);
-        preview.step = step - 1;
-        const sigma = curves[preview.schedule].sigmas[preview.step];
-        const progress = 1 - ((sigma - SIGMA_MIN) / (SIGMA_MAX - SIGMA_MIN));
-        const phase = phaseFor(step);
-
-        stage.style.setProperty('--noise', String(Math.max(.035, 1 - progress * .96)));
-        stage.style.setProperty('--structure', String(Math.min(1, .18 + progress * 1.5)));
-        stage.style.setProperty('--color-shape', String(Math.min(1, .08 + progress * 1.25)));
-        stage.style.setProperty('--detail', String(Math.max(.03, (progress - .42) * 1.8)));
-        stepOutput.textContent = `${String(step).padStart(2, '0')} / 20`;
-        hudStep.textContent = `Step ${String(step).padStart(2, '0')} / 20`;
-        hudSchedule.textContent = `${curveNames[preview.schedule]} schedule`;
-        phaseName.textContent = phase.name;
-        phaseCopy.textContent = phase.copy;
-        sigmaReadout.innerHTML = `<strong>σ ${sigma.toFixed(2)}</strong> · ${phase.readout}`;
-        if (announce && chartStatus) {
-          chartStatus.textContent = `${curveNames[preview.schedule]}, bước ${step} trên 20, sigma ${sigma.toFixed(2)}. ${phase.name}.`;
-        }
-        drawChart();
-      };
-
-      document.querySelectorAll('.schedule-choice').forEach(button => {
+      contextButtons.forEach(button => {
         button.addEventListener('click', () => {
-          preview.schedule = button.dataset.schedule;
-          document.querySelectorAll('.schedule-choice').forEach(choice => {
-            choice.setAttribute('aria-pressed', String(choice === button));
-          });
-          updatePreview(true);
+          activeContext = button.dataset.context;
+          baseInput.value = contexts[activeContext].prompt;
+          contextButtons.forEach(item => item.setAttribute('aria-pressed', String(item === button)));
+          render(true);
         });
       });
 
-      if (stepInput) {
-        stepInput.addEventListener('input', () => {
-          stopPlayback();
-          updatePreview(false);
+      baseInput.addEventListener('input', () => render(false));
+      render();
+    })();
+
+    // ── Quiz ─────────────────────────────────────────────────
+    (() => {
+      const questions = [
+        {
+          question: 'Phát biểu nào phân biệt đúng DreamBooth paper với workflow DreamBooth-style LoRA?',
+          answers: [
+            'DreamBooth paper định nghĩa một LoRA weight tốt nhất cho mọi base model',
+            'Paper dùng identifier + class và prior preservation; LoRA là adapter/implementation có thể được dùng trong workflow',
+            'Mọi LoRA đều yêu cầu cùng trigger word “sks”'
+          ],
+          correct: 1,
+          explanation: 'Đúng. DreamBooth và LoRA là hai khái niệm khác nhau. Identifier/caption convention, target modules và tham số trainer phải được gắn với run/version cụ thể.'
+        },
+        {
+          question: 'Lợi thế chính của việc train LoRA theo kỹ thuật DreamBooth thay vì DreamBooth full fine-tune là gì?',
+          answers: [
+            'LoRA luôn cho chất lượng khuôn mặt tốt hơn full fine-tune',
+            'LoRA đóng băng base weights và học update low-rank; size/compatibility/stack phụ thuộc architecture và loader',
+            'LoRA không bao giờ cần prompt convention nên không cần model card'
+          ],
+          correct: 1,
+          explanation: 'Đúng. Đây là tính chất của LoRA, nhưng không suy ra size, VRAM hay kết quả cố định. Kiểm tra base model, format, rank, dtype và inference tool của artifact.'
+        },
+        {
+          question: 'Trong production brief, phép A/B nào giúp chẩn đoán identity failure đáng tin hơn?',
+          answers: [
+            'Đổi seed, base model, resolution, weight và identifier cùng lúc',
+            'Giữ base, seed list, resolution, sampler và weight; đổi riêng prompt convention hoặc checkpoint',
+            'Dùng một ảnh đẹp nhất làm bằng chứng duy nhất'
+          ],
+          correct: 1,
+          explanation: 'Đúng. Khi chỉ thay một biến, identity drift hoặc class leakage mới có nguyên nhân có thể đọc được. Prior preservation là option theo script/version, vì vậy hãy log nó thay vì giả định.'
+        }
+      ];
+
+      let qIndex = 0, qScore = 0, qAnswered = false;
+      const quizContent = document.getElementById('quiz-content');
+      const feedback = document.getElementById('quiz-feedback');
+      const quizProgress = document.getElementById('quiz-progress');
+      const nextQuestion = document.getElementById('next-question');
+      const scoreOutput = document.getElementById('score-output');
+      const scoreMessage = document.getElementById('score-message');
+
+      const renderQuestion = () => {
+        qAnswered = false;
+        const item = questions[qIndex];
+        const answersHtml = item.answers.map((a, i) =>
+          '<button class="answer" type="button" data-index="' + i + '">' + a + '</button>'
+        ).join('');
+        quizContent.innerHTML = '<fieldset><legend>' + item.question + '</legend><div class="answers">' + answersHtml + '</div></fieldset>';
+        quizContent.querySelectorAll('.answer').forEach(b => b.addEventListener('click', chooseAnswer));
+        feedback.textContent = 'Chọn một đáp án. Bạn sẽ thấy giải thích ngay tại đây.';
+        quizProgress.textContent = 'CÂU ' + (qIndex + 1) + ' / ' + questions.length;
+        nextQuestion.textContent = qIndex === questions.length - 1 ? 'Xem kết quả' : 'Câu tiếp theo';
+        nextQuestion.disabled = true;
+      };
+
+      function chooseAnswer(event) {
+        if (qAnswered) return;
+        qAnswered = true;
+        const selected = Number(event.currentTarget.dataset.index);
+        const item = questions[qIndex];
+        [...quizContent.querySelectorAll('.answer')].forEach((btn, i) => {
+          btn.disabled = true;
+          if (i === item.correct) btn.classList.add('correct');
+          else if (i === selected) btn.classList.add('wrong');
         });
-        stepInput.addEventListener('change', () => updatePreview(true));
+        const ok = selected === item.correct;
+        if (ok) qScore++;
+        feedback.textContent = ok ? item.explanation : 'Chưa đúng. ' + item.explanation;
+        scoreOutput.value = qScore + '/' + questions.length;
+        scoreMessage.textContent = ok ? 'Tốt — trực giác đúng hướng.' : 'Đọc giải thích rồi thử câu tiếp.';
+        nextQuestion.disabled = false;
       }
 
-      if (playButton && stepInput) {
-        playButton.addEventListener('click', () => {
-          if (playTimer) {
-            stopPlayback();
-            return;
-          }
-          if (reducedMotion.matches) {
-            stepInput.value = '20';
-            updatePreview(true);
-            return;
-          }
-          if (Number(stepInput.value) >= 20) stepInput.value = '1';
-          playButton.setAttribute('aria-pressed', 'true');
-          playButton.textContent = 'Tạm dừng';
-          updatePreview(false);
-          playTimer = window.setInterval(() => {
-            const next = Number(stepInput.value) + 1;
-            if (next > 20) {
-              stopPlayback();
-              if (chartStatus) chartStatus.textContent = 'Đã hoàn tất 20 bước khử nhiễu.';
-              return;
-            }
-            stepInput.value = String(next);
-            updatePreview(false);
-          }, 460);
-        });
-      }
+      const resetQuiz = () => {
+        qIndex = 0; qScore = 0; qAnswered = false;
+        scoreOutput.value = '0/' + questions.length;
+        scoreMessage.textContent = 'Trả lời câu đầu tiên để bắt đầu.';
+        renderQuestion();
+      };
 
-      // ── Knowledge checkpoint ──
-      const checkpointFeedback = document.getElementById('checkpoint-feedback');
-      document.querySelectorAll('.checkpoint-option').forEach(option => {
-        option.addEventListener('click', () => {
-          const isCorrect = option.dataset.answer === 'scheduler';
-          document.querySelectorAll('.checkpoint-option').forEach(candidate => {
-            candidate.removeAttribute('data-state');
-            candidate.setAttribute('aria-pressed', 'false');
-          });
-          option.dataset.state = isCorrect ? 'correct' : 'incorrect';
-          option.setAttribute('aria-pressed', 'true');
-          if (checkpointFeedback) {
-            checkpointFeedback.innerHTML = isCorrect
-              ? '<strong>Đúng.</strong> Karras quyết định các điểm sigma; DPM++ 2M quyết định cách di chuyển giữa chúng.'
-              : '<strong>Chưa đúng.</strong> DPM++ 2M là sampler — nó quyết định cách cập nhật latent, không phải danh sách sigma.';
-          }
-        });
+      nextQuestion.addEventListener('click', () => {
+        if (qIndex < questions.length - 1) { qIndex++; renderQuestion(); return; }
+        const pass = qScore >= Math.ceil(questions.length * 0.5);
+        const heading = qScore === questions.length ? 'Bạn đã nắm vững DreamBooth &amp; Trigger Word.' : 'Hoàn thành checkpoint.';
+        const body = pass ? 'Bạn đã sẵn sàng sang bài tiếp theo.' : 'Nên xem lại phần Trigger Word và DreamBooth + LoRA trước khi tiếp tục.';
+        quizContent.innerHTML = '<h3 class="quiz-result-heading">' + heading + '</h3><p class="quiz-result-body">Bạn trả lời đúng <b>' + qScore + '/' + questions.length + '</b> câu. ' + body + '</p>';
+        feedback.textContent = qScore === questions.length ? 'Xuất sắc: bạn hiểu rõ cả vai trò trigger word lẫn lợi ích của LoRA adapter.' : 'Sai không sao — checkpoint giúp phát hiện phần cần ôn lại.';
+        quizProgress.textContent = 'HOÀN THÀNH';
+        nextQuestion.textContent = 'Làm lại';
+        nextQuestion.disabled = false;
+        nextQuestion.onclick = () => { nextQuestion.onclick = null; resetQuiz(); };
+        scoreMessage.textContent = pass ? 'Sẵn sàng sang bài tiếp theo.' : 'Hãy ôn nhanh rồi thử lại.';
       });
 
-      // Redraw on theme change and resize
-      window.addEventListener('themechange', drawChart);
-      const ro = new ResizeObserver(() => drawChart());
-      ro.observe(canvas.parentElement);
-      updatePreview(false);
+      renderQuestion();
     })();
   </script>
 </body>
