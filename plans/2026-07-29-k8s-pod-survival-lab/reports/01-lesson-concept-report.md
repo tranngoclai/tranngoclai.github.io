@@ -1,6 +1,6 @@
 # UI/UX concept report — Kubernetes Pod Survival Lab
 
-**Status:** Revised — animation-first direction  
+**Status:** Enhanced — animation-first direction + selective Three.js evaluation
 **Source:** `k8s-pod-evaluation.md`  
 **Target:** Một HTML experience có thể chơi, không phải bản render lại report  
 **Recommended direction:** Playable incident control room  
@@ -20,6 +20,8 @@ Người học theo một **Pod capsule** xuyên suốt bốn playable scene:
 2. Scheduler Run — filter, score và preemption trong cùng một đường chạy.
 3. Memory Survival Arena — node pressure và OOM trong một sandbox liên tục.
 4. Protection Run + DOKS Finale — thử shield, cấu hình cluster và xem incident replay.
+
+Three.js không trở thành renderer mặc định cho toàn lesson. Đề xuất dùng một **progressive 3D layer có chủ đích** ở Memory Survival Arena, nơi chiều sâu giúp nhìn rõ process nằm trong container cgroup, các container được nhóm logic thành Pod và tất cả cùng nằm trên node; DOKS Finale chỉ tái sử dụng renderer này nếu performance spike đạt budget. Pod phải được ghi rõ là grouping/lifecycle unit trong visualization này, không bị vẽ như một OOM enforcement boundary riêng. Scheduler rail, switchboard, comparator trace và protection routing vẫn dùng HTML + inline SVG vì chúng cần đọc chính xác, scrub dễ và có keyboard path mạnh hơn.
 
 Thông điệp duy nhất xuyên suốt:
 
@@ -116,6 +118,15 @@ Người học cần nhớ một hình ảnh sau khi rời bài:
 `Protection routes` là supporting scene, **không phải judge thứ tư**. Nó gom các hazard để luyện chọn protection, nhưng animation phải luôn ghi rõ decision path thật sự như Eviction API, taint manager, kubelet probe hoặc deletion lifecycle; không được mô tả tất cả như một engine chung.
 
 Màu không được là tín hiệu duy nhất. Mỗi engine luôn có label, icon SVG, shape và trạng thái bằng chữ.
+
+### Token và typography contract
+
+- Giữ palette hiện có nhưng dùng semantic token: `surface`, `surface-raised`, `text`, `text-muted`, `border`, `focus`, `interactive` và `status-*`; không tham chiếu raw cyan/orange/red rải rác trong component.
+- Mỗi engine có bộ `fill`, `on-fill`, `border`, `muted` riêng để đồng bộ HTML, SVG và Three.js material trong cả dark/light mode.
+- Contrast target: text thường ≥ 4.5:1; focus ring, boundary, selected state và meaningful graphic ≥ 3:1. `--dim` không dùng cho text thiết yếu ở light mode nếu chưa tăng contrast.
+- Sans display/body giữ identity của site; mono chỉ dùng cho label, event, comparator và numeric readout. Prose giữ 65–75 ký tự mỗi dòng; số dùng `font-variant-numeric: tabular-nums` để gauge không nhảy layout.
+- Document dùng `lang="vi"`; câu/nhãn tiếng Anh dài hoặc signature line dùng `lang="en"`. PDB, QoS và DOKS được mở rộng ở lần xuất hiện đầu hoặc link tới glossary.
+- Icon UI dùng cùng một bộ inline SVG. Theme icon dạng ký tự `☀/☾` trong shared asset nên được thay bằng SVG ở lesson mới hoặc ghi rõ là ngoại lệ tương thích cũ.
 
 ## 6. Narrative structure — four playable scenes
 
@@ -277,6 +288,20 @@ Takeaway:
 
 > Node pressure và OOM có thể cùng bắt đầu từ thiếu RAM, nhưng comparator và protection khác nhau.
 
+#### Three.js signature moment — Node cutaway
+
+Đây là vị trí duy nhất Three.js có thể tăng trực tiếp chất lượng mental model, thay vì chỉ tăng độ bóng bẩy:
+
+- Node là một cutaway volume cố định; process nằm trong container cgroup, container được gom dưới Pod frame và toàn bộ Pod nằm trên node. Pod frame dùng nét/label `logical grouping`, trong khi cgroup clamp và node boundary dùng shape khác để chỉ nơi enforcement thực sự xảy ra.
+- Khi chuyển `Node pressure → Container limit OOM → Node OOM`, geometry giữ nguyên nhưng camera anchor, clipping plane, light và decision overlay đổi lớp đang được xét. Người học thấy cùng một memory shortage nhưng boundary và judge thay đổi.
+- Memory allocation được biểu diễn bằng volume fill có scale định lượng, không dùng particle ngẫu nhiên. Reclaim làm volume cache co lại; cgroup OOM làm clamp đóng tại container boundary; node OOM làm radar chọn process trên toàn node.
+- Camera là guided camera với 3–4 anchor định trước; không dùng free-orbit trong core path. Click/tap một Pod hoặc process chỉ chọn object, còn mọi chỉnh sửa vẫn nằm trong HTML control bank.
+- A/B request-versus-priority vẫn dùng split timeline 2D phủ trên stage; không dựng hai scene WebGL đồng thời.
+
+Three.js không được dùng nếu prototype không chứng minh người học phân biệt boundary tốt hơn bản SVG cutaway. Tiêu chí giữ 3D là người học có thể chỉ ra **OOM xảy ra ở boundary nào và engine nào chọn victim** sau một replay, không phải chỉ đánh giá scene “đẹp hơn”.
+
+Learning gate dùng paired, counterbalanced usability test với 8–12 người thuộc audience mục tiêu. Mỗi người giải cùng ba scenario boundary/engine bằng cả SVG và 3D theo thứ tự đảo; giữ 3D khi accuracy tăng ít nhất 15 điểm phần trăm **hoặc** median time-to-correct-boundary giảm ít nhất 20% mà accuracy không giảm. Ghi riêng motion discomfort, navigation error và preference; preference đơn thuần không đủ để pass gate.
+
 ### Scene 4 — Protection Run + DOKS Finale
 
 Phần đầu là một fast-paced routing run. Pod capsule tiến về một loạt hazard:
@@ -358,6 +383,15 @@ scoreDelta = {
 
 Scenario test phải chứng minh cùng input luôn tạo cùng trace/score, tổng token không âm, và không có cấu hình nào tối đa hóa cả bốn score mà không có trade-off.
 
+#### Three.js secondary use — Incident night topology
+
+Finale có thể tái sử dụng Pod/node geometry và material từ Memory Arena để tạo một isometric cluster tabletop:
+
+- Ba wave đi qua topology bằng camera anchor cố định; placement đổi rail, pressure làm node volume nóng lên và drain làm node chuyển sang maintenance state.
+- Pod duplicate dùng instancing; không load GLTF, environment map hoặc asset 3D ngoài nếu primitive geometry đã đủ diễn đạt.
+- 3D chỉ là spatial overview. Configuration card, budget, score delta, timeline và intervention vẫn là HTML để đọc và thao tác chính xác.
+- Đây là **should-have sau Memory Arena**, không phải dependency để finale hoạt động. Fallback SVG topology phải dùng cùng scenario state và cho cùng trace/score.
+
 Final replay quay lại incident mở đầu. Người học có thể giữ hoặc đổi chẩn đoán; timeline mở đúng engine và rule đã làm Pod biến mất.
 
 ## 7. Core interaction loop
@@ -438,8 +472,18 @@ Các phần còn lại ưu tiên motion chức năng, nhanh và có thể điề
 - Node, Pod và shield có thể click để inspect hoặc select.
 - Drag-and-drop có visual affordance rõ, nhưng luôn có click/select fallback.
 - Click vào comparator step làm timeline seek tới frame tương ứng.
-- Click thuộc tính bị dim mở tooltip ngắn: `Not used by kubelet eviction`.
+- Click/focus/tap thuộc tính bị dim mở popover ngắn: `Not used by kubelet eviction`; không để knowledge chỉ tồn tại ở hover tooltip.
 - SVG chỉ là visual surface khi đã có HTML control tương đương. Pod/node/shield selection dùng native button/list nằm đồng bộ với SVG; nếu một SVG element thật sự interactive thì phải focusable, có accessible name, keyboard activation và trạng thái selected rõ.
+
+### Keyboard và focus contract
+
+- Prediction, shield và preset dùng native radio trong `fieldset` + `legend`; `Tab` di chuyển giữa group, Arrow key di chuyển trong group.
+- Scene navigator dùng `<nav><ol>` và `aria-current="step"`; đây là journey navigation, không giả làm Tabs.
+- `Enter`/`Space` chọn Pod, node, packet hoặc shield. Nếu dùng roving tabindex, hỗ trợ thêm `Home`/`End` và giữ visual order trùng DOM order.
+- Drag fallback là một flow đầy đủ: **Select packet → Choose console → Confirm route**, không chỉ một nút phụ khó thấy.
+- Khi người học chủ động đổi scene, focus chuyển tới heading của scene mới. Replay, autoplay, outcome hoặc animation không tự chuyển focus.
+- Có skip link tới main content, simulation stage và playback deck. Focused control không bị sticky topbar hoặc bottom deck che.
+- Selected, disabled, busy, invalid và `no-effect` đều có text/icon/border + semantic state; không biểu diễn chỉ bằng opacity hoặc màu.
 
 ### Feedback states
 
@@ -450,6 +494,8 @@ idle → armed → running → decision → explained → replayable
 ```
 
 Không dùng toast cho kiến thức quan trọng. Feedback phải nằm sát stage hoặc control gây ra outcome.
+
+Trong lúc chạy, stage dùng `aria-busy="true"`. Một outcome node nhỏ dùng `role="status"` để announce khi run commit, pause tại decision step hoặc outcome đổi. Comparator step list là persistent DOM **không live** để người dùng tự đọc/scrub; không announce mỗi animation frame, mỗi pixel slider hoặc mỗi tick scrubber.
 
 ### Failure as content
 
@@ -526,7 +572,7 @@ Stage là thành phần lớn nhất; controls và explanation không được c
 
 Dùng native `button`, `input[type="range"]`, `output`, `fieldset` và `legend`, styled theo visual system hiện có. Các primitive tương đương shadcn/Radix về semantics nhưng không thêm React hoặc dependency.
 
-Các control icon-only cần `aria-label`; nút toggle cần `aria-pressed`; timeline cần tên step bằng text, không chỉ chấm màu.
+Các control icon-only cần `aria-label`; toggle có label ổn định như `Step mode` hoặc `Show ghost outcome` dùng `aria-pressed`. Nút Play/Pause đổi accessible label theo action hiện tại, không dùng `aria-pressed` để thay thế tên hành động. Timeline cần tên step bằng text, không chỉ chấm màu; scrubber cung cấp `aria-valuetext`, ví dụ `Step 2 of 5: Filter nodes`.
 
 ### Recommended visual primitives
 
@@ -534,18 +580,51 @@ Các control icon-only cần `aria-label`; nút toggle cần `aria-pressed`; tim
 - CSS custom properties cho design/motion tokens.
 - CSS transitions/animations hoặc Web Animations API cho sequence có thể pause/seek.
 - Canvas chỉ dùng khi có nhiều process/particle cần redraw liên tục; luôn có text fallback.
-- Không dùng WebGL, generated raster asset hoặc animation library nặng trong v1.
+- Three.js/WebGL chỉ dùng cho Node cutaway ở Memory Arena sau capability/performance spike; không dùng làm page background hoặc renderer cho control UI.
+- Không dùng generated raster asset hoặc animation library nặng trong v1 core.
+
+### Renderer decision matrix
+
+| Scene / surface | Renderer đề xuất | Quyết định | Lý do |
+|---|---|---|---|
+| Prologue Pod disappearance | SVG + CSS/WAAPI | Không cần Three.js | Một causal beat ngắn; 3D không thêm rule hoặc boundary mới |
+| Decision Switchboard | HTML + SVG wires | Không dùng Three.js | Routing, labels và `ignored here` cần rõ, focusable và dễ scan |
+| Scheduler Run | SVG rail/gates + HTML controls | Không dùng Three.js | Filter/score/preemption là sequence tuyến tính; perspective có thể làm comparator khó đọc |
+| Memory Arena node cutaway | Three.js + HTML/SVG overlay | **Dùng có điều kiện** | Nested spatial boundary và engine handover hưởng lợi rõ từ chiều sâu, clipping và guided camera |
+| Pressure/OOM comparator trace | HTML/SVG overlay | Không render text trong WebGL | Text, scrubber và step focus cần sharp, selectable và accessible |
+| Protection Run | SVG rail + HTML shield picker | Không dùng Three.js | Fast routing cần phản hồi chính xác; 3D collision dễ biến thành game timing |
+| DOKS incident night | Reuse Three.js hoặc SVG fallback | Có thể dùng | Cluster topology và simultaneous workload movement sinh động hơn, nhưng không được chặn core finale |
+| Reference Console | Native HTML primitives | Không dùng Three.js | Search, filter, citation và table là information UI |
+
+### UI component contract
+
+Không import React/shadcn vào static lesson, nhưng dùng cùng accessibility contract:
+
+| Need | Primitive triển khai | Contract |
+|---|---|---|
+| Scene/round selection | `nav > ol` + buttons/links | Journey step dùng `aria-current="step"`; round control bên trong scene mới dùng radio hoặc tabs khi thật sự là related panels |
+| Hot variable | Native range/input + `output` | Label rõ, `inputmode="numeric"` khi phù hợp, preview live nhưng outcome chỉ commit khi Run |
+| Mode switch | Radio group hoặc toggle group | Không dùng ba button rời không có group semantics |
+| Renderer preference | `2D / 3D enhanced` segmented radio | Luôn cho phép quay về 2D; lựa chọn không làm reset scenario hoặc mất timeline |
+| Pod/process selection | HTML listbox/radio cards đồng bộ raycast | Canvas không phải keyboard target duy nhất; selected state hiện ở cả stage và control |
+| Explanation/reference | Non-modal drawer hoặc dialog | Trap focus nếu modal, Escape đóng, trả focus về trigger |
+| Outcome/comparator | Outcome status + persistent step list | Chỉ outcome node dùng `aria-live="polite"`; comparator list không live; không dùng toast cho kiến thức chính |
+| Playback | Native buttons + range scrubber | Icon có accessible name, trạng thái Play/Pause không mơ hồ, touch target ≥ 44px |
 
 ## 14. Accessibility và reduced motion
 
 - Toàn bộ lesson hoàn thành được bằng keyboard.
 - Touch target tối thiểu 44×44px.
 - Focus ring luôn thấy rõ trong dark và light mode.
-- Outcome/comparator update dùng `aria-live="polite"` và `aria-atomic="true"` khi phù hợp.
+- Outcome summary dùng một `aria-live="polite"`/`aria-atomic="true"` region riêng; comparator trace là non-live list có heading và step label rõ.
+- Lesson progress và playback progress là hai region có accessible name riêng; không dùng một progress bar mơ hồ cho cả hai.
 - Animation không được tự chuyển focus hoặc auto-scroll.
 - Drag-and-drop có click/select fallback.
 - SVG có title/description hoặc bảng trạng thái tương đương.
 - Canvas có fallback text mô tả state hiện tại.
+- WebGL canvas là `aria-hidden="true"` khi toàn bộ object/state đã được phản chiếu bằng HTML; nếu canvas mang thông tin độc nhất thì concept không đạt.
+- Raycast selection luôn đồng bộ với native Pod/process selector; keyboard và switch-control không phải giả lập pointer trong canvas.
+- Khi `forced-colors: active`, mặc định dùng SVG/high-contrast renderer; không dựa vào WebGL material vì chúng không kế thừa system colors.
 - Color contrast tối thiểu WCAG AA; color không phải tín hiệu duy nhất.
 - Drawer/dialog trap focus, đóng bằng Escape và trả focus về trigger.
 - Stage vẫn có nghĩa khi zoom 200%.
@@ -559,6 +638,9 @@ Khi `prefers-reduced-motion: reduce`:
 - Comparator hiển thị từng snapshot khi bấm Next.
 - Timeline, labels và outcome vẫn đầy đủ.
 - Không parallax, shake, zoom camera hoặc flashing pulse.
+- Three.js chuyển sang fixed camera + discrete snapshots; clipping plane và volume fill nhảy theo step thay vì tween liên tục.
+- State machine không phụ thuộc `animationend` hoặc WAAPI `.finished`: shared reduced-motion CSS hiện rút duration về gần 0, nên controller phải branch trực tiếp tới snapshot kế tiếp nhưng vẫn cập nhật trace/state.
+- Không có flash quá 3 lần/giây. Step mode được lưu độc lập với theme và được test cả qua system preference lẫn toggle trong lesson.
 
 Người học có thể bật **Step mode** độc lập với system preference.
 
@@ -576,15 +658,18 @@ Người học có thể bật **Step mode** độc lập với system preferenc
 - Stage full width; controls dùng hai cột khi mỗi cột còn tối thiểu 300px.
 - Không giảm text hoặc touch target để cố giữ desktop layout.
 
-### Mobile 375–767px
+### Mobile 320–767px
 
 - Single column, stage trước controls.
 - Stage chuyển từ rail ngang sang rail dọc hoặc snap theo từng decision frame.
 - Event sorter dùng tap/select, không yêu cầu drag.
 - Playback deck sticky dưới viewport nhưng không che nội dung/focus.
+- Bottom deck chừa `env(safe-area-inset-bottom)` và content có padding tương ứng; kiểm tra cả mobile landscape và viewport chiều cao thấp.
 - Tables chuyển thành card list hoặc region có label rõ.
 - Không có horizontal page overflow.
 - Không bỏ animation; dùng choreography ngắn hơn và ít object hơn.
+- Với 3D cutaway, dùng fixed isometric camera, tối đa một layer inspect tại một thời điểm và DPR thấp hơn; nếu canvas không giữ frame budget thì tự chuyển sang SVG snapshot mà không mất control hoặc outcome.
+- Layout lab ưu tiên container query theo chiều rộng thực của stage/control region; viewport breakpoint chỉ là fallback.
 
 ## 16. Technical direction
 
@@ -594,7 +679,7 @@ Khuyến nghị bám kiến trúc lesson hiện có:
 - Shared CSS/theme assets từ repo.
 - Vanilla JavaScript.
 - Inline SVG và data-driven scenario objects.
-- Không thêm dependency hoặc build step.
+- V1 core không thêm dependency hoặc build step; Three.js là lazy-loaded progressive module chỉ được đưa vào sau spike và phải có SVG fallback.
 
 ### Single source of truth
 
@@ -648,6 +733,24 @@ Mỗi function trả về cả outcome và trace:
 
 Motion controller chỉ render `steps`, nhờ đó Play/Pause/Next/Replay và reduced-motion dùng cùng một dữ liệu.
 
+### Progressive renderer architecture
+
+Renderer không được sở hữu simulation logic:
+
+```text
+pure scenario functions → decision trace → scene controller
+                                      ↘ SVG/DOM renderer
+                                      ↘ Three.js renderer (capability-gated)
+                                      ↘ text/live-region renderer
+```
+
+- Cả SVG và Three.js đọc cùng `lessonState` + `decisionTrace`; không có comparator riêng trong scene graph.
+- WebGL capability check chạy trước khi load module. `prefers-reduced-motion`, `Save-Data`, device memory thấp hoặc renderer init failure có thể chọn SVG path ngay.
+- Three.js được pin version và self-host dưới dạng ES module nếu được duyệt; không phụ thuộc CDN runtime.
+- Scene lifecycle có `mount`, `renderState`, `pause`, `resume`, `dispose`; chuyển scene phải dispose geometry, material, texture, render target và event listener.
+- `webglcontextlost` phải pause playback, giữ nguyên `lessonState`, thông báo chuyển renderer và phục hồi bằng SVG thay vì để stage trắng.
+- HTML overlay dùng CSS tokens giống material palette để engine color/shape không lệch giữa 2D và 3D.
+
 ### Performance budget
 
 - Chỉ animate `transform` và `opacity` trong hot path.
@@ -656,7 +759,12 @@ Motion controller chỉ render `steps`, nhờ đó Play/Pause/Next/Replay và re
 - Không tạo animation loop khi scene off-screen.
 - SVG DOM giữ gọn; canvas chỉ redraw khi state thay đổi.
 - Tránh layout shift khi outcome hoặc drawer xuất hiện.
-- Target 60fps trên desktop phổ thông và mobile tầm trung; nếu không giữ được, giảm object trước khi giảm accessibility.
+- Performance target là 60fps desktop và 45fps mobile tầm trung trong playback; minimum trước fallback là 55fps desktop và 30fps mobile. Nếu không giữ target, giảm object/effect trước khi giảm accessibility.
+- Three.js chunk lazy-load mục tiêu ≤ 250 KiB gzip; không nằm trên critical path tới action đầu tiên.
+- 3D scene ưu tiên primitive geometry, shared material và `InstancedMesh`; mục tiêu ≤ 80 draw calls, ≤ 120k visible triangles và tối đa 2 dynamic lights.
+- Cap `devicePixelRatio` ở 1.5 desktop và 1.0–1.25 mobile; không dùng real-time shadow, bloom, SSAO hoặc transparency layer dày trong core mode.
+- Đo incident wave trong hai run 10 giây trên ít nhất một laptop 4-core dùng integrated GPU ở 1440×900 và một Android tầm trung ở 390×844, browser stable hiện hành. Nếu median FPS dưới minimum trong hai run liên tiếp hoặc input latency vượt 100ms, mặc định dùng SVG fallback trên device class đó.
+- Initial lesson shell và first interaction không chờ Three.js; module chỉ prefetch sau khi người học vào control room hoặc khi browser idle.
 
 ## 17. Existing lesson patterns to reuse
 
@@ -682,7 +790,7 @@ Patterns to improve:
 - Chuyển từ section-heavy page sang stage-led scene.
 - Không dùng inline `onclick`; chỉ dùng `addEventListener`.
 - Progress bar có `role="progressbar"` và `aria-valuenow`.
-- Play button có `aria-pressed`; animation luôn có Pause/Skip.
+- Play/Pause có accessible label theo action hiện tại; toggle state ổn định mới dùng `aria-pressed`; animation luôn có Pause/Skip.
 - Mobile giữ scene navigation và status.
 - Prediction xuất hiện trước simulation, không gom quiz ở cuối.
 - Explanation chỉ xuất hiện sau action, không đặt prose dài trước lab.
@@ -721,6 +829,9 @@ Patterns to improve:
 | Một file HTML quá lớn | Khó bảo trì | Data-driven scene, motion token và component factory có section rõ |
 | Mobile animation quá chật | Mất tính trực quan | Rail dọc/snapshot mode, giảm object chứ không ẩn outcome |
 | Finale có “đáp án tuyệt đối” | Che giấu trade-off | Multi-score và alternate replay, không pass/fail đơn giản |
+| Three.js biến lesson thành tech demo | Tốn scope nhưng không tăng learning | Chỉ giữ Node cutaway khi usability test chứng minh boundary comprehension tốt hơn SVG |
+| WebGL fail hoặc GPU yếu | Scene trắng/mất core path | Capability gate, lazy load, init timeout và SVG fallback dùng cùng trace |
+| Canvas interaction loại trừ keyboard/screen reader | Không hoàn thành được lesson | HTML controls là source tương tác; raycast chỉ là pointer enhancement và canvas không chứa thông tin độc nhất |
 
 ## 20. Acceptance criteria cho concept
 
@@ -745,10 +856,15 @@ Concept chỉ được duyệt nếu:
 - [ ] Toàn bộ core interaction dùng được bằng keyboard, touch và reduced-motion Step mode.
 - [ ] Protection Run mặc định pause trước hazard; core path không yêu cầu phản ứng theo thời gian.
 - [ ] Pod/node/shield có native HTML control đồng bộ hoặc SVG semantics/keyboard behavior tương đương.
-- [ ] Stage có ý nghĩa ở 375px, 768px, 1024px và 1440px, không horizontal overflow.
+- [ ] Stage có ý nghĩa ở 320px, 375px, 768px, 1024px và 1440px, zoom 200% và mobile landscape, không horizontal overflow.
 - [ ] Motion dùng transform/opacity trong hot path và pause khi tab hidden.
 - [ ] Shared visual identity của site được giữ.
-- [ ] Không thêm framework, animation dependency hoặc build step trong v1.
+- [ ] Renderer decision matrix được giữ: Three.js chỉ có quyền sở hữu Node cutaway và optional finale topology, không sở hữu controls/text/comparator.
+- [ ] Memory Arena có SVG fallback dùng cùng state/trace và cho outcome giống Three.js.
+- [ ] WebGL canvas không chứa control hoặc thông tin độc nhất; keyboard/touch/reduced-motion path hoàn thành được toàn lesson.
+- [ ] Three.js không nằm trên critical path tới action đầu tiên và đạt performance budget trước khi bật mặc định.
+- [ ] Không thêm framework, animation dependency hoặc build step trong v1 core.
+- [ ] Manual accessibility pass hoàn tất bằng keyboard-only, VoiceOver + Safari, NVDA + Firefox/Chrome, touch/coarse pointer, reduced motion và forced colors; axe chỉ là baseline.
 
 ## 21. Recommended implementation boundary
 
@@ -770,6 +886,7 @@ Concept chỉ được duyệt nếu:
 - Speed control.
 - Full seven-hazard Protection Run.
 - Reference console và citations theo decision step.
+- Three.js Node cutaway spike với guided camera, nested boundary và SVG parity test.
 
 ### Could have
 
@@ -777,6 +894,7 @@ Concept chỉ được duyệt nếu:
 - Shareable finale score.
 - Subtle sound design có opt-in.
 - Optional haptic confirmation trên thiết bị hỗ trợ.
+- Reuse Three.js renderer cho DOKS incident-night topology sau khi Memory Arena đạt learning/performance gate.
 
 Không triển khai sound, haptic, progress persistence hoặc shareable score ở phiên bản đầu nếu chưa có yêu cầu riêng.
 
@@ -787,6 +905,7 @@ Không triển khai sound, haptic, progress persistence hoặc shareable score �
 1. Dùng **4 playable scene**; các topic nhỏ trở thành round hoặc reference drawer.
 2. Finale dùng **DOKS scenario** từ report để giữ tính thực tế; scenario data tách riêng để có thể generic hóa sau.
 3. Tên hiển thị: **One Pod, Three Judges**; subtitle: **Kubernetes Pod Survival Lab**.
-4. V1 dùng **CSS + Web Animations API + inline SVG**, không thêm animation library.
+4. V1 core dùng **CSS + Web Animations API + inline SVG**, không thêm animation library.
+5. Thực hiện một spike riêng cho **Three.js Node cutaway**. Chỉ merge vào core experience khi đạt SVG parity, accessibility fallback, performance budget và learning gate; DOKS 3D đứng sau quyết định này.
 
 Chỉ cần thay đổi các mặc định trên nếu scope sản phẩm yêu cầu khác; concept đã đủ cụ thể để chuyển sang interaction storyboard và implementation plan.
