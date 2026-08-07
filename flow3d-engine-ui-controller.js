@@ -2,7 +2,7 @@
    STEP / PHASE NAVIGATION
 
    The pipeline strip and the metric HUD live in
-   k8s-flow-3d-engine-hud-controller.js — this file drives step transitions,
+   flow3d-engine-hud-controller.js — this file drives step transitions,
    announcements and the explain panel.
 ══════════════════════════════════════════════ */
 
@@ -28,10 +28,19 @@ const STEP_INTRO_MS = STEP_HOLD_MS + STEP_SLIDE_MS;
 let phaseTimer = null;
 let flyTimer = null;
 let stepActionTimer = null;
+// The pending 'the step title has landed at the top' listener. It closes over
+// the step that armed it, so it must be torn down with the timers — otherwise
+// a later step's slide re-triggers it, which re-announces the *old* phase and
+// wipes the hide timer that was going to fade the current one out.
+let landedHandler = null;
 
 function clearAnnounceTimers() {
   if (phaseTimer) { clearTimeout(phaseTimer); phaseTimer = null; }
   if (flyTimer) { clearTimeout(flyTimer); flyTimer = null; }
+  if (landedHandler) {
+    stepAnnounce.removeEventListener('transitionend', landedHandler);
+    landedHandler = null;
+  }
 }
 
 // Snaps an announce element back to its centered, invisible resting state
@@ -45,26 +54,31 @@ function resetAnnounce(el) {
 }
 
 /* Fires on the first phase of a step (announcing the step), and — for
-   scenarios whose steps are split into phases (Scheduler Pipeline,
-   Preemption) — on every later phase too, announcing that phase's own title.
-   Centered, fades back out on its own — independent of the pinned step
-   title, which lives in #step-announce. */
+   scenarios whose steps are split into phases — on every later phase too,
+   announcing that phase's own title.
+   Anchored near the visualizer bottom and stays visible for the whole phase,
+   independent of the pinned step title in #step-announce. */
 function announcePhase(sc, step) {
   const split = step.phaseCount > 1;
   resetAnnounce(phaseAnnounce);
   // The step number/name is already pinned at the top, so the phase card
   // only carries its own position within that step.
-  paNum.textContent = split ? 'PHASE ' + step.phaseNo + ' / ' + step.phaseCount : sc.tag;
+  // Same "LABEL nn / nn · CONTEXT" shape as the step title pinned above.
+  paNum.textContent = split
+    ? 'PHASE ' + pad2(step.phaseNo) + ' / ' + pad2(step.phaseCount)
+    : sc.tag;
   paTitle.textContent = step.phaseTitle;
+  // Stays put for the rest of the phase — no hide timer. The only thing that
+  // clears it is the next phase/step coming in (showStepAnnounce drops `show`
+  // before announcing the new one).
   phaseAnnounce.classList.add('show');
-  phaseTimer = setTimeout(() => {
-    phaseAnnounce.classList.remove('show');
-    phaseTimer = null;
-  }, 2600);
 }
 
+// Zero-padded counters keep the two announce labels the same visual width.
+function pad2(n) { return String(n).padStart(2, '0'); }
+
 function setStepText(sc, step) {
-  saNum.textContent = 'STEP ' + step.stepNo + ' OF ' + (sc.stepCount || sc.steps.length) + '  ·  ' + sc.tag;
+  saNum.textContent = 'STEP ' + pad2(step.stepNo) + ' / ' + pad2(sc.stepCount || sc.steps.length) + '  ·  ' + sc.tag;
   saTitle.textContent = step.title;
 }
 
@@ -103,7 +117,7 @@ function showStepAnnounce(sc, step) {
   // Phased scenarios: the step title appears centered first, fully
   // visible, then lifts to the top of the screen and stays pinned there —
   // no fade-out — for the rest of the step. The phase announcer then takes
-  // over the freed-up center spot.
+  // over the lower visualizer area.
   resetAnnounce(stepAnnounce);
   setStepText(sc, step);
   stepAnnounce.classList.add('show');
@@ -114,18 +128,24 @@ function showStepAnnounce(sc, step) {
   flyTimer = setTimeout(() => {
     flyTimer = null;
 
-    const onLanded = function(ev) {
+    landedHandler = function(ev) {
       if (ev.target !== stepAnnounce || ev.propertyName !== 'top') return;
-      stepAnnounce.removeEventListener('transitionend', onLanded);
-      if (phaseTimer) { clearTimeout(phaseTimer); }
-      announcePhase(sc, step); // reassigns phaseTimer to its own hide timer
+      stepAnnounce.removeEventListener('transitionend', landedHandler);
+      landedHandler = null;
+      // Cancel the fallback below — the real transition beat it to it.
+      if (phaseTimer) { clearTimeout(phaseTimer); phaseTimer = null; }
+      announcePhase(sc, step);
     };
-    stepAnnounce.addEventListener('transitionend', onLanded);
+    stepAnnounce.addEventListener('transitionend', landedHandler);
 
     // Fallback: if the transition never fires (tab backgrounded, reduced
     // motion), show the phase anyway just past the slide's duration.
     phaseTimer = setTimeout(() => {
-      stepAnnounce.removeEventListener('transitionend', onLanded);
+      phaseTimer = null;
+      if (landedHandler) {
+        stepAnnounce.removeEventListener('transitionend', landedHandler);
+        landedHandler = null;
+      }
       announcePhase(sc, step);
     }, 400);
 
@@ -268,6 +288,10 @@ function loadStep(si, step, direction) {
       const runStepAction = function() {
         stepActionTimer = null;
         clearStepLayer();
+        // Flow lines anchor themselves to components, and a component's place
+        // depends on which step we are on — so the layer must know that before
+        // it builds.
+        setAnchorContext(sc, step);
         buildStepLayer(s);
         applyPersistentStep(sc, step);
         queueScoreHud(s);
@@ -350,4 +374,3 @@ SCENARIOS.forEach(function(sc, si) {
   el.addEventListener('click', function() { loadStep(si, 0); });
   scList.appendChild(el);
 });
-

@@ -6,10 +6,11 @@
    animates flows over the components that are already standing.
 
    Because the world is persistent, a scenario should never draw the same
-   real-world thing twice. A Pod that travels from etcd to a queue to a Node
-   is ONE component with `set: { key: { pos: [x,y,z] } }` at each leg — not
-   three look-alike boxes taking turns. A Node's status belongs on the Node
-   itself (`label` / `col` / `badge`), not on a separate status chip beside it.
+   real-world thing twice. A subject that travels from a store to a queue to
+   a worker is ONE component with `set: { key: { pos: [x,y,z] } }` at each leg
+   — not three look-alike boxes taking turns. A component's status belongs on
+   the component itself (`label` / `col` / `badge`), not on a separate status
+   chip beside it.
 ══════════════════════════════════════════════ */
 
 let worldGroup = null;      // persistent components (survive step changes)
@@ -48,7 +49,7 @@ function buildPersistentWorld(sc, si) {
 
 function makeWorldCtx() {
   return {
-    /* node('etcd', {label, pos:[x,y,z], size:[w,h,d], col, edge, order, hidden, labelPos, hover})
+    /* node('store', {label, pos:[x,y,z], size:[w,h,d], col, edge, order, hidden, labelPos, hover})
        `pos` here is only the component's home; steps can relocate it with
        set:{key:{pos}} and it will travel there rather than jump. */
     node(key, o) {

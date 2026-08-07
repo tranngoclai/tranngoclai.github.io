@@ -1,46 +1,61 @@
 /* ══════════════════════════════════════════════
    SCHEDULER PIPELINE — SCENARIO ASSEMBLY
 
-   The cluster itself lives in k8s-flow-3d-scenario-scheduler-world.js and is
-   never torn down. The 9 steps are authored in two files, split where the
-   story hands over from Control Plane to Node:
+   Cluster sống trong k8s-flow-3d-scenario-scheduler-world.js và không bao giờ
+   bị dựng lại. 9 bước được viết trong hai file, cắt đúng chỗ câu chuyện bàn
+   giao từ Control Plane xuống Node:
 
      …-control-plane.js  ①–⑤  request → etcd → queue → filter → score
      …-node.js           ⑥–⑨  bind → kubelet → CRI → running
 
-   ── Authoring model ──
-   A step is split into `phases`. One phase = one explanation + one action, so
-   the viewer reads a single beat and only that beat's choreography plays.
-   k8s-flow-3d-engine-phase-expander.js flattens phases into ordinary steps
-   before the engine loads, so nothing downstream knows phases exist.
+   ── Mô hình tác giả (chung cho mọi kịch bản dùng SCENE_KIT) ──
+   Một step chia thành `phases`. Một phase = một lời giải thích + một hành
+   động, nên người xem đọc một nhịp và chỉ nhịp đó chạy.
+   flow3d-engine-phase-expander.js flatten phases thành step thường trước khi
+   engine load, nên phía dưới không component nào biết phase tồn tại.
 
-   A phase declares:
-     title   – heading for this beat (the step title stays on screen above it)
-     desc    – the explanation, shown before its action runs
-     focus   – components lit up (everything else dims but stays visible)
-     show    – components revealed from here on (cumulative)
-     hide    – components removed from here on (cumulative)
-     set     – label/colour changes from here on (cumulative). An entry with
-               `at` (seconds) is *played*: the component flashes, a badge pops
-               and the new look commits at that moment.
-     showAt  – key → seconds; delays a reveal so it lands with its flow
-     hideAt  – key → seconds; same for a removal
-     scene   – arrow lines (`a.flow`) and captions (`a.note`) for this phase
-     cam     – camera target + distance
+   Một phase khai:
+     title   – tiêu đề nhịp (title của step vẫn nằm phía trên)
+     desc    – lời giải thích, dựng bằng `KIT.desc(lead, body, why)`
+     focus   – component được sáng (số còn lại mờ đi nhưng vẫn đứng nguyên)
+     labels  – component được phép hiện caption trong nhịp này
+     show    – component xuất hiện từ đây trở đi (cộng dồn)
+     hide    – component biến mất từ đây trở đi (cộng dồn)
+     set     – thay đổi trạng thái, dựng bằng `KIT.mark` / `pulse` / `move`.
+               Entry có `at` (giây) sẽ được *chơi*: component chớp, badge bật
+               lên, và diện mạo mới commit đúng khoảnh khắc đó.
+     showAt  – key → giây; hoãn một lần reveal cho khớp với flow
+     hideAt  – key → giây; tương tự cho một lần remove
+     scene   – đường bay (`KIT.flow`) và caption (`KIT.note`) của nhịp này
+     cam     – tâm camera + khoảng cách
 
-   `focus` / `cam` / `dist` / `pipelineStep` fall through from the step when a
-   phase does not override them.
+   `focus` / `cam` / `dist` / `pipelineStep` rơi từ step xuống phase khi phase
+   không override.
 
-   Timing convention: a phase holds one action, so offsets stay inside roughly
-   0–1.5s and each flow uses a short `loop` — the single action it describes
-   replays gently while the viewer reads, instead of a long sequence the
-   viewer has to catch mid-flight.
+   Quy ước timing: một phase giữ một hành động, nên offset nằm trong khoảng
+   0–1.5s và mỗi flow dùng `loop` ngắn — hành động đó lặp lại nhè nhẹ trong lúc
+   người xem đọc, thay vì một chuỗi dài mà người xem phải bắt giữa chừng.
+
+   Thanh pipeline là 7 chặng của đúng vòng đời một Pod. Nó phải được khai ở
+   đây: engine không tự đoán được kịch bản đang kể cơ chế nào (xem
+   flow3d-engine-hud-controller.js).
 ══════════════════════════════════════════════ */
-window.SCENARIOS = window.SCENARIOS || [];
-window.SCENARIOS.push({
+(function() {
+const KIT = window.SCENE_KIT;
+
+KIT.scenario({
   name: 'Scheduler Pipeline',
   tag: 'SCHEDULER',
-  showPipeline: true,
+  pipeline: [
+    KIT.stage('📤', 'Client'),
+    KIT.stage('💾', 'etcd'),
+    KIT.stage('📬', 'Queue'),
+    KIT.stage('🔍', 'Filter/Score'),
+    KIT.stage('🔗', 'Bind'),
+    KIT.stage('⚙️', 'kubelet'),
+    KIT.stage('🟢', 'Running')
+  ],
   world: window.SCHEDULER_WORLD,
   steps: window.SCHED_STEPS_CONTROL_PLANE.concat(window.SCHED_STEPS_NODE)
 });
+})();

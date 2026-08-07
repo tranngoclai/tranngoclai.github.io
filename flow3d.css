@@ -144,14 +144,52 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-ser
   100%{transform:translate(-50%,-50%) scale(1);}
 }
 
+/* ─── ANNOUNCEMENT PLATES (shared) ───
+   Step and phase titles read as one family: same typography, same soft gray
+   plate. The plate has no border and no hard edge of any kind — it dissolves
+   into the scene, and the 3D layer stays faintly visible through it. */
+#step-announce,#phase-announce{
+  display:flex;flex-direction:column;align-items:center;gap:5px;
+  width:max-content;max-width:calc(100% - 16px);padding:16px 40px 18px;
+  border:none;
+  z-index:15;pointer-events:none;
+}
+/* The plate itself: a plain translucent slab that is then blurred.
+   Two reasons this beats the alternatives, both verified against a bright
+   grid backdrop:
+     · `filter` is NOT clipped to the element box (unlike `backdrop-filter`),
+       so the glow bleeds past the edge and there is no boundary to see. A
+       masked backdrop-filter still shows its four corners — the mask feathers
+       the element's own paint, not the blurred backdrop behind it.
+     · Blur gives a true gaussian falloff. A multi-stop radial gradient reaches
+       zero alpha with a non-zero slope, and the eye reads that break as a
+       faint straight seam.
+   The negative inset lets the slab start wider than the text before blurring;
+   the blur radius then decides how far the glow reaches. */
+#step-announce::before,#phase-announce::before{
+  content:'';position:absolute;inset:-8px -34px;z-index:-1;
+  /* Dark, not light — the titles are near-white, so the plate has to sink the
+     scene behind them rather than lift it. Tinted toward --bg, not pure black,
+     so it reads as the scene dimming instead of a gray wash. */
+  background:rgba(5,9,16,.52);border-radius:70px;
+  filter:blur(32px);
+}
+#step-announce .sa-num,#phase-announce .pa-num{
+  font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.16em;
+  color:rgba(122,160,225,.78);text-transform:uppercase;white-space:nowrap;
+}
+#step-announce .sa-title,#phase-announce .pa-title{
+  font-size:14px;font-weight:600;color:var(--bright);text-align:center;
+  letter-spacing:.01em;line-height:1.35;max-width:560px;
+  text-shadow:0 1px 3px rgba(0,0,0,.55),0 2px 22px rgba(0,0,0,.8);
+}
+
 /* ─── STEP ANNOUNCEMENT ───
    Appears centered, then lifts to the top and stays there — visible for the
    whole step, no fade-out. Only #step-announce.fly-up moves it; nothing ever
    removes `.show` once it's pinned. */
 #step-announce{
   position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(.9);
-  z-index:15;pointer-events:none;
-  display:flex;flex-direction:column;align-items:center;gap:6px;
   opacity:0;transition:opacity .3s ease,transform .3s ease,top .3s ease;
 }
 #step-announce.show{opacity:1;transform:translate(-50%,-50%) scale(1);}
@@ -162,38 +200,25 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-ser
    where it stays pinned for the rest of the step. Fast, and at the same
    text size — only the position changes. */
 #step-announce.fly-up{
-  top:48px;
+  /* Offsets the plate's top padding so the text lands where it used to. */
+  top:26px;
   transform:translate(-50%,0) scale(1);
   transition:transform .3s ease,top .3s ease;
 }
-#step-announce .sa-num{
-  font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.15em;
-  color:rgba(58,127,255,.7);text-transform:uppercase;
-}
-#step-announce .sa-title{
-  font-size:14px;font-weight:600;color:var(--bright);text-align:center;
-  text-shadow:0 2px 24px rgba(0,0,0,.8);max-width:560px;line-height:1.35;
-}
 
 /* ─── PHASE ANNOUNCEMENT ───
-   Centered, fades in and back out for each phase — independent of the
-   pinned step title above it. */
+   Anchored near the bottom of the visualizer, above the pipeline strip, and
+   held there for the whole phase — the next phase replaces it, nothing fades
+   it out. Shares the plate and typography of the step title above; only the
+   anchor differs. */
 #phase-announce{
-  position:absolute;top:62%;left:50%;transform:translate(-50%,-50%) scale(.9);
-  z-index:15;pointer-events:none;
-  display:flex;flex-direction:column;align-items:center;gap:6px;
+  /* Likewise pulled in by the plate's bottom padding. */
+  position:absolute;bottom:48px;left:50%;
+  transform:translate(-50%,10px) scale(.96);
   opacity:0;transition:opacity .3s ease,transform .3s ease;
 }
-#phase-announce.show{opacity:1;transform:translate(-50%,-50%) scale(1);}
+#phase-announce.show{opacity:1;transform:translate(-50%,0) scale(1);}
 #phase-announce.no-anim{transition:none!important;}
-#phase-announce .pa-num{
-  font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.15em;
-  color:rgba(58,127,255,.7);text-transform:uppercase;
-}
-#phase-announce .pa-title{
-  font-size:14px;font-weight:600;color:var(--bright);text-align:center;
-  text-shadow:0 2px 24px rgba(0,0,0,.8);max-width:560px;line-height:1.35;
-}
 
 /* ─── SCORE COUNTER HUD ─── */
 #score-hud{

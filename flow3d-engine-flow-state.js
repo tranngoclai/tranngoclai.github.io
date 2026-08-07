@@ -23,7 +23,27 @@ const FLOW_IDX_SEG = FLOW_RADIAL * 6;       // index count per tubular segment
    makeFlowLine([[x,y,z], ...], color, {at, dur, hold, loop, width})
    `at` is the offset inside the shared `loop`, so several lines in one step
    replay their sequence in sync instead of drifting apart.
+
+   ── Why the line ignores depth ──
+   A flow line is an ANNOTATION over the scene, not an object standing in it.
+   Its endpoints sit flush on the components' top faces, so the line runs low —
+   and a depth-tested line that runs low disappears the moment a tall component
+   stands between it and the camera. From a low orbit angle the API Server →
+   etcd arrow was swallowed whole by the etcd box: the viewer freely rotates
+   the scene, so "visible from most angles" is the same as broken.
+
+   Drawing the line last with depth testing off costs a little honesty — the
+   arrow shows through a box that is genuinely in front of it — and buys the
+   guarantee that the step's one piece of choreography is never invisible.
+   The boxes are translucent anyway, so nothing here reads as solid.
 ───────────────────────────────────────────── */
+
+/* Draw order inside the flow: dim track first, bright pulse over it, tip on
+   top. Well above the scene's default 0 so the whole line clears the world. */
+const FLOW_ORDER_TRACK = 10;
+const FLOW_ORDER_HEAD  = 11;
+const FLOW_ORDER_TIP   = 12;
+
 function makeFlowLine(points, color, opts) {
   if (!points || points.length < 2) return;
   opts = opts || {};
@@ -35,19 +55,27 @@ function makeFlowLine(points, color, opts) {
 
   // Dim full-length track that the pulse leaves behind.
   const trackGeo = new THREE.TubeGeometry(curve, FLOW_TUBULAR, radius, FLOW_RADIAL, false);
-  const trackMat = new THREE.MeshBasicMaterial({color: col, transparent: true, opacity: 0, depthWrite: false});
+  const trackMat = new THREE.MeshBasicMaterial({
+    color: col, transparent: true, opacity: 0, depthWrite: false, depthTest: false
+  });
   const track = new THREE.Mesh(trackGeo, trackMat);
+  track.renderOrder = FLOW_ORDER_TRACK;
 
   // Bright leading pulse — same geometry, its own draw window.
   const headGeo = trackGeo.clone();
   const headMat = new THREE.MeshBasicMaterial({
-    color: col, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending
+    color: col, transparent: true, opacity: 0, depthWrite: false, depthTest: false,
+    blending: THREE.AdditiveBlending
   });
   const head = new THREE.Mesh(headGeo, headMat);
+  head.renderOrder = FLOW_ORDER_HEAD;
 
   // Arrow tip riding at the front of the pulse.
-  const tipMat = new THREE.MeshBasicMaterial({color: col, transparent: true, opacity: 0, depthWrite: false});
+  const tipMat = new THREE.MeshBasicMaterial({
+    color: col, transparent: true, opacity: 0, depthWrite: false, depthTest: false
+  });
   const tip = new THREE.Mesh(new THREE.ConeGeometry(radius * 3.6, radius * 9, 10), tipMat);
+  tip.renderOrder = FLOW_ORDER_TIP;
 
   buildAdd(track); buildAdd(head); buildAdd(tip);
 

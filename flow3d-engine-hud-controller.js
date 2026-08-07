@@ -6,15 +6,13 @@
    the scenario/step, so a new scenario never needs its own markup.
 
    ── Pipeline strip ──
-   A scenario declares the stages it walks through:
+   A scenario declares the stages it walks through (see SCENE_KIT.stage):
 
-     pipeline: [{icon:'📬', label:'Queue'}, {icon:'⚖️', label:'PostFilter', tone:'warn'}, …]
+     pipeline: [{icon:'📬', label:'Queue'}, {icon:'⚖️', label:'Decide', tone:'warn'}, …]
 
    and each step (or phase) points at one with `pipelineStep: <index>`.
-   Omitting `pipeline` falls back to the kube-scheduler's own 7 stages, which
-   is what the Scheduler Pipeline scenario walks. `tone` recolours the stage
-   when it is the active one — a stage that destroys something should not look
-   like a stage that creates something.
+   `tone` recolours the stage when it is the active one — a stage that
+   destroys something should not look like a stage that creates something.
 
    Because `pipelineStep` is resolved per *phase*, the strip can advance inside
    a step, and can legitimately move backwards: a preemption retry really does
@@ -24,9 +22,9 @@
    The same rows serve two jobs, chosen by the data a step supplies:
 
      scoreMode: true,
-     scoreTitle: 'memory đã cấp / allocatable',       // optional caption
-     scores: [{name:'Worker A', v:92, txt:'11/12Gi', tone:'danger'},
-              {name:'Worker D', v:71, win:true}]
+     scoreTitle: 'used / capacity',                   // optional caption
+     scores: [{name:'Node A', v:92, txt:'11/12Gi', tone:'danger'},
+              {name:'Node D', v:71, win:true}]
 
    `v` (0–100) drives the bar. `txt` overrides the readout — with it the value
    is a measurement (`11/12Gi`), without it the value counts up to `v` like a
@@ -38,17 +36,6 @@
    PIPELINE UI
 ══════════════════════════════════════════════ */
 const pipelineUI = document.getElementById('pipeline-ui');
-
-/* Default stages: the kube-scheduler pipeline the main scenario narrates. */
-const PIPELINE_DEFAULT = [
-  {icon: '🖥️', label: 'Client'},
-  {icon: '🗄️', label: 'etcd'},
-  {icon: '📬', label: 'Queue'},
-  {icon: '🔍', label: 'Filter/Score'},
-  {icon: '🔗', label: 'Bind'},
-  {icon: '⚙️', label: 'kubelet'},
-  {icon: '🟢', label: 'Running'}
-];
 
 let pipelineStages = null;   // stage list currently rendered into the strip
 
@@ -66,11 +53,13 @@ function renderPipeline(stages) {
 }
 
 function updatePipelineUI(sc, stepIdx) {
-  if (!sc.showPipeline) {
+  // No stages declared → no strip. The engine has no idea what mechanism a
+  // scenario narrates, so it cannot invent a default set of stages.
+  if (!sc.showPipeline || !sc.pipeline) {
     pipelineUI.classList.remove('show');
     return;
   }
-  const stages = sc.pipeline || PIPELINE_DEFAULT;
+  const stages = sc.pipeline;
   renderPipeline(stages);
   pipelineUI.classList.add('show');
 

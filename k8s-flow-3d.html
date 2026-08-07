@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Kubernetes – 3D Scenarios</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
-<link rel="stylesheet" href="k8s-flow-3d.css"/>
+<link rel="stylesheet" href="flow3d.css"/>
 </head>
 <body>
 
@@ -44,7 +44,7 @@
   <div id="main">
     <div id="progress-bar"></div>
     <div id="scene-wrap">
-      <canvas id="canvas"></canvas>
+      <canvas id="canvas" role="img" aria-label="Mô phỏng 3D Kubernetes; nội dung và kết luận đầy đủ nằm trong bảng giải thích bên dưới"></canvas>
       <div id="labels"></div>
       <div id="fade-overlay"></div>
       <div id="dir-flash"></div>
@@ -53,22 +53,22 @@
         <div class="sa-num" id="sa-num"></div>
         <div class="sa-title" id="sa-title"></div>
       </div>
-      <!-- Phase title: centered, fades in and back out for each phase -->
+      <!-- Phase title: anchored near the visualizer bottom, fades in and back out for each phase -->
       <div id="phase-announce">
         <div class="pa-num" id="pa-num"></div>
         <div class="pa-title" id="pa-title"></div>
       </div>
       <!-- Metric HUD — rows rendered from step.scores (scores or capacities) -->
-      <div id="score-hud"></div>
+      <div id="score-hud" aria-live="polite" aria-label="Scenario metrics"></div>
     </div>
     <!-- Pipeline strip — stages rendered from scenario.pipeline -->
-    <div id="pipeline-ui"></div>
+    <div id="pipeline-ui" aria-label="Scenario pipeline"></div>
     <div id="explain">
       <div id="step-num-wrap">
         <div id="step-num">01</div>
         <div id="step-phase"></div>
       </div>
-      <div id="explain-body">
+      <div id="explain-body" aria-live="polite">
         <div class="explain-slot visible" id="slot-a">
           <div class="e-label" id="e-label">STEP 1 OF 1</div>
           <div class="e-parent" id="e-parent"></div>
@@ -98,6 +98,13 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/controls/OrbitControls.js"></script>
 
+<!-- Scene kit — reusable authoring vocabulary, no Kubernetes in it.
+     Tokens and helpers every scenario is written with; load before scenarios. -->
+<script src="flow3d-kit-design-tokens.js"></script>
+<script src="flow3d-kit-world-builder.js"></script>
+<script src="flow3d-kit-state-marks.js"></script>
+<script src="flow3d-kit-panel-and-hud.js"></script>
+
 <!-- Scenario data (edit these to add/change content — engine below rarely changes) -->
 <script src="k8s-flow-3d-scenarios-index.js"></script>
 <script src="k8s-flow-3d-scenario-scheduler-world.js"></script>
@@ -108,21 +115,28 @@
 <script src="k8s-flow-3d-scenario-preemption-filter.js"></script>
 <script src="k8s-flow-3d-scenario-preemption-evict.js"></script>
 <script src="k8s-flow-3d-scenario-preemption.js"></script>
+<script src="k8s-flow-3d-scenario-kubelet-eviction-model.js"></script>
+<script src="k8s-flow-3d-scenario-kubelet-eviction-policy.js"></script>
+<script src="k8s-flow-3d-scenario-kubelet-eviction-world.js"></script>
+<script src="k8s-flow-3d-scenario-kubelet-eviction-pressure.js"></script>
+<script src="k8s-flow-3d-scenario-kubelet-eviction-ranking.js"></script>
+<script src="k8s-flow-3d-scenario-kubelet-eviction-consequence.js"></script>
 <script src="k8s-flow-3d-scenario-kubelet-eviction.js"></script>
 <script src="k8s-flow-3d-scenario-oom-killer.js"></script>
 <script src="k8s-flow-3d-scenario-pdb-drain.js"></script>
 
 <!-- Flattens step.phases[] into steps — must run before any engine code -->
-<script src="k8s-flow-3d-engine-phase-expander.js"></script>
+<script src="flow3d-engine-phase-expander.js"></script>
 
 <!-- 3D rendering engine and UI wiring -->
-<script src="k8s-flow-3d-engine-scene-setup.js"></script>
-<script src="k8s-flow-3d-engine-animation-helpers.js"></script>
-<script src="k8s-flow-3d-engine-flow-state.js"></script>
-<script src="k8s-flow-3d-engine-build-api.js"></script>
-<script src="k8s-flow-3d-engine-persistent-world.js"></script>
-<script src="k8s-flow-3d-engine-hud-controller.js"></script>
-<script src="k8s-flow-3d-engine-ui-controller.js"></script>
-<script src="k8s-flow-3d-engine-render-loop.js"></script>
+<script src="flow3d-engine-scene-setup.js"></script>
+<script src="flow3d-engine-animation-helpers.js"></script>
+<script src="flow3d-engine-flow-state.js"></script>
+<script src="flow3d-engine-build-api.js"></script>
+<script src="flow3d-engine-persistent-world.js"></script>
+<script src="flow3d-engine-component-anchors.js"></script>
+<script src="flow3d-engine-hud-controller.js"></script>
+<script src="flow3d-engine-ui-controller.js"></script>
+<script src="flow3d-engine-render-loop.js"></script>
 </body>
 </html>
