@@ -1,0 +1,408 @@
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#080d14;--surface:#0c1220;--border:#17243a;
+  --text:#7a8fb0;--bright:#c0d0e8;
+  --blue:#3a7fff;--green:#18a855;--red:#c43030;--amber:#c08000;
+}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;height:100vh;overflow:hidden;display:flex;flex-direction:column;}
+
+/* ─── INTRO SPLASH ─── */
+#intro-splash{
+  position:fixed;inset:0;z-index:1000;
+  background:radial-gradient(ellipse at 50% 40%, #0d1a2e 0%, #080d14 70%);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:0;
+  transition:opacity 0.7s ease, transform 0.7s ease;
+}
+#intro-splash.hiding{opacity:0;transform:scale(1.04);pointer-events:none;}
+#intro-splash.hidden{display:none;}
+
+.intro-k8s{
+  font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--blue);margin-bottom:18px;
+  animation:fadeSlideUp .6s .1s ease both;
+}
+.intro-title{
+  font-size:38px;font-weight:600;color:var(--bright);line-height:1.15;
+  text-align:center;margin-bottom:10px;
+  animation:fadeSlideUp .6s .25s ease both;
+}
+.intro-sub{
+  font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text);
+  text-align:center;max-width:460px;line-height:1.7;margin-bottom:36px;
+  animation:fadeSlideUp .6s .4s ease both;
+}
+.intro-btn{
+  padding:11px 32px;border:1px solid rgba(58,127,255,.5);border-radius:7px;
+  background:rgba(58,127,255,.1);color:#6aaaf8;
+  font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;
+  cursor:pointer;letter-spacing:.06em;pointer-events:all;
+  transition:background .2s ease, border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+}
+.intro-btn:hover{background:rgba(58,127,255,.22);border-color:rgba(58,127,255,.7);transform:translateY(-1px);box-shadow:0 0 20px rgba(58,127,255,.25);}
+
+.intro-scenarios{
+  display:flex;gap:14px;margin-top:28px;flex-wrap:wrap;justify-content:center;
+  animation:fadeSlideUp .6s .7s ease both;
+}
+.intro-tag{
+  font-family:'IBM Plex Mono',monospace;font-size:8.5px;letter-spacing:.1em;
+  text-transform:uppercase;color:rgba(122,143,176,.4);
+  border:1px solid rgba(58,127,255,.12);border-radius:4px;padding:4px 10px;
+}
+
+/* pulse ring around intro btn */
+.intro-btn-wrap{position:relative;pointer-events:all;animation:fadeSlideUp .6s .55s ease both;}
+.intro-btn-wrap::before,.intro-btn-wrap::after{
+  content:'';position:absolute;inset:-6px;border-radius:12px;
+  border:1px solid rgba(58,127,255,.3);
+  pointer-events:none;
+  animation:introRing 2s 1.2s ease-out infinite;
+}
+.intro-btn-wrap::after{animation-delay:2.7s;}
+@keyframes introRing{0%{transform:scale(1);opacity:.6}100%{transform:scale(1.18);opacity:0}}
+
+@keyframes fadeSlideUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+
+/* topbar */
+#topbar{height:44px;min-height:44px;display:flex;align-items:center;padding:0 18px;gap:14px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.brand{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:var(--blue);}
+.sep{width:1px;height:16px;background:var(--border);}
+#breadcrumb{font-family:'IBM Plex Mono',monospace;font-size:10px;color:rgba(122,143,176,.45);flex:1;min-width:0;display:flex;gap:8px;align-items:center;}
+#breadcrumb em{color:var(--text);font-style:normal;transition:opacity .3s ease;white-space:nowrap;}
+/* step titles are long — truncate instead of pushing the keyboard hint off-screen */
+#bc-st{transition:opacity .25s ease;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+#kb{font-family:'IBM Plex Mono',monospace;font-size:9px;color:rgba(122,143,176,.25);}
+
+/* layout */
+#layout{flex:1;display:flex;overflow:hidden;}
+
+/* sidebar */
+#sidebar{width:200px;min-width:200px;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+#sidebar-hd{padding:12px 14px 8px;font-family:'IBM Plex Mono',monospace;font-size:8.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:rgba(122,143,176,.35);border-bottom:1px solid var(--border);}
+#sc-list{flex:1;overflow-y:auto;padding:6px;}
+.sc-item{padding:9px 11px;border-radius:5px;cursor:pointer;transition:background .18s,border-color .18s;margin-bottom:1px;border-left:2px solid transparent;}
+.sc-item:hover{background:rgba(58,127,255,.06);}
+.sc-item.active{background:rgba(58,127,255,.09);border-left-color:var(--blue);}
+.sc-name{font-size:11.5px;font-weight:600;color:var(--bright);line-height:1.35;margin-bottom:2px;transition:color .18s;}
+.sc-item.active .sc-name{color:var(--blue);}
+.sc-tag{font-family:'IBM Plex Mono',monospace;font-size:8.5px;color:rgba(122,143,176,.4);letter-spacing:.04em;text-transform:uppercase;}
+
+/* main */
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;}
+#scene-wrap{flex:1;position:relative;overflow:hidden;}
+#scene-wrap canvas{display:block;width:100%;height:100%;}
+
+/* scene fade overlay */
+#fade-overlay{
+  position:absolute;inset:0;
+  background:var(--bg);
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .32s ease;
+  z-index:10;
+}
+#fade-overlay.out{opacity:1;}
+
+/* step transition direction flash */
+#dir-flash{
+  position:absolute;inset:0;pointer-events:none;z-index:9;opacity:0;
+  background:linear-gradient(90deg, transparent 40%, rgba(58,127,255,.03) 100%);
+  transition:opacity .5s ease;
+}
+#dir-flash.show{opacity:1;}
+
+/* floating labels */
+#labels{position:absolute;inset:0;pointer-events:none;}
+.fl-label{
+  position:absolute;
+  transform:translate(-50%,-50%);
+  font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:600;
+  color:rgba(192,208,232,.75);text-align:center;white-space:pre;line-height:1.4;
+  text-shadow:0 0 8px rgba(0,0,0,.9);pointer-events:none;
+  opacity:0;
+  transition:opacity .4s ease,transform .4s ease;
+  transform:translate(-50%,-50%) translateY(6px);
+}
+.fl-label.visible{opacity:1;transform:translate(-50%,-50%) translateY(0);}
+.fl-label.hero-label{
+  font-size:10px;color:#fff;
+  text-shadow:0 0 12px rgba(58,127,255,.9), 0 0 24px rgba(58,127,255,.5);
+}
+/* state-change badge — pops on the component at the moment its state flips */
+.fl-label.state-badge{
+  font-size:9px;font-weight:600;letter-spacing:.02em;white-space:nowrap;
+  padding:3px 9px;border-radius:20px;
+  background:rgba(8,13,20,.92);border:1px solid currentColor;
+  box-shadow:0 2px 14px rgba(0,0,0,.7);
+  text-shadow:none;
+}
+.fl-label.state-badge.visible{animation:badge-pop .5s cubic-bezier(.2,1.4,.4,1);}
+@keyframes badge-pop{
+  0%  {transform:translate(-50%,-50%) scale(.55);}
+  60% {transform:translate(-50%,-50%) scale(1.1);}
+  100%{transform:translate(-50%,-50%) scale(1);}
+}
+
+/* ─── STEP ANNOUNCEMENT ───
+   Appears centered, then lifts to the top and stays there — visible for the
+   whole step, no fade-out. Only #step-announce.fly-up moves it; nothing ever
+   removes `.show` once it's pinned. */
+#step-announce{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(.9);
+  z-index:15;pointer-events:none;
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  opacity:0;transition:opacity .3s ease,transform .3s ease,top .3s ease;
+}
+#step-announce.show{opacity:1;transform:translate(-50%,-50%) scale(1);}
+/* Snaps position/opacity back instantly — used before showing a fresh title
+   so it never inherits an in-flight transition from the previous one. */
+#step-announce.no-anim{transition:none!important;}
+/* Lifts the (still fully visible) step title from center up to the top,
+   where it stays pinned for the rest of the step. Fast, and at the same
+   text size — only the position changes. */
+#step-announce.fly-up{
+  top:48px;
+  transform:translate(-50%,0) scale(1);
+  transition:transform .3s ease,top .3s ease;
+}
+#step-announce .sa-num{
+  font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.15em;
+  color:rgba(58,127,255,.7);text-transform:uppercase;
+}
+#step-announce .sa-title{
+  font-size:14px;font-weight:600;color:var(--bright);text-align:center;
+  text-shadow:0 2px 24px rgba(0,0,0,.8);max-width:560px;line-height:1.35;
+}
+
+/* ─── PHASE ANNOUNCEMENT ───
+   Centered, fades in and back out for each phase — independent of the
+   pinned step title above it. */
+#phase-announce{
+  position:absolute;top:62%;left:50%;transform:translate(-50%,-50%) scale(.9);
+  z-index:15;pointer-events:none;
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  opacity:0;transition:opacity .3s ease,transform .3s ease;
+}
+#phase-announce.show{opacity:1;transform:translate(-50%,-50%) scale(1);}
+#phase-announce.no-anim{transition:none!important;}
+#phase-announce .pa-num{
+  font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.15em;
+  color:rgba(58,127,255,.7);text-transform:uppercase;
+}
+#phase-announce .pa-title{
+  font-size:14px;font-weight:600;color:var(--bright);text-align:center;
+  text-shadow:0 2px 24px rgba(0,0,0,.8);max-width:560px;line-height:1.35;
+}
+
+/* ─── SCORE COUNTER HUD ─── */
+#score-hud{
+  position:absolute;top:18px;right:24px;
+  display:none;flex-direction:column;gap:6px;
+  z-index:12;
+}
+#score-hud.show{display:flex;}
+.score-row{
+  display:flex;align-items:center;gap:10px;
+  background:rgba(8,13,20,.85);border:1px solid var(--border);
+  border-radius:6px;padding:6px 12px;
+  transition:all .3s ease;
+}
+.score-row.winner{border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.06);}
+.score-node{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text);width:60px;}
+.score-bar-wrap{width:80px;height:4px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden;}
+.score-bar{height:100%;border-radius:2px;background:var(--blue);width:0%;transition:width 1.2s cubic-bezier(.4,0,.2,1);}
+.score-bar.winner-bar{background:linear-gradient(90deg,#fbbf24,#f59e0b);}
+.score-val{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--bright);font-weight:600;width:24px;}
+/* A measurement ("11/12Gi") needs more room than a 0–100 score. */
+.score-val.wide{width:52px;text-align:right;}
+.score-crown{font-size:11px;opacity:0;transition:opacity .4s ease .8s;}
+.score-row.winner .score-crown{opacity:1;}
+/* Caption naming what the rows measure — omitted for plain scheduler scores. */
+.score-title{
+  font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.1em;
+  text-transform:uppercase;color:rgba(122,143,176,.75);text-align:right;
+  padding-right:2px;
+}
+/* The bar carries the verdict when the number alone would not: a node that is
+   full is not the same kind of fact as a node that is half empty. */
+.score-bar.tone-danger{background:#c43030;}
+.score-bar.tone-warn{background:#c08000;}
+.score-bar.tone-ok{background:#22aa66;}
+
+/* bottom explain */
+#explain{
+  height:182px;min-height:182px;border-top:1px solid var(--border);
+  background:var(--surface);display:grid;
+  grid-template-columns:52px 1fr auto;
+  gap:18px;align-items:center;padding:0 24px;flex-shrink:0;
+  position:relative;overflow:hidden;
+}
+
+/* step number + phase sub-counter */
+#step-num-wrap{display:flex;flex-direction:column;align-items:center;gap:2px;user-select:none;}
+#step-num{
+  font-family:'IBM Plex Mono',monospace;font-size:32px;font-weight:600;
+  color:rgba(58,127,255,.2);user-select:none;
+  transition:opacity .2s ease,transform .25s cubic-bezier(.4,0,.2,1);
+}
+#step-num.fade{opacity:0;transform:translateY(6px);}
+#step-phase{
+  font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;
+  color:rgba(58,127,255,.45);letter-spacing:.04em;
+}
+
+/* explain body */
+#explain-body{position:relative;overflow:hidden;height:140px;min-height:140px;}
+/* Slots are absolutely stacked for the crossfade, so each one owns its own
+   scrollbar — long step descriptions stay readable instead of being clipped. */
+.explain-slot{
+  position:absolute;top:0;left:0;right:0;bottom:0;
+  overflow-y:auto;overflow-x:hidden;padding-right:10px;
+  transition:opacity .28s ease,transform .28s cubic-bezier(.4,0,.2,1);
+}
+.explain-slot::-webkit-scrollbar{width:5px;}
+.explain-slot::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:3px;}
+.explain-slot::-webkit-scrollbar-track{background:transparent;}
+.explain-slot.hidden{opacity:0;transform:translateY(8px);pointer-events:none;}
+.explain-slot.visible{opacity:1;transform:translateY(0);}
+/* Class-based so both crossfade slots (#e-* and #e-*-b) style identically. */
+.e-label{font-family:'IBM Plex Mono',monospace;font-size:8.5px;letter-spacing:.09em;text-transform:uppercase;color:rgba(122,143,176,.35);margin-bottom:4px;}
+/* Parent step title, kept above the phase heading on a split step */
+.e-parent{
+  font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.02em;
+  color:rgba(122,143,176,.55);margin-bottom:3px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:780px;
+}
+.e-title{font-size:14.5px;font-weight:600;color:var(--bright);margin-bottom:6px;line-height:1.35;}
+.e-desc{font-size:12px;color:var(--text);line-height:1.7;max-width:780px;}
+/* Sub-blocks inside a description: plain-language lead, then "why it matters" */
+.e-desc .lead{display:block;color:var(--bright);font-weight:500;margin-bottom:5px;}
+.e-desc .why{
+  display:block;margin-top:6px;padding-left:9px;
+  border-left:2px solid rgba(58,127,255,.3);color:rgba(160,178,204,.9);
+}
+.e-desc .why b{color:var(--blue);font-weight:600;}
+.e-desc .hi{color:var(--blue);font-weight:500;}
+.e-desc .warn{color:var(--amber);font-weight:500;}
+.e-desc .danger{color:var(--red);font-weight:500;}
+.e-desc .ok{color:var(--green);font-weight:500;}
+.e-desc code{font-family:'IBM Plex Mono',monospace;font-size:10.5px;background:rgba(255,255,255,.05);padding:1px 5px;border-radius:3px;color:#a090dd;}
+
+#explain-nav{display:flex;flex-direction:column;align-items:flex-end;gap:8px;}
+.nav-row{display:flex;gap:6px;}
+.btn{
+  padding:6px 14px;border-radius:5px;border:1px solid var(--border);
+  background:transparent;color:var(--text);font-family:'IBM Plex Mono',monospace;
+  font-size:10px;font-weight:600;cursor:pointer;
+  transition:all .18s ease;letter-spacing:.02em;
+}
+.btn:hover:not(:disabled){background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.14);}
+.btn.primary{background:rgba(58,127,255,.12);border-color:rgba(58,127,255,.35);color:#6aaaf8;position:relative;overflow:visible;}
+.btn.primary:hover:not(:disabled){background:rgba(58,127,255,.22);border-color:rgba(58,127,255,.55);}
+.btn:disabled{opacity:.22;cursor:default;}
+.btn:active:not(:disabled){transform:scale(.97);}
+
+/* Next button hint pulse */
+.btn.primary.hint-pulse::after{
+  content:'';position:absolute;inset:-4px;border-radius:8px;
+  border:1px solid rgba(58,127,255,.5);
+  animation:btnPulse 1.5s ease-out 3;
+}
+@keyframes btnPulse{0%{transform:scale(1);opacity:.7}100%{transform:scale(1.25);opacity:0}}
+
+/* dots — phases within the current step */
+.dots{display:flex;gap:4px;align-items:center;}
+.dot{
+  width:4px;height:4px;border-radius:50%;
+  background:rgba(255,255,255,.1);
+  transition:all .28s cubic-bezier(.4,0,.2,1);
+}
+/* phases already played in this step */
+.dot.done{background:rgba(58,127,255,.4);}
+.dot.on{
+  background:var(--blue);width:14px;border-radius:3px;
+  box-shadow:0 0 8px rgba(58,127,255,.5);
+}
+
+/* popup on hover */
+#popup{
+  position:fixed;display:none;pointer-events:none;
+  background:rgba(8,13,20,.97);border:1px solid var(--border);
+  border-radius:7px;padding:8px 12px;
+  font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--bright);
+  z-index:500;line-height:1.5;
+  animation:popIn .15s ease;
+}
+@keyframes popIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}
+
+/* progress bar */
+#progress-bar{
+  position:absolute;top:0;left:0;height:2px;
+  background:linear-gradient(90deg,var(--blue),#6aaaf8);
+  width:0%;transition:width .6s cubic-bezier(.4,0,.2,1);
+  box-shadow:0 0 8px rgba(58,127,255,.5);
+  z-index:20;
+}
+
+/* ─── PIPELINE CONNECTOR ─── */
+#pipeline-ui{
+  /* sits just above #explain — keep in sync with its height */
+  position:absolute;bottom:186px;left:0;right:0;
+  display:none;pointer-events:none;z-index:11;
+  justify-content:center;gap:0;
+}
+#pipeline-ui.show{display:flex;}
+.pip-step{
+  display:flex;align-items:center;gap:0;
+}
+.pip-node{
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:6px 12px;
+  border-radius:5px;
+  border:1px solid var(--border);
+  background:rgba(8,13,20,.8);
+  transition:all .35s ease;
+  min-width:72px;
+}
+.pip-node.active{
+  border-color:rgba(58,127,255,.5);
+  background:rgba(58,127,255,.08);
+  box-shadow:0 0 14px rgba(58,127,255,.15);
+}
+.pip-node.done{
+  border-color:rgba(24,168,85,.3);
+  background:rgba(24,168,85,.05);
+}
+.pip-icon{font-size:14px;line-height:1;}
+.pip-lbl{font-family:'IBM Plex Mono',monospace;font-size:7.5px;letter-spacing:.06em;text-transform:uppercase;color:rgba(122,143,176,.5);}
+.pip-node.active .pip-lbl{color:var(--blue);}
+.pip-node.done .pip-lbl{color:var(--green);}
+.pip-arrow{
+  width:28px;height:1px;background:var(--border);position:relative;
+  align-self:center;margin:0 -1px;
+}
+.pip-arrow::after{
+  content:'';position:absolute;right:-1px;top:-3px;
+  border:3px solid transparent;border-left:5px solid var(--border);
+}
+.pip-arrow.active-flow{background:var(--blue);}
+.pip-arrow.active-flow::after{border-left-color:var(--blue);}
+.pip-arrow.done-flow{background:var(--green);}
+.pip-arrow.done-flow::after{border-left-color:var(--green);}
+
+/* Stage tone — a stage that tears something down should not glow like one that
+   builds something. Only the *active* look changes; done stays green so the
+   strip still reads as progress. */
+.pip-node.tone-danger.active{
+  border-color:rgba(196,48,48,.55);
+  background:rgba(196,48,48,.09);
+  box-shadow:0 0 14px rgba(196,48,48,.18);
+}
+.pip-node.tone-danger.active .pip-lbl{color:#e05a5a;}
+.pip-node.tone-warn.active{
+  border-color:rgba(192,128,0,.55);
+  background:rgba(192,128,0,.09);
+  box-shadow:0 0 14px rgba(192,128,0,.18);
+}
+.pip-node.tone-warn.active .pip-lbl{color:#e0a020;}

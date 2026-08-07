@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Kubernetes – 3D Scenarios</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="k8s-flow-3d.css"/>
+</head>
+<body>
+
+<!-- ─── INTRO SPLASH ─── -->
+<div id="intro-splash">
+  <div class="intro-k8s">⎈ kube-scheduler · 3D Simulator</div>
+  <div class="intro-title">Kubernetes Scheduling<br>Visualized in 3D</div>
+  <div class="intro-sub">
+    Khám phá toàn bộ hành trình một Pod được tạo —<br>
+    từ Client → API Server → etcd → Scheduler → kubelet → Container.<br>
+    Cùng các kịch bản Preemption, Eviction, OOM &amp; PDB.
+  </div>
+  <div class="intro-btn-wrap" id="intro-btn-wrap">
+    <button class="intro-btn" id="intro-start-btn" onclick="startApp()">Bắt đầu →</button>
+  </div>
+  <div class="intro-scenarios">
+    <span class="intro-tag">Scheduler Pipeline</span>
+    <span class="intro-tag">Preemption</span>
+    <span class="intro-tag">Kubelet Eviction</span>
+    <span class="intro-tag">OOM Killer</span>
+    <span class="intro-tag">PDB &amp; drain</span>
+  </div>
+</div>
+
+<div id="topbar">
+  <span class="brand">⎈ k8s-sim</span>
+  <div class="sep"></div>
+  <div id="breadcrumb"><em id="bc-sc">—</em><span>›</span><em id="bc-st">—</em></div>
+  <span id="kb">← → keys</span>
+</div>
+<div id="layout">
+  <div id="sidebar">
+    <div id="sidebar-hd">Scenarios</div>
+    <div id="sc-list"></div>
+  </div>
+  <div id="main">
+    <div id="progress-bar"></div>
+    <div id="scene-wrap">
+      <canvas id="canvas"></canvas>
+      <div id="labels"></div>
+      <div id="fade-overlay"></div>
+      <div id="dir-flash"></div>
+      <!-- Step title: appears centered, then lifts to the top and stays pinned there for the step (Scheduler Pipeline) -->
+      <div id="step-announce">
+        <div class="sa-num" id="sa-num"></div>
+        <div class="sa-title" id="sa-title"></div>
+      </div>
+      <!-- Phase title: centered, fades in and back out for each phase -->
+      <div id="phase-announce">
+        <div class="pa-num" id="pa-num"></div>
+        <div class="pa-title" id="pa-title"></div>
+      </div>
+      <!-- Metric HUD — rows rendered from step.scores (scores or capacities) -->
+      <div id="score-hud"></div>
+    </div>
+    <!-- Pipeline strip — stages rendered from scenario.pipeline -->
+    <div id="pipeline-ui"></div>
+    <div id="explain">
+      <div id="step-num-wrap">
+        <div id="step-num">01</div>
+        <div id="step-phase"></div>
+      </div>
+      <div id="explain-body">
+        <div class="explain-slot visible" id="slot-a">
+          <div class="e-label" id="e-label">STEP 1 OF 1</div>
+          <div class="e-parent" id="e-parent"></div>
+          <div class="e-title" id="e-title">—</div>
+          <div class="e-desc" id="e-desc">—</div>
+        </div>
+        <div class="explain-slot hidden" id="slot-b">
+          <div class="e-label" id="e-label-b"></div>
+          <div class="e-parent" id="e-parent-b"></div>
+          <div class="e-title" id="e-title-b"></div>
+          <div class="e-desc" id="e-desc-b"></div>
+        </div>
+      </div>
+      <div id="explain-nav">
+        <div class="nav-row">
+          <button class="btn" id="btn-prev">← Prev</button>
+          <button class="btn primary" id="btn-next">Next →</button>
+        </div>
+        <div class="dots" id="dots"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="popup"></div>
+
+<!-- Three.js UMD build -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.134.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/controls/OrbitControls.js"></script>
+
+<!-- Scenario data (edit these to add/change content — engine below rarely changes) -->
+<script src="k8s-flow-3d-scenarios-index.js"></script>
+<script src="k8s-flow-3d-scenario-scheduler-world.js"></script>
+<script src="k8s-flow-3d-scenario-scheduler-pipeline-control-plane.js"></script>
+<script src="k8s-flow-3d-scenario-scheduler-pipeline-node.js"></script>
+<script src="k8s-flow-3d-scenario-scheduler-pipeline.js"></script>
+<script src="k8s-flow-3d-scenario-preemption-world.js"></script>
+<script src="k8s-flow-3d-scenario-preemption-filter.js"></script>
+<script src="k8s-flow-3d-scenario-preemption-evict.js"></script>
+<script src="k8s-flow-3d-scenario-preemption.js"></script>
+<script src="k8s-flow-3d-scenario-kubelet-eviction.js"></script>
+<script src="k8s-flow-3d-scenario-oom-killer.js"></script>
+<script src="k8s-flow-3d-scenario-pdb-drain.js"></script>
+
+<!-- Flattens step.phases[] into steps — must run before any engine code -->
+<script src="k8s-flow-3d-engine-phase-expander.js"></script>
+
+<!-- 3D rendering engine and UI wiring -->
+<script src="k8s-flow-3d-engine-scene-setup.js"></script>
+<script src="k8s-flow-3d-engine-animation-helpers.js"></script>
+<script src="k8s-flow-3d-engine-flow-state.js"></script>
+<script src="k8s-flow-3d-engine-build-api.js"></script>
+<script src="k8s-flow-3d-engine-persistent-world.js"></script>
+<script src="k8s-flow-3d-engine-hud-controller.js"></script>
+<script src="k8s-flow-3d-engine-ui-controller.js"></script>
+<script src="k8s-flow-3d-engine-render-loop.js"></script>
+</body>
+</html>
