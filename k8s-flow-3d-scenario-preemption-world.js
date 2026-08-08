@@ -32,6 +32,26 @@
    chỉ tồn tại đúng một lần trong toàn bộ kịch bản. */
 (function() {
 const KIT = window.SCENE_KIT;
+const MODEL = window.PREEMPTION_MODEL;
+
+/* Cùng một model với các step. Node dung lượng, priority và memory của từng
+   Pod chỉ tồn tại ở k8s-flow-3d-scenario-preemption-model.js — label ở đây
+   chỉ là cách trình bày chúng. */
+const RUN = MODEL.simulate(MODEL.DEFAULT_CONFIG);
+const POD = MODEL.DEFAULT_CONFIG.pod;
+
+/* `Worker A\n11/12Gi` — tên + cấu hình, đúng quy tắc 3 của kit. */
+function nodeLabel(key, suffix) {
+  const n = RUN.byKey(key);
+  return n.name + '\n' + MODEL.fmtNodeMem(n) + (suffix || '');
+}
+
+/* `batch-job\nP=50 · 1Gi` cho một Pod đang chạy trên Node. */
+function podLabel(nodeKey, podKey) {
+  const p = RUN.byKey(nodeKey).pods.filter(function(x) { return x.key === podKey; })[0];
+  return p.name + '\nP=' + p.priority + ' · ' + MODEL.fmtGi(p.memGi);
+}
+
 const Q = KIT.stack([-11.5, 1.4, 7.0], 3, 1.5);   // ba khe ActiveQ, từ trên xuống
 
 window.PREEMPT_POS = {
@@ -79,7 +99,7 @@ window.PREEMPTION_WORLD = function(raw) {
      Worker A khi bind xong. `subject` là tone dành riêng cho nhân vật chính —
      màu tím giúp mắt luôn tìm thấy nó trong khung hình đông component. */
   w.node('pod-checkout', {
-    label: 'checkout\nP=1000 · 4Gi', pos: P.etcdShelf, size: [3.4, 1.3, 2.1],
+    label: POD.name + '\nP=' + POD.priority + ' · ' + MODEL.fmtGi(POD.memGi), pos: P.etcdShelf, size: [3.4, 1.3, 2.1],
     tone: 'subject', order: 2, hidden: true,
     hover: 'Pod đang cần chỗ — priority 1000, requests.memory 4Gi'
   });
@@ -91,51 +111,51 @@ window.PREEMPTION_WORLD = function(raw) {
 
   /* ── Worker A: node duy nhất mà preemption cứu được ── */
   w.node('node-a', {
-    label: 'Worker A\n11/12Gi', pos: [6, -1.6, 8], size: [13, 0.5, 6.5],
+    label: nodeLabel('node-a'), pos: [6, -1.6, 8], size: [13, 0.5, 6.5],
     tone: 'surface', order: 4,
     hover: 'Còn 1Gi trống — Pod checkout cần 4Gi'
   });
   w.node('pod-a1', {
-    label: 'batch-job\nP=50 · 1Gi', pos: [1.6, -0.6, 9.4], size: [3.2, 1.4, 2],
+    label: podLabel('node-a', 'pod-a1'), pos: [1.6, -0.6, 9.4], size: [3.2, 1.4, 2],
     tone: 'live', order: 5,
     hover: 'Priority thấp nhất — victim đầu tiên bị nhắm tới'
   });
   w.node('pod-a2', {
-    label: 'log-agent\nP=150 · 3Gi', pos: [6, -0.6, 9.4], size: [3.2, 1.4, 2],
+    label: podLabel('node-a', 'pod-a2'), pos: [6, -0.6, 9.4], size: [3.2, 1.4, 2],
     tone: 'live', order: 5,
     hover: 'Priority thấp hơn 1000 — victim hợp lệ'
   });
   w.node('pod-a3', {
-    label: 'payments\nP=300 · 7Gi', pos: [10.4, -0.6, 9.4], size: [3.2, 1.4, 2],
+    label: podLabel('node-a', 'pod-a3'), pos: [10.4, -0.6, 9.4], size: [3.2, 1.4, 2],
     tone: 'live', order: 5,
     hover: 'Cũng thấp hơn 1000 — nhưng không cần xoá nếu đã đủ chỗ'
   });
 
   /* ── Worker B: đầy, nhưng toàn Pod priority CAO hơn ── */
   w.node('node-b', {
-    label: 'Worker B\n16/16Gi', pos: [6, -1.6, 0], size: [13, 0.5, 6.5],
+    label: nodeLabel('node-b'), pos: [6, -1.6, 0], size: [13, 0.5, 6.5],
     tone: 'surface', order: 5,
     hover: 'Đầy — và mọi Pod ở đây đều priority ≥ 2000'
   });
   w.node('pod-b1', {
-    label: 'ingress-ctrl\nP=2000 · 8Gi', pos: [2.6, -0.6, 1.4], size: [3.6, 1.4, 2],
+    label: podLabel('node-b', 'pod-b1'), pos: [2.6, -0.6, 1.4], size: [3.6, 1.4, 2],
     tone: 'warn', order: 6,
     hover: 'Priority CAO HƠN Pod đang chờ → không thể là victim'
   });
   w.node('pod-b2', {
-    label: 'core-dns\nP=2000 · 8Gi', pos: [7.6, -0.6, 1.4], size: [3.6, 1.4, 2],
+    label: podLabel('node-b', 'pod-b2'), pos: [7.6, -0.6, 1.4], size: [3.6, 1.4, 2],
     tone: 'warn', order: 6,
     hover: 'system-cluster-critical — bất khả xâm phạm'
   });
 
   /* ── Worker C: còn trống nhưng vướng taint ── */
   w.node('node-c', {
-    label: 'Worker C\n6/16Gi · gpu=true:NoSchedule', pos: [6, -1.6, -8], size: [13, 0.5, 6.5],
+    label: nodeLabel('node-c', ' · gpu=true:NoSchedule'), pos: [6, -1.6, -8], size: [13, 0.5, 6.5],
     tone: 'surface', order: 6,
     hover: 'Còn 10Gi trống — nhưng Pod không có toleration'
   });
   w.node('pod-c1', {
-    label: 'gpu-train\nP=100 · 6Gi', pos: [5, -0.6, -6.6], size: [3.6, 1.4, 2],
+    label: podLabel('node-c', 'pod-c1'), pos: [5, -0.6, -6.6], size: [3.6, 1.4, 2],
     tone: 'live', order: 7,
     hover: 'Priority thấp — nhưng xoá nó cũng vô ích, taint vẫn còn'
   });

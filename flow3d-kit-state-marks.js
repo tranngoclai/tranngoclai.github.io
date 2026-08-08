@@ -132,4 +132,68 @@ KIT.flow = function(a, points, ink, o) {
 KIT.note = function(a, text, pos, ink, at) {
   a.note(text, pos[0], pos[1], pos[2], KIT.ink(ink || 'mute'), at || 0);
 };
+
+/* ── beat ── a link AND the state-change it causes, in one call.
+
+   The coupling that matters between a flow line and the target's mark is
+   timing: the mark must land at or after `lead + dur`, otherwise the
+   target changes state BEFORE the line reaches it — breaking the
+   "cause then effect" rule this kit is built around.
+
+   `KIT.beat` encodes that constraint: it draws the link, computes
+   `at = linkAt + dur` for the mark by default, and returns a plain
+   `{set, scene}` pair that the phase spreads into its own fields:
+
+     ...KIT.beat(from, to, ink, {
+       mark: ['ok', 'NodeResourcesFit ✓'],   // [tone, badge] for the target
+       dy: 3.0,                                // badge offset on the target
+       hover: 'passed — enough capacity'       // optional tooltip
+     })
+
+   Call-sites spread the result into their phase:
+
+     { title, desc, focus, labels, ...KIT.beat('scheduler','node-a','ok',{…}) }
+
+   An explicit `at` in the mark options still wins — a phase that
+   deliberately marks early or late keeps that power.
+
+   Link options (dur, loop, lift, width) go under `link`:
+     KIT.beat('a', 'b', 'ok', {mark:[…], link: {dur:0.95, loop:3.8}})  */
+KIT.beat = function(from, to, ink, o) {
+  o = o || {};
+  var linkOpts  = o.link || {};
+  var linkAt    = linkOpts.at  !== undefined ? linkOpts.at  : KIT.TIME.lead;
+  var linkDur   = linkOpts.dur !== undefined ? linkOpts.dur : KIT.TIME.draw;
+  var linkLoop  = linkOpts.loop;
+  var linkLift  = linkOpts.lift;
+  var linkWidth = linkOpts.width;
+
+  /* arrival = when the line touches the target component */
+  var arrival = linkAt + linkDur;
+
+  /* Build the mark on the target, defaulting `at` to the arrival time. */
+  var markArgs = o.mark || [];            // [tone, badge]
+  var markTone  = markArgs[0] || ink;
+  var markBadge = markArgs[1] || '';
+  var markOpts  = {};
+  if (o.dy    !== undefined) markOpts.dy    = o.dy;
+  if (o.hover !== undefined) markOpts.hover = o.hover;
+  if (o.label !== undefined) markOpts.label = o.label;
+  if (o.flash !== undefined) markOpts.flash = o.flash;
+  markOpts.at = (o.at !== undefined) ? o.at : arrival;
+
+  var setEntry = {};
+  setEntry[to] = KIT.mark(markTone, markBadge, markOpts);
+
+  return {
+    set: setEntry,
+    scene: function(a) {
+      var lo = {at: linkAt, dur: linkDur};
+      if (linkLoop  !== undefined) lo.loop  = linkLoop;
+      if (linkLift  !== undefined) lo.lift  = linkLift;
+      if (linkWidth !== undefined) lo.width = linkWidth;
+      KIT.link(a, from, to, ink, lo);
+    }
+  };
+};
 })();

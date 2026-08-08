@@ -30,7 +30,88 @@
 ══════════════════════════════════════════════ */
 (function() {
 const KIT = window.SCENE_KIT;
+const MODEL = window.PREEMPTION_MODEL;
 const P = window.PREEMPT_POS;
+
+/* Chạy đúng một lần — verdict Filter, tập victim và mọi con số dưới đây đều
+   từ đây ra. Xem k8s-flow-3d-scenario-preemption-model.js. */
+const RUN = MODEL.simulate(MODEL.DEFAULT_CONFIG);
+const POD = RUN.pod;
+const NEED = POD.memGi;                       // 4Gi Pod xin
+
+/* Verdict Filter tra theo key Node. */
+const V = {};
+RUN.filter.evaluated.forEach(function(e) { V[e.key] = e; });
+
+/* Kế hoạch PostFilter trên Worker A: tập victim tối thiểu và những Pod được
+   giữ lại. `payments` nằm trong `spared` là kết quả tính toán, không phải một
+   câu khẳng định viết tay. */
+const PLAN = RUN.postFilter.chosen;
+const A = RUN.byKey('node-a');
+
+/* Chỗ trống tích luỹ sau mỗi victim — dùng cho HUD ở bước ③. */
+const CUMULATIVE = (function() {
+  const rows = [];
+  let freed = MODEL.memFree(A);
+  PLAN.victims.forEach(function(v) {
+    freed += v.memGi;
+    rows.push({name: '+ ' + v.name, freeGi: freed, victim: v});
+  });
+  return rows;
+})();
+
+/* '0/3 nodes are available: 2 Insufficient memory, 1 …untolerated taint' —
+   đếm từ verdict thay vì gõ tay, nên thêm/bớt Node là dòng này tự đúng. */
+const REJECTED_BY_REASON = {};
+RUN.filter.rejected.forEach(function(e) {
+  REJECTED_BY_REASON[e.reason] = (REJECTED_BY_REASON[e.reason] || 0) + 1;
+});
+const TOTAL_NODES = RUN.filter.evaluated.length;
+const FEASIBLE_LABEL = RUN.filter.passed.length + '/' + TOTAL_NODES;
+
+
+/* ── Step ② Filter: per-Node copy ──
+   Same pattern as Scheduler Filter: hand-written descriptions, model-driven
+   structure. Labels per phase are intentional subsets — only the Node being
+   discussed and its resident Pods show captions. */
+var PREEMPT_FILTER_TITLES = {
+  'node-a': 'Worker A trượt — thiếu đúng 3Gi',
+  'node-b': 'Worker B trượt — đầy, và đầy bởi Pod quan trọng hơn',
+  'node-c': 'Worker C trượt vì taint — và Pod nhận FailedScheduling'
+};
+var PREEMPT_FILTER_LABELS = {
+  'node-a': ['scheduler', 'pod-checkout', 'node-a', 'pod-a1', 'pod-a2', 'pod-a3'],
+  'node-b': ['scheduler', 'pod-checkout', 'node-b', 'pod-b1', 'pod-b2'],
+  'node-c': ['scheduler', 'pod-checkout', 'node-c', 'pod-c1']
+};
+var PREEMPT_FILTER_HOVER = {
+  'node-a': 'Trượt vì tài nguyên đang bị Pod khác giữ — lý do DUY NHẤT preemption gỡ được',
+  'node-b': 'Cùng lý do với Worker A, nhưng Pod chiếm chỗ đều priority cao hơn',
+  'node-c': 'Còn thừa chỗ, nhưng trượt vì taint — xoá Pod không sửa được'
+};
+var PREEMPT_FILTER_LINK = {
+  'node-a': {},
+  'node-b': {dur: 0.95},
+  'node-c': {}
+};
+var PREEMPT_FILTER_DESCS = {
+  'node-a': KIT.desc(
+    'Pha Filter hỏi mỗi Node một câu nhị phân: Pod này <b>có vừa</b> không?',
+    '<code>NodeResourcesFit</code> tính: ' + MODEL.fmtGi(A.memUsed) + ' đã cấp + ' + MODEL.fmtGi(NEED) + ' yêu cầu = '
+    + MODEL.fmtGi(A.memUsed + NEED) + ' > ' + MODEL.fmtGi(A.memTotal) + ' <code>allocatable</code>. Trượt. '
+    + 'Chỉ thiếu ' + MODEL.fmtGi(V['node-a'].shortfallGi) + ', nhưng Filter <b>không có khái niệm "gần đủ"</b> — chỉ có pass hoặc fail.',
+    '<b>Nhớ kỹ Node này.</b> Nó trượt vì <i>tài nguyên đang bị Pod khác giữ</i> — một lý do <b>có thể đảo ngược được</b> bằng cách xoá bớt Pod. Hai Node còn lại sẽ trượt vì những lý do khác hẳn, và chính sự khác biệt đó quyết định preemption cứu được Node nào.'),
+  'node-b': KIT.desc(
+    'Worker B cũng trượt <code>NodeResourcesFit</code>: 16Gi đã cấp hết cho <code>ingress-ctrl</code> và <code>core-dns</code>.',
+    'Nhìn qua thì giống hệt Worker A — cùng một plugin, cùng một lý do. Nhưng có một chi tiết Filter <b>hoàn toàn không quan tâm</b>: hai Pod đang chiếm chỗ ở đây đều có <code>P=2000</code>, <b>cao hơn</b> Pod đang chờ.',
+    '<b>Filter mù với priority.</b> Nó chỉ cộng <code>requests</code> và so với <code>allocatable</code> — ai đang chiếm chỗ, quan trọng cỡ nào, nó không hỏi. Priority chỉ được lôi ra dùng ở pha sau. Giữ chi tiết này lại: đến bước ③ nó sẽ là thứ loại Worker B ra khỏi cuộc chơi.'),
+  'node-c': KIT.desc(
+    'Worker C còn <b>10Gi trống</b>, nhưng trượt <code>TaintToleration</code>: Node mang <code>gpu=true:NoSchedule</code> mà Pod không khai <code>toleration</code>.',
+    'Kết quả: <b>' + FEASIBLE_LABEL + ' Node khả thi</b>. Event <code>FailedScheduling</code> được ghi lên Pod: <i>"' + FEASIBLE_LABEL + ' nodes are available: '
+    + REJECTED_BY_REASON['insufficient-memory'] + ' Insufficient memory, '
+    + REJECTED_BY_REASON['untolerated-taint'] + ' node(s) had untolerated taint"</i>.',
+    '<b>Với một Pod priority = 0, câu chuyện dừng tại đây</b> — Pod về <code>unschedulableQ</code> và nằm <code>Pending</code> cho tới khi cluster đổi trạng thái. Nhưng Pod này có <code>priority = 1000</code>, nên scheduler <b>không bỏ cuộc ngay</b>: nó chạy tiếp một extension point nữa tên là <span class="warn">PostFilter</span>. Đó chính là nơi Preemption sống.')
+};
 
 window.PREEMPT_STEPS_FILTER = [
 
@@ -93,13 +174,13 @@ window.PREEMPT_STEPS_FILTER = [
       // này sẽ được so lại ở bước ⑤ sau khi victim tắt.
       scoreMode: true,
       scoreTitle: 'memory đã cấp / allocatable',
-      scores: [
-        KIT.gauge('Worker A', 11, 12, 'Gi', {tone: 'danger'}),
-        KIT.gauge('Worker B', 16, 16, 'Gi', {tone: 'danger'}),
-        KIT.gauge('Worker C', 6,  16, 'Gi', {tone: 'warn'})
-      ],
+      scores: RUN.nodes.map(function(n) {
+        // Node nào không còn đủ chỗ cho Pod thì đỏ, còn lại vàng.
+        return KIT.gauge(n.name, n.memUsed, n.memTotal, 'Gi',
+          {tone: MODEL.memFree(n) < NEED ? 'danger' : 'warn'});
+      }),
       set: {
-        'pod-checkout': KIT.pulse('accent', 'requests.memory: 4Gi', {at: 0.35, dy: 2.2})
+        'pod-checkout': KIT.pulse('accent', 'requests.memory: ' + MODEL.fmtGi(NEED), {at: 0.35, dy: 2.2})
       },
       scene(a) {
         KIT.note(a, '① requests ≠ usage', [-4.6, -3.4, 0], 'mute', 0.6);
@@ -109,72 +190,38 @@ window.PREEMPT_STEPS_FILTER = [
 },
 
 /* ── STEP ②: Filter trượt sạch ──
-   Verdict hiện trên chính Node bằng tone `danger` + badge tên plugin fail;
-   label giữ nguyên tên và con số cấu hình. Node vừa là chỗ chứa Pod vừa là
-   nơi hiển thị kết quả — một component, không tách chip riêng. */
+   Phases generated from the model's rejected list (`KIT.sweep`), with
+   `KIT.beat` encoding the timing constraint. The last phase adds a
+   FailedScheduling pulse on the Pod. */
 {
   title: 'Filter chạy — 0/3 Node khả thi',
   pipelineStep: 1,
   focus: ['scheduler', 'node-a', 'node-b', 'node-c'],
   cam: [-2, 1, 0], dist: 40,
-  phases: [
-    {
-      title: 'Worker A trượt — thiếu đúng 3Gi',
-      desc: KIT.desc(
-        'Pha Filter hỏi mỗi Node một câu nhị phân: Pod này <b>có vừa</b> không?',
-        '<code>NodeResourcesFit</code> tính: 11Gi đã cấp + 4Gi yêu cầu = 15Gi > 12Gi <code>allocatable</code>. Trượt. '
-        + 'Chỉ thiếu 3Gi, nhưng Filter <b>không có khái niệm “gần đủ”</b> — chỉ có pass hoặc fail.',
-        '<b>Nhớ kỹ Node này.</b> Nó trượt vì <i>tài nguyên đang bị Pod khác giữ</i> — một lý do <b>có thể đảo ngược được</b> bằng cách xoá bớt Pod. Hai Node còn lại sẽ trượt vì những lý do khác hẳn, và chính sự khác biệt đó quyết định preemption cứu được Node nào.'),
-      // Ba Node vẫn sáng như nhau (focus của step), nhưng chỉ Node đang bị hỏi
-      // mới mang caption — người xem đọc đúng con số đang được nhắc tới.
-      labels: ['scheduler', 'pod-checkout', 'node-a', 'pod-a1', 'pod-a2', 'pod-a3'],
-      set: {
-        'node-a': KIT.mark('danger', 'NodeResourcesFit — fail', {
-          at: 1.25, dy: 3.0,
-          hover: 'Trượt vì tài nguyên đang bị Pod khác giữ — lý do DUY NHẤT preemption gỡ được'
-        })
-      },
-      scene(a) {
-        KIT.link(a, 'scheduler', 'node-a', 'danger');
-      }
-    },
-    {
-      title: 'Worker B trượt — đầy, và đầy bởi Pod quan trọng hơn',
-      desc: KIT.desc(
-        'Worker B cũng trượt <code>NodeResourcesFit</code>: 16Gi đã cấp hết cho <code>ingress-ctrl</code> và <code>core-dns</code>.',
-        'Nhìn qua thì giống hệt Worker A — cùng một plugin, cùng một lý do. Nhưng có một chi tiết Filter <b>hoàn toàn không quan tâm</b>: hai Pod đang chiếm chỗ ở đây đều có <code>P=2000</code>, <b>cao hơn</b> Pod đang chờ.',
-        '<b>Filter mù với priority.</b> Nó chỉ cộng <code>requests</code> và so với <code>allocatable</code> — ai đang chiếm chỗ, quan trọng cỡ nào, nó không hỏi. Priority chỉ được lôi ra dùng ở pha sau. Giữ chi tiết này lại: đến bước ③ nó sẽ là thứ loại Worker B ra khỏi cuộc chơi.'),
-      labels: ['scheduler', 'pod-checkout', 'node-b', 'pod-b1', 'pod-b2'],
-      set: {
-        'node-b': KIT.mark('danger', 'NodeResourcesFit — fail', {
-          at: 1.25, dy: 3.0,
-          hover: 'Cùng lý do với Worker A, nhưng Pod chiếm chỗ đều priority cao hơn'
-        })
-      },
-      scene(a) {
-        KIT.link(a, 'scheduler', 'node-b', 'danger', {dur: 0.95});
-      }
-    },
-    {
-      title: 'Worker C trượt vì taint — và Pod nhận FailedScheduling',
-      desc: KIT.desc(
-        'Worker C còn <b>10Gi trống</b>, nhưng trượt <code>TaintToleration</code>: Node mang <code>gpu=true:NoSchedule</code> mà Pod không khai <code>toleration</code>.',
-        'Kết quả: <b>0/3 Node khả thi</b>. Event <code>FailedScheduling</code> được ghi lên Pod: <i>“0/3 nodes are available: 2 Insufficient memory, 1 node(s) had untolerated taint”</i>.',
-        '<b>Với một Pod priority = 0, câu chuyện dừng tại đây</b> — Pod về <code>unschedulableQ</code> và nằm <code>Pending</code> cho tới khi cluster đổi trạng thái. Nhưng Pod này có <code>priority = 1000</code>, nên scheduler <b>không bỏ cuộc ngay</b>: nó chạy tiếp một extension point nữa tên là <span class="warn">PostFilter</span>. Đó chính là nơi Preemption sống.'),
-      labels: ['scheduler', 'pod-checkout', 'node-c', 'pod-c1'],
-      set: {
-        'node-c': KIT.mark('danger', 'TaintToleration — fail', {
-          at: 1.25, dy: 3.0,
-          hover: 'Còn thừa chỗ, nhưng trượt vì taint — xoá Pod không sửa được'
-        }),
-        'pod-checkout': KIT.pulse('danger', 'FailedScheduling · 0/3', {at: 1.7, dy: 2.2})
-      },
-      scene(a) {
-        KIT.link(a, 'scheduler', 'node-c', 'danger');
-        KIT.note(a, '② 0/3 nodes are available', [-4.6, -3.4, 0], 'danger', 1.6);
-      }
+  phases: KIT.sweep(RUN.filter.evaluated, function(e, i) {
+    var isLast = i === RUN.filter.evaluated.length - 1;
+    var beat = KIT.beat('scheduler', e.key, 'danger', {
+      mark: ['danger', e.plugin + ' — fail'],
+      dy: 3.0,
+      hover: PREEMPT_FILTER_HOVER[e.key],
+      link: PREEMPT_FILTER_LINK[e.key]
+    });
+    var baseSc = beat.scene;
+    var set = beat.set;
+    if (isLast) {
+      set['pod-checkout'] = KIT.pulse('danger', 'FailedScheduling · ' + FEASIBLE_LABEL, {at: 1.7, dy: 2.2});
     }
-  ]
+    return {
+      title: PREEMPT_FILTER_TITLES[e.key],
+      desc:  PREEMPT_FILTER_DESCS[e.key],
+      labels: PREEMPT_FILTER_LABELS[e.key],
+      set:   set,
+      scene: isLast ? function(a) {
+        baseSc(a);
+        KIT.note(a, '② ' + FEASIBLE_LABEL + ' nodes are available', [-4.6, -3.4, 0], 'danger', 1.6);
+      } : baseSc
+    };
+  })
 },
 
 /* ── STEP ③: PostFilter — mô phỏng và chọn victim ── */
@@ -228,25 +275,44 @@ window.PREEMPT_STEPS_FILTER = [
       title: 'Tập victim tối thiểu — xoá từ dưới lên, dừng ngay khi vừa đủ',
       desc: KIT.desc(
         'Trên Worker A, scheduler <b>không</b> xoá sạch. Nó sắp Pod theo priority tăng dần rồi cộng dồn cho tới khi vừa đủ chỗ:',
-        ['<code>batch-job</code> <b>P=50</b> → giải phóng 1Gi, tổng trống 2Gi — <span class="warn">chưa đủ 4Gi</span>',
-         '<code>log-agent</code> <b>P=150</b> → thêm 3Gi, tổng trống <span class="ok">5Gi ≥ 4Gi</span> → <b>dừng</b>',
-         '<code>payments</code> <b>P=300</b> tuy vẫn thấp hơn 1000 nhưng <span class="ok">được giữ nguyên</span>.'],
+        CUMULATIVE.map(function(row, i) {
+          const enough = row.freeGi >= NEED;
+          const last = i === CUMULATIVE.length - 1;
+          return '<code>' + row.victim.name + '</code> <b>P=' + row.victim.priority + '</b> → '
+            + (i === 0 ? 'giải phóng ' : 'thêm ') + MODEL.fmtGi(row.victim.memGi) + ', tổng trống '
+            + (enough
+                ? '<span class="ok">' + MODEL.fmtGi(row.freeGi) + ' ≥ ' + MODEL.fmtGi(NEED) + '</span>' + (last ? ' → <b>dừng</b>' : '')
+                : MODEL.fmtGi(row.freeGi) + ' — <span class="warn">chưa đủ ' + MODEL.fmtGi(NEED) + '</span>');
+        }).concat(PLAN.spared.map(function(p) {
+          return '<code>' + p.name + '</code> <b>P=' + p.priority + '</b> tuy vẫn thấp hơn '
+            + POD.priority + ' nhưng <span class="ok">được giữ nguyên</span>.';
+        })),
         '<b>Hai điều thường bị hiểu sai ở bước này.</b> Thứ nhất, scheduler cố <b>tránh vi phạm PodDisruptionBudget</b> khi chọn victim — nhưng đó là <i>ưu tiên</i>, không phải ràng buộc: hết lựa chọn thì nó vẫn xoá và vẫn vi phạm PDB. Thứ hai, <b>QoS class hoàn toàn không được xét</b> ở đây — một Pod <code>Guaranteed</code> priority thấp vẫn bị đuổi trước một Pod <code>BestEffort</code> priority cao. Kubelet Eviction cũng không sort trực tiếp theo QoS: với memory pressure nó xét usage vượt request, rồi Priority, rồi excess usage — hai cơ chế vẫn có trigger và owner khác nhau hoàn toàn.'),
       focus: ['node-a', 'pod-a1', 'pod-a2', 'pod-a3'],
       cam: [4, 0, 8], dist: 26,
       // Cộng dồn theo đúng thứ tự scheduler duyệt: hàng thứ hai chạm 100% là
       // chỗ nó dừng lại — `payments` không có mặt vì không bị đụng tới.
       scoreMode: true,
-      scoreTitle: 'chỗ trống tích luỹ / 4Gi cần',
-      scores: [
-        KIT.gauge('+ batch-job', 2, 4, 'Gi', {txt: '2Gi', tone: 'danger'}),
-        KIT.gauge('+ log-agent', 5, 4, 'Gi', {txt: '5Gi', win: true})
-      ],
-      set: {
-        'pod-a1': KIT.mark('doomed', 'victim · −1Gi', {at: 0.45, dy: 2.2}),
-        'pod-a2': KIT.mark('doomed', 'victim · −3Gi', {at: 1.05, dy: 2.2}),
-        'pod-a3': KIT.mark('ok', 'giữ lại', {at: 1.65, dy: 2.2})
-      },
+      scoreTitle: 'chỗ trống tích luỹ / ' + MODEL.fmtGi(NEED) + ' cần',
+      scores: CUMULATIVE.map(function(row) {
+        const enough = row.freeGi >= NEED;
+        return KIT.gauge('+ ' + row.victim.name, row.freeGi, NEED, 'Gi',
+          {txt: MODEL.fmtGi(row.freeGi), tone: enough ? undefined : 'danger', win: enough});
+      }),
+      // Victim và Pod được giữ đều do model quyết — không hộp nào bị đánh dấu
+      // 'doomed' bằng tay, nên hình và lời giải thích không thể lệch nhau.
+      set: (function() {
+        const out = {};
+        PLAN.victims.forEach(function(v, i) {
+          out[v.key] = KIT.mark('doomed', 'victim · −' + MODEL.fmtGi(v.memGi),
+            {at: 0.45 + i * 0.60, dy: 2.2});
+        });
+        PLAN.spared.forEach(function(p, i) {
+          out[p.key] = KIT.mark('ok', 'giữ lại',
+            {at: 0.45 + (PLAN.victims.length + i) * 0.60, dy: 2.2});
+        });
+        return out;
+      })(),
       scene(a) {
         KIT.note(a, 'tập victim tối thiểu', [6, -3.2, 11.9], 'mute', 1.8);
       }

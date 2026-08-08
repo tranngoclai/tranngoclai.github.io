@@ -17,7 +17,7 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-ser
 #intro-splash.hiding{opacity:0;transform:scale(1.04);pointer-events:none;}
 #intro-splash.hidden{display:none;}
 
-.intro-k8s{
+.intro-eyebrow{
   font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.22em;
   text-transform:uppercase;color:var(--blue);margin-bottom:18px;
   animation:fadeSlideUp .6s .1s ease both;

@@ -1,54 +1,50 @@
 <!DOCTYPE html>
-<html lang="vi">
+<!-- lang, <title>, and every piece of copy below are filled in at load time
+     from the deck manifest (see flow3d-deck.js). This file is the structural
+     shell only — building a deck about another subject means swapping the
+     DECK script band near the bottom, not editing markup up here. -->
+<html>
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Kubernetes – 3D Scenarios</title>
+<title></title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="flow3d.css"/>
 </head>
 <body>
 
-<!-- ─── INTRO SPLASH ─── -->
+<!-- ─── INTRO SPLASH ─── copy from the manifest; chips from SCENARIOS[].name -->
 <div id="intro-splash">
-  <div class="intro-k8s">⎈ kube-scheduler · 3D Simulator</div>
-  <div class="intro-title">Kubernetes Scheduling<br>Visualized in 3D</div>
-  <div class="intro-sub">
-    Khám phá toàn bộ hành trình một Pod được tạo —<br>
-    từ Client → API Server → etcd → Scheduler → kubelet → Container.<br>
-    Cùng các kịch bản Preemption, Eviction, OOM &amp; PDB.
-  </div>
+  <div class="intro-eyebrow" id="intro-eyebrow"></div>
+  <div class="intro-title" id="intro-title"></div>
+  <div class="intro-sub" id="intro-sub"></div>
   <div class="intro-btn-wrap" id="intro-btn-wrap">
-    <button class="intro-btn" id="intro-start-btn" onclick="startApp()">Bắt đầu →</button>
+    <button class="intro-btn" id="intro-start-btn"></button>
   </div>
-  <div class="intro-scenarios">
-    <span class="intro-tag">Scheduler Pipeline</span>
-    <span class="intro-tag">Preemption</span>
-    <span class="intro-tag">Kubelet Eviction</span>
-    <span class="intro-tag">OOM Killer</span>
-    <span class="intro-tag">PDB &amp; drain</span>
-  </div>
+  <div class="intro-scenarios" id="intro-scenarios"></div>
 </div>
 
 <div id="topbar">
-  <span class="brand">⎈ k8s-sim</span>
+  <span class="brand" id="brand"></span>
   <div class="sep"></div>
   <div id="breadcrumb"><em id="bc-sc">—</em><span>›</span><em id="bc-st">—</em></div>
   <span id="kb">← → keys</span>
 </div>
 <div id="layout">
   <div id="sidebar">
-    <div id="sidebar-hd">Scenarios</div>
+    <div id="sidebar-hd"></div>
     <div id="sc-list"></div>
   </div>
   <div id="main">
     <div id="progress-bar"></div>
     <div id="scene-wrap">
-      <canvas id="canvas" role="img" aria-label="Mô phỏng 3D Kubernetes; nội dung và kết luận đầy đủ nằm trong bảng giải thích bên dưới"></canvas>
+      <!-- aria-label comes from the manifest: it names the subject being
+           simulated, so only the deck can write it. -->
+      <canvas id="canvas" role="img"></canvas>
       <div id="labels"></div>
       <div id="fade-overlay"></div>
       <div id="dir-flash"></div>
-      <!-- Step title: appears centered, then lifts to the top and stays pinned there for the step (Scheduler Pipeline) -->
+      <!-- Step title: appears centered, then lifts to the top and stays pinned there for the step -->
       <div id="step-announce">
         <div class="sa-num" id="sa-num"></div>
         <div class="sa-title" id="sa-title"></div>
@@ -98,19 +94,27 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/controls/OrbitControls.js"></script>
 
-<!-- Scene kit — reusable authoring vocabulary, no Kubernetes in it.
-     Tokens and helpers every scenario is written with; load before scenarios. -->
+<!-- ════ REUSABLE · SCENE KIT ════════════════════════════════════════════
+     The authoring vocabulary every deck is written with — tokens, world
+     builder, state marks, panel/HUD helpers, and the shell chrome renderer.
+     Nothing here knows about any subject. Identical in every deck. -->
 <script src="flow3d-kit-design-tokens.js"></script>
 <script src="flow3d-kit-world-builder.js"></script>
 <script src="flow3d-kit-state-marks.js"></script>
 <script src="flow3d-kit-panel-and-hud.js"></script>
+<script src="flow3d-deck.js"></script>
 
-<!-- Scenario data (edit these to add/change content — engine below rarely changes) -->
+<!-- ════ DECK · KUBERNETES ═══════════════════════════════════════════════
+     THE ONLY BAND THAT CHANGES PER DECK. Manifest first (it defines the
+     chrome), then the scenario worlds and steps. -->
+<script src="k8s-flow-3d-deck.js"></script>
 <script src="k8s-flow-3d-scenarios-index.js"></script>
+<script src="k8s-flow-3d-scenario-scheduler-model.js"></script>
 <script src="k8s-flow-3d-scenario-scheduler-world.js"></script>
 <script src="k8s-flow-3d-scenario-scheduler-pipeline-control-plane.js"></script>
 <script src="k8s-flow-3d-scenario-scheduler-pipeline-node.js"></script>
 <script src="k8s-flow-3d-scenario-scheduler-pipeline.js"></script>
+<script src="k8s-flow-3d-scenario-preemption-model.js"></script>
 <script src="k8s-flow-3d-scenario-preemption-world.js"></script>
 <script src="k8s-flow-3d-scenario-preemption-filter.js"></script>
 <script src="k8s-flow-3d-scenario-preemption-evict.js"></script>
@@ -122,13 +126,19 @@
 <script src="k8s-flow-3d-scenario-kubelet-eviction-ranking.js"></script>
 <script src="k8s-flow-3d-scenario-kubelet-eviction-consequence.js"></script>
 <script src="k8s-flow-3d-scenario-kubelet-eviction.js"></script>
+<script src="k8s-flow-3d-scenario-oom-killer-model.js"></script>
+<script src="k8s-flow-3d-scenario-oom-killer-world.js"></script>
+<script src="k8s-flow-3d-scenario-oom-killer-steps.js"></script>
 <script src="k8s-flow-3d-scenario-oom-killer.js"></script>
+<script src="k8s-flow-3d-scenario-pdb-drain-model.js"></script>
+<script src="k8s-flow-3d-scenario-pdb-drain-world.js"></script>
+<script src="k8s-flow-3d-scenario-pdb-drain-steps.js"></script>
 <script src="k8s-flow-3d-scenario-pdb-drain.js"></script>
 
-<!-- Flattens step.phases[] into steps — must run before any engine code -->
+<!-- ════ REUSABLE · ENGINE ═══════════════════════════════════════════════
+     Flattens step.phases[] into steps, then renders and drives them. Must
+     run after every scenario has registered itself. Identical in every deck. -->
 <script src="flow3d-engine-phase-expander.js"></script>
-
-<!-- 3D rendering engine and UI wiring -->
 <script src="flow3d-engine-scene-setup.js"></script>
 <script src="flow3d-engine-animation-helpers.js"></script>
 <script src="flow3d-engine-flow-state.js"></script>

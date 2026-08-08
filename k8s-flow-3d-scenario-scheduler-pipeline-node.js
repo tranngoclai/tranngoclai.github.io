@@ -13,6 +13,12 @@
 ══════════════════════════════════════════════ */
 (function() {
 const KIT = window.SCENE_KIT;
+const MODEL = window.SCHEDULER_MODEL;
+
+/* Cùng một model với control-plane: tên Node thắng và priority của Pod không
+   được gõ lại ở đây. */
+const RUN = MODEL.simulate(MODEL.DEFAULT_CONFIG);
+const PRI = 'P=' + MODEL.DEFAULT_CONFIG.pod.priority;
 const P = window.SCHED_POS;
 
 window.SCHED_STEPS_NODE = [
@@ -66,7 +72,7 @@ window.SCHED_STEPS_NODE = [
       // Field trong etcd đổi thật → đây là một trong số ít chỗ label được đổi.
       set: {
         'pod': KIT.mark('warn', 'nodeName ← worker-a', {
-          label: 'Pod · P=500\nnodeName: "worker-a"', at: 1.35, dy: 2.0,
+          label: 'Pod · ' + PRI + '\nnodeName: "worker-a"', at: 1.35, dy: 2.0,
           hover: 'Đã có Node, nhưng vẫn Pending — kubelet chưa hay biết'
         })
       },
@@ -252,7 +258,7 @@ window.SCHED_STEPS_NODE = [
       labels: ['etcd', 'pod'],
       set: {
         'pod': KIT.mark('live', 'Pending → Running', {
-          label: 'Pod · P=500\nworker-a · Running ✓', at: 1.35, dy: 2.0,
+          label: 'Pod · ' + PRI + '\nworker-a · Running ✓', at: 1.35, dy: 2.0,
           hover: 'Cùng object đã ra đời ở bước ② — giờ mới thật sự chạy'
         })
       },

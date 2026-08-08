@@ -26,7 +26,72 @@
 ══════════════════════════════════════════════ */
 (function() {
 const KIT = window.SCENE_KIT;
+const MODEL = window.SCHEDULER_MODEL;
 const P = window.SCHED_POS;
+
+/* Chạy đúng một lần. Verdict của bước ④ và điểm của bước ⑤ đều lấy từ đây, nên
+   badge trên Node, con số trong lời giải thích và hàng HUD không thể lệch nhau
+   — xem k8s-flow-3d-scenario-scheduler-model.js. */
+const RUN = MODEL.simulate(MODEL.DEFAULT_CONFIG);
+
+/* Verdict Filter tra theo key Node. */
+const V = {};
+RUN.filter.evaluated.forEach(function(e) { V[e.key] = e; });
+
+/* Nhãn priority của Pod chính và Pod đang chờ — dùng cả trong label 3D lẫn
+   trong lời giải thích ở bước ③. */
+const POD = MODEL.DEFAULT_CONFIG.pod;
+const PEER = MODEL.DEFAULT_CONFIG.queuePeer;
+const PRI = 'P=' + POD.priority;
+
+/* Hàng HUD của bước ⑤ — khai một lần, mọi phase của step dùng chung
+   (phase expander kế thừa `scores` từ step). Thứ tự theo điểm giảm dần để
+   người xem đọc được thứ hạng mà không cần đếm. */
+const SCORE_ROWS = RUN.scored.map(function(e) {
+  return KIT.score(e.name, e.score, {win: RUN.isWinner(e.key)});
+});
+
+
+/* ── Step ④ Filter: per-Node copy ──
+   Descriptions are the whole point of the deck, so they stay hand-written.
+   Only the structural boilerplate (set, scene, timing) is generated. */
+var FILTER_TITLES = {
+  'node-a': 'Worker A — pass: đủ tài nguyên, không vướng taint',
+  'node-d': 'Worker D — pass: chật hơn nhưng vẫn đủ',
+  'node-b': 'Worker B — rejected: không đủ CPU',
+  'node-c': 'Worker C — rejected: vướng taint · 2 Node sống sót'
+};
+var FILTER_LABELS = {
+  'node-a': ['scheduler', 'node-a'],
+  'node-d': ['scheduler', 'node-a', 'node-d'],
+  'node-b': ['scheduler', 'node-b'],
+  'node-c': ['scheduler', 'node-c']
+};
+var FILTER_HOVER = {
+  'node-a': 'cpu ' + MODEL.fmtCpu(V['node-a'].node) + ' — thừa chỗ cho Pod, không taint nào chặn',
+  'node-d': 'cpu ' + MODEL.fmtCpu(V['node-d'].node) + ' — chật hơn A, nhưng Filter không chấm điểm',
+  'node-b': 'cpu ' + MODEL.fmtCpu(V['node-b'].node) + ' — không còn chỗ cho requests của Pod',
+  'node-c': 'Còn thừa cpu — nhưng taint chặn, và xoá Pod không gỡ được taint'
+};
+var FILTER_DESCS = {
+  'node-a': KIT.desc(
+    'Pha đầu của scheduling cycle là <span class="hi">Filter</span> — câu hỏi <b>nhị phân</b>, không có điểm số: Node này <b>có thể</b> chạy Pod hay không?',
+    'Scheduler lấy danh sách Node từ <span class="hi">in-memory cache</span> (bản sao cluster state giữ sẵn trong RAM, đồng bộ qua Watch — nên quyết định mất mili-giây chứ không phải gọi API mỗi lần), rồi chạy <b>song song</b> các Filter plugin trên từng Node. '
+    + 'Worker A qua hết: <code>NodeResourcesFit</code> ✓, <code>TaintToleration</code> ✓, <code>NodeAffinity</code> ✓.',
+    '<code>NodeResourcesFit</code> so với <b><code>requests</code></b>, không phải mức dùng thực tế. Node đang chạy 90% CPU vẫn "còn chỗ" nếu tổng requests còn thấp — đó là lý do đặt requests sai làm hỏng toàn bộ scheduling.'),
+  'node-d': KIT.desc(
+    'Worker D cũng qua được toàn bộ Filter.',
+    'Nó còn ít tài nguyên trống hơn A (<code>cpu 11/16</code>), nhưng Filter <b>không quan tâm nhiều hay ít</b> — chỉ cần <code>requests</code> của Pod lọt vào phần <code>allocatable</code> còn lại là pass.',
+    '<b>Đây chính là ranh giới giữa hai pha:</b> Filter trả lời <b>"được hay không"</b>, còn chuyện <b>"A hay D tốt hơn"</b> hoàn toàn không thuộc về nó — đó là việc của pha Score ở bước ⑤. Trộn lẫn hai câu hỏi này là nguồn gốc của rất nhiều hiểu nhầm về scheduler.'),
+  'node-b': KIT.desc(
+    'Worker B trượt <code>NodeResourcesFit</code>: tổng <code>requests</code> của các Pod đang chạy (<code>cpu 15/16</code>) cộng với Pod mới đã vượt <code>allocatable</code>.',
+    'Node <b>bị loại ngay lập tức</b> — scheduler không buồn chạy nốt các plugin còn lại cho Node này.',
+    '<b>Logic Filter là AND tuyệt đối:</b> <span class="danger">chỉ cần MỘT plugin trả về false là Node bị loại</span>, bất kể nó tốt đến đâu ở mọi tiêu chí khác. Không có "gần đủ", không có điểm an ủi.'),
+  'node-c': KIT.desc(
+    'Worker C trượt <code>TaintToleration</code>: Node bị bôi <code>taint</code> (<code>node-role.kubernetes.io/control-plane:NoSchedule</code>) mà Pod không khai <code>toleration</code> tương ứng.',
+    'Nó là Node <b>rỗng nhất cluster</b> (<code>cpu 2/16</code>) và vẫn bị loại. Kết quả bước ④: <b>4 Node vào, 2 Node ra</b> — chỉ A và D được chuyển sang pha Score.',
+    '<b>Đây là lý do #1 khiến Pod không chạy.</b> Nếu <b>không Node nào</b> qua được Filter, Pod quay về queue với event <code>FailedScheduling</code> và đứng mãi ở <code>Pending</code>. <code>kubectl describe pod</code> sẽ nói chính xác plugin nào đã loại và loại bao nhiêu Node: <i>"0/4 nodes are available: 2 Insufficient cpu, 2 node(s) had untolerated taint"</i> — đọc dòng đó là biết phải sửa gì.')
+};
 
 window.SCHED_STEPS_CONTROL_PLANE = [
 
@@ -123,7 +188,7 @@ window.SCHED_STEPS_CONTROL_PLANE = [
       showAt: { 'pod': 1.15 },
       set: {
         'pod': KIT.pulse('warn', 'created · Pending', {
-          label: 'Pod · P=500\nnodeName: "" · Pending', dy: 1.1
+          label: 'Pod · ' + PRI + '\nnodeName: "" · Pending', dy: 1.1
         })
       },
       scene(a) {
@@ -206,7 +271,7 @@ window.SCHED_STEPS_CONTROL_PLANE = [
       title: 'Xếp hàng theo PriorityClass — không phải FIFO',
       desc: KIT.desc(
         'ActiveQ là <b>priority queue</b>, không phải hàng đợi vào-trước-ra-trước.',
-        'Pod được sắp theo <span class="warn">PriorityClass</span> (field <code>spec.priority</code>). Pod <code>P=500</code> vừa vào sẽ <b>chen lên trước</b> Pod <code>P=200</code> đã đợi sẵn, và được pop ra xử lý trước.',
+        'Pod được sắp theo <span class="warn">PriorityClass</span> (field <code>spec.priority</code>). Pod <code>' + PRI + '</code> vừa vào sẽ <b>chen lên trước</b> Pod <code>P=' + PEER.priority + '</code> đã đợi sẵn, và được pop ra xử lý trước.',
         '<b>Đây là chỗ PriorityClass thực sự phát huy tác dụng.</b> Khi cluster rảnh, priority gần như vô nghĩa — mọi Pod đều được schedule. Khi tài nguyên cạn và hàng đợi dài, nó quyết định workload nào được xét trước. Và nếu vẫn không đủ chỗ, priority còn kích hoạt <b>Preemption</b> — đuổi Pod thấp điểm để nhường chỗ (xem kịch bản Preemption).'),
       labels: ['queue', 'pod', 'q-pod-lo'],
       show: ['q-pod-lo'],
@@ -214,7 +279,7 @@ window.SCHED_STEPS_CONTROL_PLANE = [
       // Cùng một hộp Pod bay từ etcd sang đầu ActiveQ — không tạo hộp mới.
       set: {
         'q-pod-lo': KIT.pulse('peer'),
-        'pod': KIT.move(P.queue0, {badge: 'P=500 → đầu queue', at: 0.85, dy: 2.0})
+        'pod': KIT.move(P.queue0, {badge: PRI + ' → đầu queue', at: 0.85, dy: 2.0})
       },
       scene(a) {
         KIT.link(a, 'etcd', 'queue', 'accent', {dur: 1.00});
@@ -225,86 +290,37 @@ window.SCHED_STEPS_CONTROL_PLANE = [
 },
 
 /* ── STEP ④: Filter ──
-   Kết quả Filter hiện trên **chính Node**: tone đổi, badge nói tên plugin.
-   Label Node vẫn là tên + con số cpu — và chính con số đó giải thích verdict,
-   nên không cần thêm chữ nào. */
+   Phases generated from the model's evaluated list (`KIT.sweep`), with
+   `KIT.beat` encoding the timing constraint between each flow line and its
+   target's mark. Hand-written copy per Node sits in FILTER_DESCS above. */
 {
   title: 'Filter — Node nào chạy được Pod này?',
   pipelineStep: 3,
   focus: ['scheduler', 'node-a', 'node-d', 'node-b', 'node-c'],
   cam: [1, 1, -1], dist: 40,
-  phases: [
-    {
-      title: 'Worker A — pass: đủ tài nguyên, không vướng taint',
-      desc: KIT.desc(
-        'Pha đầu của scheduling cycle là <span class="hi">Filter</span> — câu hỏi <b>nhị phân</b>, không có điểm số: Node này <b>có thể</b> chạy Pod hay không?',
-        'Scheduler lấy danh sách Node từ <span class="hi">in-memory cache</span> (bản sao cluster state giữ sẵn trong RAM, đồng bộ qua Watch — nên quyết định mất mili-giây chứ không phải gọi API mỗi lần), rồi chạy <b>song song</b> các Filter plugin trên từng Node. '
-        + 'Worker A qua hết: <code>NodeResourcesFit</code> ✓, <code>TaintToleration</code> ✓, <code>NodeAffinity</code> ✓.',
-        '<code>NodeResourcesFit</code> so với <b><code>requests</code></b>, không phải mức dùng thực tế. Node đang chạy 90% CPU vẫn “còn chỗ” nếu tổng requests còn thấp — đó là lý do đặt requests sai làm hỏng toàn bộ scheduling.'),
-      labels: ['scheduler', 'node-a'],
-      set: {
-        'node-a': KIT.mark('ok', 'NodeResourcesFit ✓', {
-          at: 1.25, dy: 3.0,
-          hover: 'cpu 4/16 — thừa chỗ cho Pod, không taint nào chặn'
-        })
-      },
-      scene(a) {
-        KIT.link(a, 'scheduler', 'node-a', 'ok', {dur: 1.10, loop: 3.8});
-      }
-    },
-    {
-      title: 'Worker D — pass: chật hơn nhưng vẫn đủ',
-      desc: KIT.desc(
-        'Worker D cũng qua được toàn bộ Filter.',
-        'Nó còn ít tài nguyên trống hơn A (<code>cpu 11/16</code>), nhưng Filter <b>không quan tâm nhiều hay ít</b> — chỉ cần <code>requests</code> của Pod lọt vào phần <code>allocatable</code> còn lại là pass.',
-        '<b>Đây chính là ranh giới giữa hai pha:</b> Filter trả lời <b>“được hay không”</b>, còn chuyện <b>“A hay D tốt hơn”</b> hoàn toàn không thuộc về nó — đó là việc của pha Score ở bước ⑤. Trộn lẫn hai câu hỏi này là nguồn gốc của rất nhiều hiểu nhầm về scheduler.'),
-      labels: ['scheduler', 'node-a', 'node-d'],
-      set: {
-        'node-d': KIT.mark('ok', 'NodeResourcesFit ✓', {
-          at: 1.25, dy: 2.6,
-          hover: 'cpu 11/16 — chật hơn A, nhưng Filter không chấm điểm'
-        })
-      },
-      scene(a) {
-        KIT.link(a, 'scheduler', 'node-d', 'ok', {dur: 1.10, loop: 3.8});
-      }
-    },
-    {
-      title: 'Worker B — rejected: không đủ CPU',
-      desc: KIT.desc(
-        'Worker B trượt <code>NodeResourcesFit</code>: tổng <code>requests</code> của các Pod đang chạy (<code>cpu 15/16</code>) cộng với Pod mới đã vượt <code>allocatable</code>.',
-        'Node <b>bị loại ngay lập tức</b> — scheduler không buồn chạy nốt các plugin còn lại cho Node này.',
-        '<b>Logic Filter là AND tuyệt đối:</b> <span class="danger">chỉ cần MỘT plugin trả về false là Node bị loại</span>, bất kể nó tốt đến đâu ở mọi tiêu chí khác. Không có “gần đủ”, không có điểm an ủi.'),
-      labels: ['scheduler', 'node-b'],
-      set: {
-        'node-b': KIT.mark('danger', 'Insufficient cpu', {
-          at: 1.25, dy: 2.6,
-          hover: 'cpu 15/16 — không còn chỗ cho requests của Pod'
-        })
-      },
-      scene(a) {
-        KIT.link(a, 'scheduler', 'node-b', 'danger', {dur: 1.10, loop: 3.8});
-      }
-    },
-    {
-      title: 'Worker C — rejected: vướng taint · 2 Node sống sót',
-      desc: KIT.desc(
-        'Worker C trượt <code>TaintToleration</code>: Node bị bôi <code>taint</code> (<code>node-role.kubernetes.io/control-plane:NoSchedule</code>) mà Pod không khai <code>toleration</code> tương ứng.',
-        'Nó là Node <b>rỗng nhất cluster</b> (<code>cpu 2/16</code>) và vẫn bị loại. Kết quả bước ④: <b>4 Node vào, 2 Node ra</b> — chỉ A và D được chuyển sang pha Score.',
-        '<b>Đây là lý do #1 khiến Pod không chạy.</b> Nếu <b>không Node nào</b> qua được Filter, Pod quay về queue với event <code>FailedScheduling</code> và đứng mãi ở <code>Pending</code>. <code>kubectl describe pod</code> sẽ nói chính xác plugin nào đã loại và loại bao nhiêu Node: <i>“0/4 nodes are available: 2 Insufficient cpu, 2 node(s) had untolerated taint”</i> — đọc dòng đó là biết phải sửa gì.'),
-      labels: ['scheduler', 'node-c'],
-      set: {
-        'node-c': KIT.mark('danger', 'untolerated taint', {
-          at: 1.25, dy: 2.6,
-          hover: 'Còn thừa cpu — nhưng taint chặn, và xoá Pod không gỡ được taint'
-        })
-      },
-      scene(a) {
-        KIT.link(a, 'scheduler', 'node-c', 'danger', {dur: 1.10, loop: 3.8});
-        KIT.note(a, '④ 4 Node → 2 Node qua được Filter', [-6.5, -3.2, 2], 'mute', 1.5);
-      }
-    }
-  ]
+  phases: KIT.sweep(RUN.filter.evaluated, function(e, i) {
+    var tone = e.passed ? 'ok' : 'danger';
+    var isLast = i === RUN.filter.evaluated.length - 1;
+    var beat = KIT.beat('scheduler', e.key, tone, {
+      mark: [tone, e.badge],
+      dy: e.key === 'node-a' ? 3.0 : 2.6,
+      hover: FILTER_HOVER[e.key],
+      link: {dur: 1.10, loop: 3.8}
+    });
+    var baseSc = beat.scene;
+    return {
+      title: FILTER_TITLES[e.key],
+      desc:  FILTER_DESCS[e.key],
+      labels: FILTER_LABELS[e.key],
+      set:   beat.set,
+      scene: isLast ? function(a) {
+        baseSc(a);
+        KIT.note(a, '④ ' + RUN.filter.evaluated.length + ' Node → '
+                  + RUN.filter.passed.length + ' Node qua được Filter',
+                 [-6.5, -3.2, 2], 'mute', 1.5);
+      } : baseSc
+    };
+  })
 },
 
 /* ── STEP ⑤: Score ── */
@@ -313,6 +329,10 @@ window.SCHED_STEPS_CONTROL_PLANE = [
   pipelineStep: 3,
   focus: ['scheduler', 'node-a', 'node-d'],
   cam: [3, 1, 5], dist: 32,
+  // Khai một lần ở step; phase expander truyền xuống mọi phase. Mỗi phase chỉ
+  // cần bật `scoreMode` cho riêng nó (nếu không HUD sẽ chạy lại mỗi nhịp).
+  scoreTitle: 'score = Σ(plugin × weight)',
+  scores: SCORE_ROWS,
   phases: [
     {
       title: 'Worker D được 71 điểm',
@@ -323,8 +343,6 @@ window.SCHED_STEPS_CONTROL_PLANE = [
         'Điểm số <b>không</b> được lưu ở đâu cả — nó được tính lại từ đầu cho mỗi lần schedule. Cùng một Pod, schedule ở hai thời điểm khác nhau, có thể ra hai Node khác nhau.'),
       labels: ['node-a', 'node-d'],
       scoreMode: true,
-      scoreTitle: 'score = Σ(plugin × weight)',
-      scores: [KIT.score('Worker A', 94, {win: true}), KIT.score('Worker D', 71)],
       set: {
         'node-d': KIT.pulse('sky', 'score 71', {at: 1.15, dy: 2.6})
       },
@@ -343,8 +361,6 @@ window.SCHED_STEPS_CONTROL_PLANE = [
          '<code>ImageLocality</code> — Node đã cache sẵn image được cộng điểm vì khỏi phải pull vài trăm MB.']),
       labels: ['node-a', 'node-d'],
       scoreMode: true,
-      scoreTitle: 'score = Σ(plugin × weight)',
-      scores: [KIT.score('Worker A', 94, {win: true}), KIT.score('Worker D', 71)],
       set: {
         'node-a': KIT.mark('crown', 'score 94 ★', {at: 1.15, dy: 3.0})
       },
@@ -360,8 +376,6 @@ window.SCHED_STEPS_CONTROL_PLANE = [
         '<b>Đây là toàn bộ chỗ bạn có thể điều khiển hành vi đặt Pod:</b> chỉnh <code>weight</code> của từng plugin trong <b>Scheduler Profile</b>, thêm <code>topologySpreadConstraints</code>, dùng affinity, hoặc viết plugin riêng qua <b>Scheduler Framework</b> — <span class="danger">không cần fork kube-scheduler.</span> Nếu Pod cứ dồn vào một Node, câu trả lời gần như luôn nằm ở pha Score chứ không phải Filter.'),
       labels: ['node-a'],
       scoreMode: true,
-      scoreTitle: 'score = Σ(plugin × weight)',
-      scores: [KIT.score('Worker A', 94, {win: true}), KIT.score('Worker D', 71)],
       set: {
         'node-a': KIT.mark('ok', '★ selected node', {
           at: 0.60, dy: 3.0, flash: KIT.ink('crown'),

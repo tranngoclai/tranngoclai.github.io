@@ -28,11 +28,25 @@
    bước ⑤ (Score) đều đọc đúng những con số này: A còn rộng nhất → điểm
    `LeastAllocated` cao nhất; B gần kín → trượt `NodeResourcesFit`; C rộng
    nhưng vướng taint.
+
+   Những con số đó KHÔNG gõ tay ở đây nữa. Chúng đến từ
+   k8s-flow-3d-scenario-scheduler-model.js, cùng nguồn với verdict ở bước ④ và
+   điểm số ở bước ⑤ — nên label, badge và HUD không thể lệch nhau.
 ══════════════════════════════════════════════ */
 
 (function() {
 const KIT = window.SCENE_KIT;
+const MODEL = window.SCHEDULER_MODEL;
 const Q = KIT.stack([-4.6, 0.4, 8.2], 2, 1.4);   // hai khe ActiveQ, từ trên xuống
+
+/* Node facts, tra theo key — label và hover cùng đọc từ đây. */
+const NODE = {};
+MODEL.DEFAULT_CONFIG.nodes.forEach(function(n) { NODE[n.key] = n; });
+
+/* `Worker A\ncpu 4/16` — tên + cấu hình, đúng quy tắc 3 của kit. */
+function nodeLabel(key, suffix) {
+  return NODE[key].name + '\ncpu ' + MODEL.fmtCpu(NODE[key]) + (suffix || '');
+}
 
 /* Ba chỗ đứng của Pod trên hành trình của nó. Steps tham chiếu qua
    `KIT.move(SCHED_POS.x)` nên toạ độ chỉ tồn tại đúng một lần. */
@@ -86,7 +100,8 @@ window.SCHEDULER_WORLD = function(raw) {
      xuống Worker A khi kubelet nhận việc (⑦). `subject` là tone dành riêng cho
      nhân vật chính — mắt luôn tìm lại được nó giữa khung hình đông component. */
   w.node('pod', {
-    label: 'Pod · P=500\nnodeName: ""', pos: P.etcdShelf, size: [2.8, 1.3, 2.1],
+    label: 'Pod · P=' + MODEL.DEFAULT_CONFIG.pod.priority + '\nnodeName: ""',
+    pos: P.etcdShelf, size: [2.8, 1.3, 2.1],
     tone: 'subject', order: 5, hidden: true,
     hover: 'Chính Pod đang được schedule — theo nó suốt 9 bước'
   });
@@ -107,14 +122,15 @@ window.SCHEDULER_WORLD = function(raw) {
     hover: 'Priority queue — Pod priority cao được pop trước'
   });
   w.node('q-pod-lo', {
-    label: 'batch\nP=200', pos: P.queue1, size: [2.6, 1.0, 1.8],
+    label: MODEL.DEFAULT_CONFIG.queuePeer.name
+         + '\nP=' + MODEL.DEFAULT_CONFIG.queuePeer.priority, pos: P.queue1, size: [2.6, 1.0, 1.8],
     tone: 'peer', order: 7, hidden: true,
     hover: 'Pod thường đang chờ tới lượt — priority thấp hơn nên bị chen'
   });
 
   /* ── Worker A: Node thắng, mang đủ runtime ── */
   w.node('node-a', {
-    label: 'Worker A\ncpu 4/16', pos: [10, -1.6, 8], size: [13, 0.5, 7],
+    label: nodeLabel('node-a'), pos: [10, -1.6, 8], size: [13, 0.5, 7],
     tone: 'surface', order: 6,
     hover: 'Node rộng nhất — sẽ pass Filter và thắng Score'
   });
@@ -148,17 +164,17 @@ window.SCHEDULER_WORLD = function(raw) {
      Con số cpu trên label chính là dữ kiện của bước ④ và ⑤ — Node tự nói ra
      vì sao nó pass hay trượt, không cần chip verdict đứng cạnh. */
   w.node('node-d', {
-    label: 'Worker D\ncpu 11/16', pos: [7.5, -1.6, 1], size: [8, 0.5, 4.5],
+    label: nodeLabel('node-d'), pos: [7.5, -1.6, 1], size: [8, 0.5, 4.5],
     tone: 'surface', order: 7,
     hover: 'Vẫn đủ chỗ — nhưng chật hơn A nên điểm LeastAllocated thấp hơn'
   });
   w.node('node-b', {
-    label: 'Worker B\ncpu 15/16', pos: [7.5, -1.6, -5], size: [8, 0.5, 4.5],
+    label: nodeLabel('node-b'), pos: [7.5, -1.6, -5], size: [8, 0.5, 4.5],
     tone: 'surface', order: 8,
     hover: 'Gần kín CPU — sẽ trượt NodeResourcesFit'
   });
   w.node('node-c', {
-    label: 'Worker C\ncpu 2/16 · NoSchedule', pos: [7.5, -1.6, -11], size: [8, 0.5, 4.5],
+    label: nodeLabel('node-c', ' · NoSchedule'), pos: [7.5, -1.6, -11], size: [8, 0.5, 4.5],
     tone: 'surface', order: 9,
     hover: 'Rỗng nhất cluster — nhưng mang taint nên Pod không được vào'
   });

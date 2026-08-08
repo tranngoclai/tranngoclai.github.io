@@ -47,7 +47,8 @@
           /* ─ 3D directives: the phase wins, the step is the fallback ─ */
           focus:        pick('focus') || [],
           // Which components keep their caption when the scenario sets
-          // `focusLabels` — defaults to the focus set.
+          // `focusLabels` — defaults to [] here; the fallback to the focus
+          // set lives in applyFocus() (flow3d-engine-persistent-world.js).
           labels:       pick('labels') || [],
           cam:          pick('cam'),
           dist:         pick('dist'),

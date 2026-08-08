@@ -104,4 +104,28 @@ KIT.scenario = function(def) {
     showPipeline: !!def.pipeline
   }, def));
 };
+
+/* ── sweep ── map a candidate list to a phase array.
+
+   Three scenario steps walk one candidate per phase, structurally identical,
+   differing only in key / tone / badge / copy.  After phase-02 those lists
+   are model output, so generating the phases from that output removes the
+   last place the candidate set is written by hand.
+
+   `fn(item, index)` returns a plain phase object.  `sweep` wraps the
+   result array so it can be assigned straight to `phases:`.
+
+   Copy stays hand-written per candidate — the prose is the whole point of
+   the deck and must not be templated.  Only the *structure* is generated.
+
+     phases: KIT.sweep(run.filter.evaluated, (node, i) => ({
+       title: node.name + (node.passed ? ' — pass' : ' — rejected: ' + node.plugin),
+       desc:  DESCRIPTIONS[node.key],
+       focus: ['scheduler', node.key],
+       ...KIT.beat('scheduler', node.key, node.passed ? 'ok' : 'danger', {…})
+     }))  */
+KIT.sweep = function(items, fn) {
+  return items.map(fn);
+};
+
 })();

@@ -24,6 +24,15 @@
 ══════════════════════════════════════════════ */
 (function() {
 const KIT = window.SCENE_KIT;
+const MODEL = window.PREEMPTION_MODEL;
+
+/* Cùng một model với bước ①–③. `AFTER` là Worker A sau khi victim tắt — con số
+   7/12Gi không gõ tay, nó là kết quả của chính tập victim đã chọn. */
+const RUN = MODEL.simulate(MODEL.DEFAULT_CONFIG);
+const NEED = RUN.pod.memGi;
+const BEFORE = RUN.byKey('node-a');
+const AFTER = RUN.afterEviction;
+const FREED = MODEL.memFree(AFTER);
 const P = window.PREEMPT_POS;
 
 window.PREEMPT_STEPS_EVICT = [
@@ -108,17 +117,19 @@ window.PREEMPT_STEPS_EVICT = [
   cam: [0, 1, 5], dist: 34,
   phases: [
     {
-      title: 'Victim biến mất — Worker A còn 5Gi',
+      title: 'Victim biến mất — ' + AFTER.name + ' còn ' + MODEL.fmtGi(FREED),
       desc: KIT.desc(
         'Hai victim thoát hẳn, kubelet báo cáo, object bị xoá khỏi etcd. Kế toán tài nguyên của Worker A được tính lại.',
-        'Chỉ còn <code>payments</code> giữ 7Gi trên tổng 12Gi <code>allocatable</code> → <span class="ok">còn trống 5Gi</span>. Scheduler cập nhật snapshot in-memory của mình qua watch event.',
+        'Chỉ còn <code>' + AFTER.pods.map(function(p) { return p.name; }).join('</code>, <code>') + '</code> giữ '
+        + MODEL.fmtGi(AFTER.memUsed) + ' trên tổng ' + MODEL.fmtGi(AFTER.memTotal) + ' <code>allocatable</code> → <span class="ok">còn trống '
+        + MODEL.fmtGi(FREED) + '</span>. Scheduler cập nhật snapshot in-memory của mình qua watch event.',
         'Cùng lúc đó, <b>ReplicaSet của <code>batch-job</code> và <code>log-agent</code> đã lập tức tạo Pod thay thế</b>. Chúng vừa được đẩy vào queue và sẽ phải tự tìm chỗ — hệ quả này sẽ quay lại ở bước ⑥.'),
       // Con số cấu hình trên label thật sự đổi → đây là một trong số ít chỗ
       // label được phép thay, và nó thay vì Node bớt chật thật.
       set: {
-        'node-a': KIT.mark('ok', '+4Gi trống', {
-          label: 'Worker A\n7/12Gi', at: 0.55, dy: 3.0,
-          hover: 'Victim đã thoát — Node giờ đủ chỗ cho Pod 4Gi'
+        'node-a': KIT.mark('ok', '+' + MODEL.fmtGi(BEFORE.memUsed - AFTER.memUsed) + ' trống', {
+          label: AFTER.name + '\n' + MODEL.fmtNodeMem(AFTER), at: 0.55, dy: 3.0,
+          hover: 'Victim đã thoát — Node giờ đủ chỗ cho Pod ' + MODEL.fmtGi(NEED)
         })
       },
       focus: ['node-a', 'pod-a3'],
@@ -127,13 +138,18 @@ window.PREEMPT_STEPS_EVICT = [
       // toàn bộ thứ preemption làm được: một Node bớt chật, hai Node còn nguyên.
       scoreMode: true,
       scoreTitle: 'memory đã cấp / allocatable · sau preemption',
-      scores: [
-        KIT.gauge('Worker A', 7,  12, 'Gi', {tone: 'ok'}),
-        KIT.gauge('Worker B', 16, 16, 'Gi', {tone: 'danger'}),
-        KIT.gauge('Worker C', 6,  16, 'Gi', {tone: 'warn'})
-      ],
+      // Cùng thứ tự Node như bước ①, nhưng Worker A đọc từ trạng thái SAU
+      // eviction — đó chính là hàng người xem cần thấy đã dịch chuyển.
+      scores: RUN.nodes.map(function(n) {
+        const shown = n.key === 'node-a' ? AFTER : n;
+        return KIT.gauge(shown.name, shown.memUsed, shown.memTotal, 'Gi',
+          {tone: MODEL.memFree(shown) >= NEED ? 'ok'
+               : (MODEL.memFree(shown) === 0 ? 'danger' : 'warn')});
+      }),
       scene(a) {
-        KIT.note(a, '12Gi − 7Gi = 5Gi ≥ 4Gi', [6, -3.2, 11.9], 'ok', 0.6);
+        KIT.note(a, MODEL.fmtGi(AFTER.memTotal) + ' − ' + MODEL.fmtGi(AFTER.memUsed)
+                  + ' = ' + MODEL.fmtGi(FREED) + ' ≥ ' + MODEL.fmtGi(NEED),
+                 [6, -3.2, 11.9], 'ok', 0.6);
       }
     },
     {

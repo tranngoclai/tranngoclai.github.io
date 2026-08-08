@@ -165,29 +165,8 @@ window.addEventListener('keydown', function(e) {
   if (e.key === 'ArrowLeft')  prev();
 });
 
-/* ── Intro ── */
-function startApp() {
-  const splash = document.getElementById('intro-splash');
-  if (!splash || splash.classList.contains('hiding') || splash.classList.contains('hidden')) return;
-  splash.classList.add('hiding');
-  setTimeout(() => {
-    splash.classList.add('hidden');
-    // Pulse Next button hint after intro
-    const btnNext = document.getElementById('btn-next');
-    if (btnNext) {
-      btnNext.classList.add('hint-pulse');
-      setTimeout(() => btnNext.classList.remove('hint-pulse'), 5000);
-    }
-  }, 700);
-}
-document.getElementById('intro-start-btn').addEventListener('click', startApp);
-// Also allow pressing Enter/Space on the button
-document.addEventListener('keydown', function(e) {
-  const splash = document.getElementById('intro-splash');
-  if (splash && !splash.classList.contains('hidden') && (e.key === 'Enter' || e.key === ' ')) {
-    startApp();
-  }
-});
+/* The splash and its dismissal live in flow3d-deck.js — they are chrome around
+   the deck, not part of the render loop. */
 
 /* ── Init ── */
 loadStep(0, 0);
