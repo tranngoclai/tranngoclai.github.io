@@ -77,6 +77,24 @@ function addLabel(text, x, y, z, color, delay, isHero, cls) {
   return div;
 }
 
+/* An arrow caption's opacity is driven per-frame by updateFlows() to track
+   the line's own draw/hold/fade curve (see makeFlowLine), so it starts
+   invisible with no CSS transition fighting the frame-by-frame writes. */
+function addFlowLabel(text, x, y, z, color) {
+  const obj = new THREE.Object3D();
+  obj.position.set(x, y, z);
+  buildAdd(obj);
+  const div = document.createElement('div');
+  div.className = 'fl-label flow-caption';
+  div.innerHTML = text;
+  div.style.color = color || 'rgba(192,208,232,.75)';
+  div.style.opacity = '0';
+  labelsDiv.appendChild(div);
+  labelEls.push({div, obj, persistent: buildPersistent});
+  div._anchor = obj;
+  return div;
+}
+
 /* ─ Box helper ─ */
 function makeBox(w, h, d, colStr, edgeStr) {
   const geo = new THREE.BoxGeometry(w, h, d);

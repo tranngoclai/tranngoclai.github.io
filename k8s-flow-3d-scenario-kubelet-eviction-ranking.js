@@ -71,7 +71,7 @@ window.createKubeletEvictionRankingSteps = function(config, run) {
         })
       },
       scene(a) {
-        KIT.link(a, 'kubelet', 'pod-static', 'mute', {at: 0.3});
+        KIT.link(a, 'kubelet', 'pod-static', 'mute', {at: 0.3, label: 'exclude · not a candidate'});
         KIT.note(a, 'DaemonSet ≠ miễn nhiễm', {of: 'pod-static', band: true}, 'warn', 0.9);
       }
     },
@@ -123,7 +123,7 @@ window.createKubeletEvictionRankingSteps = function(config, run) {
           // One line per ranked Pod out of the same component — `lift` keeps
           // them from collapsing into a single stroke.
           KIT.link(a, 'kubelet', pod.key, isVictim(pod) ? 'danger' : 'mute',
-            {at: 0.25 + i * 0.18, lift: i * 0.3});
+            {at: 0.25 + i * 0.18, lift: i * 0.3, label: 'rank #' + pod.rank});
         });
         KIT.note(a, 'PDB không được hỏi ý kiến ở đây', {of: 'kubelet', band: true}, 'warn', 1.2);
       }
@@ -154,7 +154,7 @@ window.createKubeletEvictionRankingSteps = function(config, run) {
           [victim.key]: KIT.mark('doomed', 'reason=Evicted', {at: 1.3, dy: 2.1})
         },
         scene(a) {
-          KIT.link(a, 'kubelet', 'apiserver', 'danger', {at: 0.3});
+          KIT.link(a, 'kubelet', 'apiserver', 'danger', {at: 0.3, label: 'write status + Event'});
           KIT.note(a, 'Evicted ≠ OOMKilled', {of: 'apiserver', band: true}, 'danger', 1.0);
         }
       },
@@ -177,8 +177,8 @@ window.createKubeletEvictionRankingSteps = function(config, run) {
           })
         },
         scene(a) {
-          KIT.link(a, 'kubelet', 'runtime', 'danger', {at: 0.3});
-          KIT.link(a, 'runtime', victim.key, 'danger', {at: 0.85});
+          KIT.link(a, 'kubelet', 'runtime', 'danger', {at: 0.3, label: 'CRI StopContainer'});
+          KIT.link(a, 'runtime', victim.key, 'danger', {at: 0.85, label: 'stop containers'});
           KIT.note(a, 'grace ' + run.threshold.podGracePeriodSeconds + 's ≠ tức thời', {of: victim.key, band: true}, 'danger', 1.2);
         }
       },
@@ -207,7 +207,7 @@ window.createKubeletEvictionRankingSteps = function(config, run) {
           })
         ],
         scene(a) {
-          KIT.link(a, 'kubelet', 'cadvisor', 'warn', {at: 0.3});
+          KIT.link(a, 'kubelet', 'cadvisor', 'warn', {at: 0.3, label: 'resample next cycle'});
           KIT.note(a, 'một victim / cycle · cách nhau ~' + config.monitoringPeriodSeconds + 's', {of: 'cadvisor', band: true}, 'warn', 0.9);
         }
       }

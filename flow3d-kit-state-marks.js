@@ -93,6 +93,16 @@ KIT.move = function(pos, o) {
    height, to fan several lines that share an endpoint apart from each other.
    A raw [x,y,z] is accepted in place of a key for the rare line that points
    at a place rather than at a thing.
+
+   `label` names the action the arrow is performing (e.g. "watch", "POST
+   binding") and is required for every call-site — an arrow with no caption
+   forces the viewer to guess what crossed the wire. It renders as a caption
+   floating at the arc's high point, tinted to the arrow's own `ink` unless
+   `labelColor` overrides it. On a looped arrow the line itself blinks off
+   between redraws, so the caption's opacity is driven frame-by-frame off the
+   same draw/hold/fade curve as the line — the two disappear and reappear
+   together instead of the caption sitting there orphaned once the line has
+   faded. `labelDy` nudges it clear of a line with an unusually tall arc.
 */
 KIT.link = function(a, from, to, ink, o) {
   o = o || {};
@@ -103,10 +113,15 @@ KIT.link = function(a, from, to, ink, o) {
   const p2 = componentAnchor(to, at + dur);
   if (!p1 || !p2) return;
 
-  a.flow([p1, componentArc(p1, p2, o.lift), p2], KIT.ink(ink), {
+  const mid = componentArc(p1, p2, o.lift);
+  const dy = o.labelDy === undefined ? 0.5 : o.labelDy;
+  a.flow([p1, mid, p2], KIT.ink(ink), {
     at: at, dur: dur,
     loop: o.loop === undefined ? KIT.TIME.loop : o.loop,
-    width: o.width
+    width: o.width,
+    label: o.label,
+    labelDy: dy,
+    labelColor: o.labelColor || KIT.ink(ink)
   });
 };
 

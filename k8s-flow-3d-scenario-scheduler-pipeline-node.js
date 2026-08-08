@@ -56,7 +56,7 @@ window.SCHED_STEPS_NODE = [
         'apiserver': KIT.pulse('info', 'POST .../binding ✓', {at: 1.30})
       },
       scene(a) {
-        KIT.link(a, 'scheduler', 'apiserver', 'info', {loop: 3.8});
+        KIT.link(a, 'scheduler', 'apiserver', 'info', {loop: 3.8, label: 'POST .../binding'});
         KIT.note(a, 'POST .../pods/{name}/binding', 'apiserver', 'info', 0.2);
       }
     },
@@ -75,7 +75,7 @@ window.SCHED_STEPS_NODE = [
         })
       },
       scene(a) {
-        KIT.link(a, 'apiserver', 'etcd', 'warn', {loop: 3.8});
+        KIT.link(a, 'apiserver', 'etcd', 'warn', {loop: 3.8, label: 'PUT nodeName ← worker-a'});
         KIT.note(a, '⑥ vẫn Pending — chỉ đổi nodeName', {of: 'etcd', band: true}, 'mute', 1.4);
       }
     }
@@ -96,7 +96,7 @@ window.SCHED_STEPS_NODE = [
         'Cùng một mô hình Watch mà scheduler dùng ở bước ③, chỉ khác bộ lọc. <b>List-Watch là xương sống của toàn bộ Kubernetes</b> — controller, kubelet, kube-proxy, operator của bạn đều chạy đúng cơ chế này.'),
       labels: ['apiserver', 'kubelet', 'node-a'],
       scene(a) {
-        KIT.link(a, 'apiserver', 'kubelet', 'info', {dur: 1.35, loop: 4.0});
+        KIT.link(a, 'apiserver', 'kubelet', 'info', {dur: 1.35, loop: 4.0, label: 'WATCH spec.nodeName'});
         KIT.note(a, 'WATCH spec.nodeName=worker-a', 'kubelet', 'sky', 0.2);
       }
     },
@@ -115,7 +115,7 @@ window.SCHED_STEPS_NODE = [
         'pod': KIT.move(P.nodeA, {badge: 'landed on worker-a', at: 1.15, dy: 2.0})
       },
       scene(a) {
-        KIT.link(a, 'queue', 'pod', 'accent', {at: 0.55, dur: 1.10, loop: 3.8});
+        KIT.link(a, 'queue', 'pod', 'accent', {at: 0.55, dur: 1.10, loop: 3.8, label: 'pop from ActiveQ'});
         KIT.note(a, 'event MODIFIED → của tôi!', {of: 'kubelet', band: true}, 'sky', 0.3);
       }
     },
@@ -152,7 +152,7 @@ window.SCHED_STEPS_NODE = [
         })
       },
       scene(a) {
-        KIT.link(a, 'kubelet', 'containerd', 'warn', {at: 0.30, dur: 0.85, loop: 3.4});
+        KIT.link(a, 'kubelet', 'containerd', 'warn', {at: 0.30, dur: 0.85, loop: 3.4, label: 'CRI PullImage'});
       }
     },
     {
@@ -168,7 +168,7 @@ window.SCHED_STEPS_NODE = [
         'sandbox': KIT.pulse('ok', 'pause container ✓ · CNI cấp IP', {dy: 1.3})
       },
       scene(a) {
-        KIT.link(a, 'containerd', 'sandbox', 'ok', {at: 0.30, dur: 0.85, loop: 3.6});
+        KIT.link(a, 'containerd', 'sandbox', 'ok', {at: 0.30, dur: 0.85, loop: 3.6, label: 'RunPodSandbox'});
       }
     },
     {
@@ -184,7 +184,7 @@ window.SCHED_STEPS_NODE = [
         'container': KIT.pulse('ok', 'started', {label: 'Container A\n▶ Running', dy: 1.3})
       },
       scene(a) {
-        KIT.link(a, 'sandbox', 'container', 'ok', {at: 0.30, dur: 0.80, loop: 3.4});
+        KIT.link(a, 'sandbox', 'container', 'ok', {at: 0.30, dur: 0.80, loop: 3.4, label: 'CreateContainer + StartContainer'});
         KIT.note(a, '⑧ cgroups · namespaces · mounts', {of: 'container', band: true}, 'mute', 0.9);
       }
     },
@@ -240,7 +240,7 @@ window.SCHED_STEPS_NODE = [
         'apiserver': KIT.pulse('ok', 'PATCH pods/status', {at: 1.30})
       },
       scene(a) {
-        KIT.link(a, 'kubelet', 'apiserver', 'ok', {dur: 1.35, loop: 4.0});
+        KIT.link(a, 'kubelet', 'apiserver', 'ok', {dur: 1.35, loop: 4.0, label: 'PATCH pods/status'});
         KIT.note(a, 'PATCH pod/status: Running', 'apiserver', 'ok', 0.2);
       }
     },
@@ -258,7 +258,7 @@ window.SCHED_STEPS_NODE = [
         })
       },
       scene(a) {
-        KIT.link(a, 'apiserver', 'etcd', 'warn', {loop: 3.8});
+        KIT.link(a, 'apiserver', 'etcd', 'warn', {loop: 3.8, label: 'PUT status: Running'});
       }
     },
     {
@@ -272,7 +272,7 @@ window.SCHED_STEPS_NODE = [
         'ctrlmgr': KIT.pulse('pass', 'replicas satisfied ✓', {at: 1.25, dy: 1.4})
       },
       scene(a) {
-        KIT.link(a, 'apiserver', 'ctrlmgr', 'pass', {dur: 1.00, loop: 3.6});
+        KIT.link(a, 'apiserver', 'ctrlmgr', 'pass', {dur: 1.00, loop: 3.6, label: 'watch replica count'});
       }
     },
     {
@@ -288,7 +288,7 @@ window.SCHED_STEPS_NODE = [
         })
       },
       scene(a) {
-        KIT.link(a, 'apiserver', 'kubeproxy', 'info', {loop: 3.8});
+        KIT.link(a, 'apiserver', 'kubeproxy', 'info', {loop: 3.8, label: 'watch EndpointSlice'});
         KIT.note(a, '⑨ toàn bộ vòng đời Pod đã khép kín', {of: 'pod', band: true}, 'mute', 1.6);
       }
     }

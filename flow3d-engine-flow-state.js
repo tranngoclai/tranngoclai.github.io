@@ -83,8 +83,15 @@ function makeFlowLine(points, color, opts) {
   const hold = opts.hold === undefined ? 0.6 : opts.hold;
   const fade = 0.45;
 
+  // The caption rides the same arc's midpoint the caller already passed in
+  // as the curve's middle control point — no separate anchor to keep in sync.
+  const mid = points[Math.floor(points.length / 2)];
+  const labelDiv = opts.label
+    ? addFlowLabel(opts.label, mid[0], mid[1] + (opts.labelDy === undefined ? 0.5 : opts.labelDy), mid[2], opts.labelColor || color)
+    : null;
+
   const entry = {
-    curve, trackGeo, trackMat, headGeo, headMat, tip, tipMat,
+    curve, trackGeo, trackMat, headGeo, headMat, tip, tipMat, labelDiv,
     at: opts.at || 0,
     draw, hold, fade,
     loop: opts.loop || (draw + hold + fade + 0.7),
@@ -100,6 +107,7 @@ function makeFlowLine(points, color, opts) {
     tipMat.opacity = 0.85;
     tip.position.copy(curve.getPoint(1));
     tip.quaternion.setFromUnitVectors(entry.up, curve.getTangent(1).normalize());
+    if (labelDiv) labelDiv.style.opacity = 1;
     return;
   }
 
@@ -124,6 +132,7 @@ function updateFlows(dt) {
       p = 1; alpha = 1 - (lt - a.draw - a.hold) / a.fade;
     } else {
       a.trackMat.opacity = 0; a.headMat.opacity = 0; a.tipMat.opacity = 0;
+      if (a.labelDiv) a.labelDiv.style.opacity = 0;
       continue;
     }
 
@@ -142,6 +151,7 @@ function updateFlows(dt) {
     a.tip.position.copy(a.curve.getPoint(tp));
     a.tip.quaternion.setFromUnitVectors(a.up, a.curve.getTangent(tp).normalize());
     a.tipMat.opacity = alpha * 0.9;
+    if (a.labelDiv) a.labelDiv.style.opacity = alpha;
   }
 }
 

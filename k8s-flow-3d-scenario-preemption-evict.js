@@ -61,8 +61,8 @@ window.PREEMPT_STEPS_EVICT = [
         })
       },
       scene(a) {
-        KIT.link(a, 'scheduler', 'apiserver', 'info', {at: 0.25, dur: 0.75});
-        KIT.link(a, 'apiserver', 'pod-checkout', 'warn', {at: 1.05, dur: 1.00});
+        KIT.link(a, 'scheduler', 'apiserver', 'info', {at: 0.25, dur: 0.75, label: 'PATCH status'});
+        KIT.link(a, 'apiserver', 'pod-checkout', 'warn', {at: 1.05, dur: 1.00, label: 'deliver nomination'});
         KIT.note(a, 'status.nominatedNodeName', 'apiserver', 'warn', 0.3);
       }
     },
@@ -80,8 +80,8 @@ window.PREEMPT_STEPS_EVICT = [
       },
       focus: ['node-a', 'pod-a1', 'pod-a2', 'pod-a3'],
       scene(a) {
-        KIT.link(a, 'scheduler', 'pod-a1', 'danger', {at: 0.25, dur: 0.80, loop: 3.4});
-        KIT.link(a, 'scheduler', 'pod-a2', 'danger', {at: 0.75, dur: 0.80, loop: 3.4, lift: 0.5});
+        KIT.link(a, 'scheduler', 'pod-a1', 'danger', {at: 0.25, dur: 0.80, loop: 3.4, label: 'DELETE'});
+        KIT.link(a, 'scheduler', 'pod-a2', 'danger', {at: 0.75, dur: 0.80, loop: 3.4, lift: 0.5, label: 'DELETE'});
         KIT.note(a, 'preStop → SIGTERM → (30s) → SIGKILL', {of: 'node-a', band: true}, 'danger', 0.4);
       }
     },
@@ -98,7 +98,7 @@ window.PREEMPT_STEPS_EVICT = [
         'pod-checkout': KIT.pulse('accent', 'requeue · Pending', {at: 0.75, dy: 2.2})
       },
       scene(a) {
-        KIT.link(a, 'scheduler', 'queue', 'accent', {at: 0.25, dur: 0.90, loop: 3.4});
+        KIT.link(a, 'scheduler', 'queue', 'accent', {at: 0.25, dur: 0.90, loop: 3.4, label: 'requeue'});
         KIT.note(a, '④ cycle thất bại', {of: 'queue', band: true}, 'mute', 1.0);
       }
     }
@@ -167,7 +167,7 @@ window.PREEMPT_STEPS_EVICT = [
         'scheduler': KIT.pulse('ok', 'Filter · 1/3 khả thi', {at: 0.65, dy: 3.9})
       },
       scene(a) {
-        KIT.link(a, 'scheduler', 'node-a', 'ok', {at: 0.25, dur: 1.00});
+        KIT.link(a, 'scheduler', 'node-a', 'ok', {at: 0.25, dur: 1.00, label: 'Filter pass'});
       }
     },
     {
@@ -188,7 +188,7 @@ window.PREEMPT_STEPS_EVICT = [
       pipelineStep: 5,
       focus: ['node-a', 'pod-a3', 'pod-checkout'],
       scene(a) {
-        KIT.link(a, 'scheduler', 'pod-checkout', 'ok', {at: 0.25, dur: 1.10, loop: 3.8});
+        KIT.link(a, 'scheduler', 'pod-checkout', 'ok', {at: 0.25, dur: 1.10, loop: 3.8, label: 'POST binding'});
         KIT.note(a, '⑤ preemption hoàn tất', {of: 'node-a', band: true}, 'ok', 1.5);
       }
     }

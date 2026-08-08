@@ -135,7 +135,7 @@ window.PREEMPT_STEPS_FILTER = [
         'pod-checkout': KIT.pulse('warn', 'spec.priority ← 1000', {dy: 2.2})
       },
       scene(a) {
-        KIT.link(a, 'apiserver', 'etcd', 'warn');
+        KIT.link(a, 'apiserver', 'etcd', 'warn', {label: 'persist spec.priority'});
       }
     },
     {
@@ -153,7 +153,7 @@ window.PREEMPT_STEPS_FILTER = [
         'pod-checkout': KIT.move(P.queue0, {badge: 'pop trước report', at: 1.15, dy: 2.2})
       },
       scene(a) {
-        KIT.link(a, 'etcd', 'queue', 'accent', {dur: 1.00});
+        KIT.link(a, 'etcd', 'queue', 'accent', {dur: 1.00, label: 'push to ActiveQ'});
       }
     },
     {

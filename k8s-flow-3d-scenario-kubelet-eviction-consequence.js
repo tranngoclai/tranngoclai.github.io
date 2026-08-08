@@ -53,7 +53,7 @@ window.createKubeletEvictionConsequenceSteps = function(config, run, condition, 
         })
       },
       scene(a) {
-        KIT.link(a, 'kubelet', 'apiserver', 'warn', {at: 0.3});
+        KIT.link(a, 'kubelet', 'apiserver', 'warn', {at: 0.3, label: 'PATCH node status'});
         KIT.note(a, 'condition = quan sát, chưa phải hiệu lực', {of: 'node', band: true}, 'warn', 1.0);
       }
     },
@@ -72,8 +72,8 @@ window.createKubeletEvictionConsequenceSteps = function(config, run, condition, 
         })
       },
       scene(a) {
-        KIT.link(a, 'apiserver', 'nodelife', 'warn', {at: 0.25});
-        KIT.link(a, 'nodelife', 'node', 'danger', {at: 0.95});
+        KIT.link(a, 'apiserver', 'nodelife', 'warn', {at: 0.25, label: 'watch NodeCondition'});
+        KIT.link(a, 'nodelife', 'node', 'danger', {at: 0.95, label: 'add taint NoSchedule'});
         KIT.note(a, 'NoSchedule ≠ NoExecute', {of: 'node', band: true}, 'danger', 1.4);
       }
     },
@@ -119,8 +119,8 @@ window.createKubeletEvictionConsequenceSteps = function(config, run, condition, 
         })
       },
       scene(a) {
-        KIT.link(a, 'apiserver', 'controller', 'accent', {at: 0.25});
-        KIT.link(a, 'controller', 'replacement', 'accent', {at: 0.85});
+        KIT.link(a, 'apiserver', 'controller', 'accent', {at: 0.25, label: 'watch replica count'});
+        KIT.link(a, 'controller', 'replacement', 'accent', {at: 0.85, label: 'create Pod · new UID'});
       }
     },
     {
@@ -154,9 +154,9 @@ window.createKubeletEvictionConsequenceSteps = function(config, run, condition, 
           })
       },
       scene(a) {
-        KIT.link(a, 'apiserver', 'scheduler', 'accent', {at: 0.2});
+        KIT.link(a, 'apiserver', 'scheduler', 'accent', {at: 0.2, label: 'watch Pending Pod'});
         if (placement.scheduled) {
-          KIT.link(a, 'scheduler', 'worker-b', 'ok', {at: 0.8});
+          KIT.link(a, 'scheduler', 'worker-b', 'ok', {at: 0.8, label: 'bind spec.nodeName'});
         } else {
           KIT.note(a, 'Pending: request > Worker B free', {of: 'worker-b', band: true}, 'warn', 0.9);
         }
@@ -177,7 +177,7 @@ window.createKubeletEvictionConsequenceSteps = function(config, run, condition, 
         [victim.key]: KIT.mark('doomed', 'object vẫn còn trong etcd', {at: 1.3, dy: 2.2})
       },
       scene(a) {
-        KIT.link(a, 'apiserver', 'podgc', 'mute', {at: 0.25});
+        KIT.link(a, 'apiserver', 'podgc', 'mute', {at: 0.25, label: 'watch terminated Pods'});
         KIT.note(a, 'eviction = triệu chứng của over-commit', {of: 'podgc', band: true}, 'mute', 1.2);
       }
     }

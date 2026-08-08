@@ -113,7 +113,7 @@ window.SCHED_STEPS_CONTROL_PLANE = [
         'client': KIT.pulse('info', 'kubectl apply', {at: 0.15})
       },
       scene(a) {
-        KIT.link(a, 'client', 'authn', 'info', {at: 0.35, dur: 0.85, loop: 3.4});
+        KIT.link(a, 'client', 'authn', 'info', {at: 0.35, dur: 0.85, loop: 3.4, label: 'POST deployments'});
         KIT.note(a, 'POST /apis/apps/v1/deployments', 'client', 'sky', 0.1);
       }
     },
@@ -144,7 +144,7 @@ window.SCHED_STEPS_CONTROL_PLANE = [
         'authn': KIT.mark('ok', 'RBAC: allow', {at: 0.55, flash: KIT.ink('pass')})
       },
       scene(a) {
-        KIT.link(a, 'authn', 'admission', 'pass', {at: 0.75, dur: 0.85, loop: 3.4});
+        KIT.link(a, 'authn', 'admission', 'pass', {at: 0.75, dur: 0.85, loop: 3.4, label: 'authorize · RBAC'});
       }
     },
     {
@@ -161,7 +161,7 @@ window.SCHED_STEPS_CONTROL_PLANE = [
         'apiserver': KIT.pulse('info', 'request admitted', {at: 1.60})
       },
       scene(a) {
-        KIT.link(a, 'admission', 'apiserver', 'pass', {at: 0.85, dur: 0.90, loop: 3.6});
+        KIT.link(a, 'admission', 'apiserver', 'pass', {at: 0.85, dur: 0.90, loop: 3.6, label: 'admit request'});
         KIT.note(a, 'mutating → validating', 'admission', 'mute', 0.2);
       }
     }
@@ -190,7 +190,7 @@ window.SCHED_STEPS_CONTROL_PLANE = [
         })
       },
       scene(a) {
-        KIT.link(a, 'apiserver', 'etcd', 'warn', {loop: 3.8});
+        KIT.link(a, 'apiserver', 'etcd', 'warn', {loop: 3.8, label: 'PUT Pod · Pending'});
         KIT.note(a, 'PUT /api/v1/pods → Pending', 'etcd', 'warn', 0.3);
       }
     },
@@ -219,7 +219,7 @@ window.SCHED_STEPS_CONTROL_PLANE = [
         'apiserver': KIT.pulse('pass', '201 Created', {at: 1.30})
       },
       scene(a) {
-        KIT.link(a, 'apiserver', 'client', 'pass', {loop: 3.8});
+        KIT.link(a, 'apiserver', 'client', 'pass', {loop: 3.8, label: '201 Created'});
         KIT.note(a, '② Pending ≠ Running', {of: 'etcd', band: true}, 'mute', 0.4);
       }
     }
@@ -244,7 +244,7 @@ window.SCHED_STEPS_CONTROL_PLANE = [
         'scheduler': KIT.pulse('accent', 'watch event nhận được', {at: 1.20})
       },
       scene(a) {
-        KIT.link(a, 'apiserver', 'scheduler', 'accent', {loop: 3.8});
+        KIT.link(a, 'apiserver', 'scheduler', 'accent', {loop: 3.8, label: 'watch event'});
         KIT.note(a, 'WATCH pods?fieldSelector=spec.nodeName=', 'scheduler', 'accent', 0.2);
       }
     },
@@ -261,7 +261,7 @@ window.SCHED_STEPS_CONTROL_PLANE = [
         'queue': KIT.pulse('queue', 'ActiveQ')
       },
       scene(a) {
-        KIT.link(a, 'scheduler', 'queue', 'queue', {at: 0.25, dur: 0.70, loop: 3.2});
+        KIT.link(a, 'scheduler', 'queue', 'queue', {at: 0.25, dur: 0.70, loop: 3.2, label: 'push to ActiveQ'});
       }
     },
     {
@@ -279,7 +279,7 @@ window.SCHED_STEPS_CONTROL_PLANE = [
         'pod': KIT.move(P.queue0, {badge: PRI + ' → đầu queue', at: 0.85, dy: 2.0})
       },
       scene(a) {
-        KIT.link(a, 'etcd', 'queue', 'accent', {dur: 1.00});
+        KIT.link(a, 'etcd', 'queue', 'accent', {dur: 1.00, label: 'enqueue by priority'});
         KIT.note(a, '③ enqueue theo priority', {of: 'queue', band: true}, 'mute', 0.3);
       }
     }
@@ -342,7 +342,7 @@ window.SCHED_STEPS_CONTROL_PLANE = [
         'node-d': KIT.pulse('sky', 'score 71', {at: 1.15, dy: 2.6})
       },
       scene(a) {
-        KIT.link(a, 'scheduler', 'node-d', 'sky', {loop: 3.8});
+        KIT.link(a, 'scheduler', 'node-d', 'sky', {loop: 3.8, label: 'score 71'});
         KIT.note(a, '⑤ Score = Σ(plugin × weight)', {of: 'scheduler', band: true}, 'mute', 0.2);
       }
     },
@@ -360,7 +360,7 @@ window.SCHED_STEPS_CONTROL_PLANE = [
         'node-a': KIT.mark('crown', 'score 94 ★', {at: 1.15, dy: 3.0})
       },
       scene(a) {
-        KIT.link(a, 'scheduler', 'node-a', 'crown', {loop: 3.8});
+        KIT.link(a, 'scheduler', 'node-a', 'crown', {loop: 3.8, label: 'score 94'});
       }
     },
     {

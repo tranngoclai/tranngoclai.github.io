@@ -131,6 +131,10 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-ser
   transform:translate(-50%,-50%) translateY(6px);
 }
 .fl-label.visible{opacity:1;transform:translate(-50%,-50%) translateY(0);}
+/* Arrow captions: opacity is written every frame in updateFlows() to track
+   the line's own draw/hold/fade curve, so the CSS transition must not fight
+   those writes. */
+.fl-label.flow-caption{transition:transform .4s ease;transform:translate(-50%,-50%) translateY(0);}
 .fl-label.hero-label{
   font-size:10px;color:#fff;
   text-shadow:0 0 12px rgba(58,127,255,.9), 0 0 24px rgba(58,127,255,.5);

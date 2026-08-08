@@ -75,7 +75,7 @@ window.createKubeletEvictionObserveSteps = function(config, run, reclaim) {
         cadvisor: KIT.pulse('info', 'summary aggregated', {at: 1.2, dy: 2.1})
       },
       scene(a) {
-        KIT.link(a, 'cgroups', 'cadvisor', 'warn', {at: 0.3});
+        KIT.link(a, 'cgroups', 'cadvisor', 'warn', {at: 0.3, label: 'aggregate cgroup stats'});
       }
     },
     {
@@ -96,7 +96,7 @@ window.createKubeletEvictionObserveSteps = function(config, run, reclaim) {
         KIT.gauge('available', threshold.availableMi, m.capacityMi, 'Mi', {tone: tone})
       ],
       scene(a) {
-        KIT.link(a, 'cadvisor', 'kubelet', 'info', {at: 0.3});
+        KIT.link(a, 'cadvisor', 'kubelet', 'info', {at: 0.3, label: 'poll Summary API'});
         KIT.note(a, 'poll ' + config.monitoringPeriodSeconds + 's + memcg notification', {of: 'cadvisor', band: true}, 'info', 0.8);
       }
     }
@@ -176,7 +176,7 @@ window.createKubeletEvictionObserveSteps = function(config, run, reclaim) {
         runtime: KIT.pulse(reclaim.attempted ? 'warn' : 'mute', reclaim.attempted ? 'image + container GC' : 'no reclaim for memory', {at: 1.2, dy: 2.1})
       },
       scene(a) {
-        KIT.link(a, 'kubelet', 'runtime', reclaim.attempted ? 'warn' : 'mute', {at: 0.4});
+        KIT.link(a, 'kubelet', 'runtime', reclaim.attempted ? 'warn' : 'mute', {at: 0.4, label: 'request node-level reclaim'});
         KIT.note(a, 'disk → GC · memory → nothing to GC', {of: 'runtime', band: true}, 'mute', 0.9);
       }
     },
@@ -194,7 +194,7 @@ window.createKubeletEvictionObserveSteps = function(config, run, reclaim) {
         ['pod-a', 'pod-b', 'pod-c', 'pod-static'].forEach(function(key, i) {
           // Four lines out of one component — `lift` fans them apart so they
           // read as four decisions rather than one thick smear.
-          KIT.link(a, 'kubelet', key, 'warn', {at: 0.25 + i * 0.15, lift: i * 0.3});
+          KIT.link(a, 'kubelet', key, 'warn', {at: 0.25 + i * 0.15, lift: i * 0.3, label: 'mark candidate'});
         });
       }
     }
