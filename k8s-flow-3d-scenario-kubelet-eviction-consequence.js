@@ -33,7 +33,7 @@ window.createKubeletEvictionConsequenceSteps = function(config, run, condition, 
 
 /* ── STEP ⑥: condition → taint → chống dao động ── */
 {
-  title: 'Node bị đánh dấu — và người gắn taint không phải kubelet',
+  title: 'Node bị đánh dấu — nhưng người gắn taint không phải kubelet',
   pipelineStep: 5,
   focus: ['kubelet', 'apiserver', 'nodelife', 'node'],
   phases: [
@@ -41,8 +41,8 @@ window.createKubeletEvictionConsequenceSteps = function(config, run, condition, 
       title: 'kubelet ghi NodeCondition MemoryPressure=True',
       desc: KIT.desc(
         'Song song với việc evict, kubelet cập nhật <b>node status</b>: <code>' + condition.condition + ': ' + condition.status + '</code>.',
-        'Đây chỉ là một <i>báo cáo</i> gắn lên object Node trong etcd. Bản thân condition <span class="warn">không ngăn</span> scheduler đặt Pod mới lên Worker A, và cũng không đuổi Pod nào đang chạy.',
-        '<b>Condition là quan sát, không phải hành động.</b> Đây là lý do bạn có thể thấy <code>kubectl describe node</code> báo MemoryPressure mà Pod mới vẫn tiếp tục đáp xuống trong vài giây — cho tới khi actor ở phase sau kịp phản ứng.'),
+        'Đây chỉ là một <i>báo cáo</i> gắn lên object Node trong etcd. Bản thân condition <span class="warn">không ngăn</span> scheduler đặt Pod mới lên Worker A, cũng không đuổi Pod đang chạy.',
+        '<b>Condition là quan sát, không phải hành động.</b> Đây là lý do <code>kubectl describe node</code> có thể báo MemoryPressure mà Pod mới vẫn tiếp tục đáp xuống trong vài giây — cho tới khi actor ở phase sau kịp phản ứng.'),
       focus: ['kubelet', 'apiserver', 'node'],
       set: {
         kubelet: KIT.pulse('warn', 'patch node status', {at: 0.35, dy: 2.5}),
@@ -61,8 +61,8 @@ window.createKubeletEvictionConsequenceSteps = function(config, run, condition, 
       title: 'Node lifecycle controller gắn taint — đây mới là thứ có hiệu lực',
       desc: KIT.desc(
         '<b>node lifecycle controller</b> trong kube-controller-manager watch condition đó và gắn taint <code>' + condition.taint + '</code>.',
-        'Từ giây phút này, mọi Pod <b>không có toleration tương ứng</b> đều bị NodeResourcesFit… thực ra là bị loại sớm hơn thế, ngay ở <code>TaintToleration</code> filter của scheduler. Worker A biến mất khỏi danh sách ứng viên.',
-        '<b>Hai component, hai trách nhiệm — và người ta hay gán nhầm cả hai cho kubelet.</b> kubelet <i>báo cáo</i>; controller <i>áp đặt</i>. Nếu kube-controller-manager gặp sự cố, Node vẫn hiện MemoryPressure nhưng <span class="danger">không bao giờ bị taint</span>, và scheduler sẽ tiếp tục dồn Pod mới vào đúng cái Node đang hấp hối. Lưu ý taint này là <code>NoSchedule</code>, không phải <code>NoExecute</code>: Pod đang chạy <span class="ok">không</span> bị nó đuổi đi.'),
+        'Từ giây phút này, Pod <b>không có toleration tương ứng</b> bị loại ngay ở <code>TaintToleration</code> filter của scheduler. Worker A biến mất khỏi danh sách ứng viên.',
+        '<b>Hai component, hai trách nhiệm — hay bị gán nhầm cả hai cho kubelet.</b> kubelet <i>báo cáo</i>; controller <i>áp đặt</i>. Nếu kube-controller-manager gặp sự cố, Node vẫn hiện MemoryPressure nhưng <span class="danger">không bao giờ bị taint</span>, scheduler tiếp tục dồn Pod mới vào đúng Node đang hấp hối. Lưu ý taint này là <code>NoSchedule</code>, không phải <code>NoExecute</code>: Pod đang chạy <span class="ok">không</span> bị nó đuổi đi.'),
       focus: ['apiserver', 'nodelife', 'node'],
       set: {
         nodelife: KIT.pulse('danger', 'add taint', {at: 0.9, dy: 2.3}),
@@ -80,9 +80,9 @@ window.createKubeletEvictionConsequenceSteps = function(config, run, condition, 
     {
       title: 'eviction-pressure-transition-period — vì sao taint không tan ngay',
       desc: KIT.desc(
-        'Kể cả khi memory hồi phục ở chu kỳ sau, kubelet <b>vẫn giữ</b> condition thêm <code>' + condition.transitionSeconds + 's</code> (' + transitionMinutes + ' phút) trước khi hạ nó xuống <code>False</code>.',
-        'Không có khoảng chờ này, Node sẽ dao động: hết áp lực → gỡ taint → scheduler dồn Pod vào → lại áp lực → lại evict. Một vòng lặp tự nuôi chính nó.',
-        '<b>Đây thường là điều bạn đang thực sự quan sát khi “Node đã ổn mà vẫn không nhận Pod”.</b> Nó không hỏng, nó đang giữ đúng khoảng đệm chống dao động. Kiên nhẫn ' + transitionMinutes + ' phút, hoặc chỉnh <code>--eviction-pressure-transition-period</code> nếu bạn có lý do rõ ràng.'),
+        'Kể cả khi memory hồi phục ở chu kỳ sau, kubelet <b>vẫn giữ</b> condition thêm <code>' + condition.transitionSeconds + 's</code> (' + transitionMinutes + ' phút) trước khi hạ xuống <code>False</code>.',
+        'Không có khoảng chờ này, Node sẽ dao động: hết áp lực → gỡ taint → scheduler dồn Pod vào → lại áp lực → lại evict — một vòng lặp tự nuôi chính nó.',
+        '<b>Đây thường là điều bạn đang thấy khi “Node đã ổn mà vẫn không nhận Pod”.</b> Nó không hỏng, chỉ đang giữ đúng khoảng đệm chống dao động. Kiên nhẫn ' + transitionMinutes + ' phút, hoặc chỉnh <code>--eviction-pressure-transition-period</code> nếu có lý do rõ ràng.'),
       focus: ['node', 'kubelet', 'nodelife'],
       labels: ['node', 'kubelet'],
       set: {
@@ -97,16 +97,16 @@ window.createKubeletEvictionConsequenceSteps = function(config, run, condition, 
 
 /* ── STEP ⑦: dựng lại, xếp chỗ, và dọn xác ── */
 {
-  title: 'Object mới, Node khác — và đống Evicted còn lại',
+  title: 'Object mới, Node khác — và đống Evicted vẫn còn đó',
   pipelineStep: 6,
   focus: ['apiserver', 'controller', 'replacement'],
   phases: [
     {
       title: 'ReplicaSet controller tạo replacement với UID mới',
       desc: KIT.desc(
-        'Controller thấy actual replicas giảm và tạo <b>' + replacementName + '</b> — một object <i>hoàn toàn mới</i>, UID mới.',
-        victim.name + ' cũ <b>không</b> sống lại. Nó nằm nguyên ở <code>Failed/Evicted</code> để bạn còn đọc được lý do. Đó là lý do trong scene này có hai hộp Pod chứ không phải một hộp di chuyển.',
-        '<b>Pod không thuộc controller nào thì không có phase này.</b> Một Pod trần (không Deployment/ReplicaSet/StatefulSet) bị evict là <span class="danger">biến mất vĩnh viễn</span> — chỉ còn lại cái xác Failed. Đây là một trong những lý do thực tế nhất để không bao giờ chạy Pod trần trong production.'),
+        'Controller thấy actual replicas giảm và tạo <b>' + replacementName + '</b> — object <i>hoàn toàn mới</i>, UID mới.',
+        victim.name + ' cũ <b>không</b> sống lại, vẫn nằm ở <code>Failed/Evicted</code> để bạn đọc được lý do. Vì vậy scene này có hai hộp Pod, không phải một hộp di chuyển.',
+        '<b>Pod không thuộc controller nào thì không có phase này.</b> Pod trần (không Deployment/ReplicaSet/StatefulSet) bị evict là <span class="danger">biến mất vĩnh viễn</span> — chỉ còn lại cái xác Failed. Đây là một trong những lý do thực tế nhất để không bao giờ chạy Pod trần trong production.'),
       focus: ['apiserver', 'controller', 'replacement'],
       show: ['replacement'],
       showAt: {replacement: 1.5},
@@ -126,11 +126,11 @@ window.createKubeletEvictionConsequenceSteps = function(config, run, condition, 
     {
       title: 'Scheduler xét lại — Worker A đã bị taint loại từ vòng filter',
       desc: KIT.desc(
-        'Scheduler pop ' + replacementName + ' và chạy filter. <b>Worker A trượt ngay ở TaintToleration</b>, chưa cần tính tới memory.',
+        'Scheduler pop ' + replacementName + ' và chạy filter. <b>Worker A trượt ngay ở TaintToleration</b>, chưa cần tính memory.',
         placement.scheduled
           ? 'Worker B còn <code>' + fmtMi(config.workerBFreeMi) + '</code>, đủ cho request <code>' + fmtMi(victim.requestMi) + '</code> → bind <code>spec.nodeName=Worker B</code>, còn lại ' + fmtMi(placement.remainingMi) + '.'
           : 'Worker B chỉ còn <code>' + fmtMi(config.workerBFreeMi) + '</code>, thiếu <b>' + fmtMi(placement.shortfallMi) + '</b> so với request → ' + replacementName + ' nằm <span class="warn">Pending</span>.',
-        '<b>Đây là lúc cluster một Node lộ nguyên hình.</b> Không có Worker B, replacement sẽ Pending cho tới khi taint của Worker A được gỡ — tức là sau khi áp lực hết <i>và</i> hết transition period. Eviction <span class="danger">không tạo ra tài nguyên</span>; nó chỉ dời workload sang chỗ khác, và phải có chỗ khác để dời.'),
+        '<b>Đây là lúc cluster một Node lộ nguyên hình.</b> Không có Worker B, replacement Pending cho tới khi taint của Worker A được gỡ — tức sau khi áp lực hết <i>và</i> hết transition period. Eviction <span class="danger">không tạo ra tài nguyên</span>, nó chỉ dời workload sang chỗ khác — và phải có chỗ khác để dời.'),
       focus: ['apiserver', 'scheduler', 'replacement', 'worker-b', 'node'],
       labels: ['scheduler', 'replacement', 'worker-b', 'node'],
       pipelineStep: 7,
@@ -166,9 +166,9 @@ window.createKubeletEvictionConsequenceSteps = function(config, run, condition, 
     {
       title: 'Xác Evicted ở lại — pod GC mới là thứ dọn chúng',
       desc: KIT.desc(
-        'Container đã chết, nhưng <b>object ' + victim.name + ' vẫn nằm trong etcd</b> ở <code>' + gc.retainedPhase + '/' + gc.retainedReason + '</code>. Không ai xoá nó ngay cả.',
+        'Container đã chết, nhưng <b>object ' + victim.name + ' vẫn nằm trong etcd</b> ở <code>' + gc.retainedPhase + '/' + gc.retainedReason + '</code>. Chưa ai xoá nó.',
         '<b>pod garbage collector</b> trong kube-controller-manager chỉ dọn Pod đã terminated khi tổng số vượt <code>--terminated-pod-gc-threshold=' + gc.terminatedPodThreshold + '</code>. Dưới ngưỡng đó, chúng tích lại — cố ý, để bạn còn điều tra được.',
-        '<b>Vòng lặp khép lại ở chỗ bạn phải can thiệp.</b> Dọn tay bằng <code>' + gc.manualCleanup + '</code> chỉ là dọn triệu chứng. Nguyên nhân nằm ở ba chỗ: <code>requests.memory</code> đặt thấp hơn thực tế (tiêu chí 1 sẽ luôn tóm bạn), <code>PriorityClass</code> quá thấp cho workload quan trọng (tiêu chí 2), hoặc Node đơn giản là quá nhỏ. Eviction là <i>triệu chứng của over-commit</i>, không phải một cái bug cần vá.'),
+        '<b>Vòng lặp khép lại ở chỗ bạn phải can thiệp.</b> Dọn tay bằng <code>' + gc.manualCleanup + '</code> chỉ dọn triệu chứng. Nguyên nhân nằm ở ba chỗ: <code>requests.memory</code> đặt thấp hơn thực tế (tiêu chí 1 luôn tóm bạn), <code>PriorityClass</code> quá thấp cho workload quan trọng (tiêu chí 2), hoặc Node đơn giản quá nhỏ. Eviction là <i>triệu chứng của over-commit</i>, không phải bug cần vá.'),
       focus: ['apiserver', 'podgc', victim.key],
       labels: ['podgc', victim.key],
       pipelineStep: 6,

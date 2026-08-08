@@ -75,9 +75,9 @@ const FEASIBLE_LABEL = RUN.filter.passed.length + '/' + TOTAL_NODES;
    structure. Labels per phase are intentional subsets — only the Node being
    discussed and its resident Pods show captions. */
 var PREEMPT_FILTER_TITLES = {
-  'node-a': 'Worker A trượt — thiếu đúng 3Gi',
-  'node-b': 'Worker B trượt — đầy, và đầy bởi Pod quan trọng hơn',
-  'node-c': 'Worker C trượt vì taint — và Pod nhận FailedScheduling'
+  'node-a': 'Worker A trượt vì thiếu đúng 3Gi',
+  'node-b': 'Worker B trượt vì đầy — bởi Pod quan trọng hơn',
+  'node-c': 'Worker C trượt vì taint, Pod nhận FailedScheduling'
 };
 var PREEMPT_FILTER_LABELS = {
   'node-a': ['scheduler', 'pod-checkout', 'node-a', 'pod-a1', 'pod-a2', 'pod-a3'],
@@ -85,8 +85,8 @@ var PREEMPT_FILTER_LABELS = {
   'node-c': ['scheduler', 'pod-checkout', 'node-c', 'pod-c1']
 };
 var PREEMPT_FILTER_HOVER = {
-  'node-a': 'Trượt vì tài nguyên đang bị Pod khác giữ — lý do DUY NHẤT preemption gỡ được',
-  'node-b': 'Cùng lý do với Worker A, nhưng Pod chiếm chỗ đều priority cao hơn',
+  'node-a': 'Trượt vì tài nguyên bị Pod khác giữ — lý do DUY NHẤT preemption gỡ được',
+  'node-b': 'Cùng lý do Worker A, nhưng Pod chiếm chỗ priority cao hơn',
   'node-c': 'Còn thừa chỗ, nhưng trượt vì taint — xoá Pod không sửa được'
 };
 var PREEMPT_FILTER_LINK = {
@@ -96,38 +96,38 @@ var PREEMPT_FILTER_LINK = {
 };
 var PREEMPT_FILTER_DESCS = {
   'node-a': KIT.desc(
-    'Pha Filter hỏi mỗi Node một câu nhị phân: Pod này <b>có vừa</b> không?',
+    'Pha Filter chỉ hỏi mỗi Node một câu: Pod này <b>có vừa</b> không?',
     '<code>NodeResourcesFit</code> tính: ' + MODEL.fmtGi(A.memUsed) + ' đã cấp + ' + MODEL.fmtGi(NEED) + ' yêu cầu = '
-    + MODEL.fmtGi(A.memUsed + NEED) + ' > ' + MODEL.fmtGi(A.memTotal) + ' <code>allocatable</code>. Trượt. '
-    + 'Chỉ thiếu ' + MODEL.fmtGi(V['node-a'].shortfallGi) + ', nhưng Filter <b>không có khái niệm "gần đủ"</b> — chỉ có pass hoặc fail.',
-    '<b>Nhớ kỹ Node này.</b> Nó trượt vì <i>tài nguyên đang bị Pod khác giữ</i> — một lý do <b>có thể đảo ngược được</b> bằng cách xoá bớt Pod. Hai Node còn lại sẽ trượt vì những lý do khác hẳn, và chính sự khác biệt đó quyết định preemption cứu được Node nào.'),
+    + MODEL.fmtGi(A.memUsed + NEED) + ' > ' + MODEL.fmtGi(A.memTotal) + ' <code>allocatable</code> → trượt. '
+    + 'Chỉ thiếu ' + MODEL.fmtGi(V['node-a'].shortfallGi) + ', nhưng Filter <b>không có khái niệm "gần đủ"</b> — chỉ pass hoặc fail.',
+    '<b>Nhớ kỹ Node này.</b> Nó trượt vì <i>tài nguyên bị Pod khác giữ</i> — lý do <b>đảo ngược được</b> bằng cách xoá bớt Pod. Hai Node còn lại trượt vì lý do khác hẳn, và khác biệt đó quyết định preemption cứu được Node nào.'),
   'node-b': KIT.desc(
     'Worker B cũng trượt <code>NodeResourcesFit</code>: 16Gi đã cấp hết cho <code>ingress-ctrl</code> và <code>core-dns</code>.',
-    'Nhìn qua thì giống hệt Worker A — cùng một plugin, cùng một lý do. Nhưng có một chi tiết Filter <b>hoàn toàn không quan tâm</b>: hai Pod đang chiếm chỗ ở đây đều có <code>P=2000</code>, <b>cao hơn</b> Pod đang chờ.',
-    '<b>Filter mù với priority.</b> Nó chỉ cộng <code>requests</code> và so với <code>allocatable</code> — ai đang chiếm chỗ, quan trọng cỡ nào, nó không hỏi. Priority chỉ được lôi ra dùng ở pha sau. Giữ chi tiết này lại: đến bước ③ nó sẽ là thứ loại Worker B ra khỏi cuộc chơi.'),
+    'Nhìn qua giống hệt Worker A — cùng plugin, cùng lý do. Nhưng có chi tiết Filter <b>hoàn toàn không quan tâm</b>: hai Pod chiếm chỗ ở đây đều <code>P=2000</code>, <b>cao hơn</b> Pod đang chờ.',
+    '<b>Filter mù với priority.</b> Nó chỉ cộng <code>requests</code> và so với <code>allocatable</code> — không hỏi ai đang chiếm chỗ, quan trọng cỡ nào. Priority chỉ được dùng ở pha sau. Giữ chi tiết này lại: đến bước ③ nó sẽ loại Worker B khỏi cuộc chơi.'),
   'node-c': KIT.desc(
     'Worker C còn <b>10Gi trống</b>, nhưng trượt <code>TaintToleration</code>: Node mang <code>gpu=true:NoSchedule</code> mà Pod không khai <code>toleration</code>.',
-    'Kết quả: <b>' + FEASIBLE_LABEL + ' Node khả thi</b>. Event <code>FailedScheduling</code> được ghi lên Pod: <i>"' + FEASIBLE_LABEL + ' nodes are available: '
+    'Kết quả: <b>' + FEASIBLE_LABEL + ' Node khả thi</b>. Event <code>FailedScheduling</code> ghi lên Pod: <i>"' + FEASIBLE_LABEL + ' nodes are available: '
     + REJECTED_BY_REASON['insufficient-memory'] + ' Insufficient memory, '
     + REJECTED_BY_REASON['untolerated-taint'] + ' node(s) had untolerated taint"</i>.',
-    '<b>Với một Pod priority = 0, câu chuyện dừng tại đây</b> — Pod về <code>unschedulableQ</code> và nằm <code>Pending</code> cho tới khi cluster đổi trạng thái. Nhưng Pod này có <code>priority = 1000</code>, nên scheduler <b>không bỏ cuộc ngay</b>: nó chạy tiếp một extension point nữa tên là <span class="warn">PostFilter</span>. Đó chính là nơi Preemption sống.')
+    '<b>Với Pod priority = 0, câu chuyện dừng ở đây</b> — Pod về <code>unschedulableQ</code>, nằm <code>Pending</code> tới khi cluster đổi trạng thái. Nhưng Pod này <code>priority = 1000</code>, nên scheduler <b>không bỏ cuộc ngay</b>: nó chạy tiếp extension point <span class="warn">PostFilter</span> — nơi Preemption sống.')
 };
 
 window.PREEMPT_STEPS_FILTER = [
 
 /* ── STEP ①: Pod priority cao vào hàng đợi ── */
 {
-  title: 'Pod priority cao vào hàng đợi — cluster đã kín chỗ',
+  title: 'Pod ưu tiên cao vào hàng đợi khi cluster đã kín chỗ',
   pipelineStep: 0,
   focus: ['apiserver', 'etcd', 'pod-checkout', 'scheduler', 'queue', 'pod-report'],
   phases: [
     {
       title: 'PriorityClass biến một cái tên thành một con số',
       desc: KIT.desc(
-        'Pod <code>checkout</code> khai <code>spec.priorityClassName: high-priority</code> — chỉ là một cái tên.',
-        'Ở bước Admission, <b>PriorityClass admission plugin</b> tra object <code>PriorityClass</code> tương ứng và ghi giá trị thật vào <code>spec.priority: 1000</code>. Từ đây scheduler chỉ làm việc với con số đó. '
+        'Pod <code>checkout</code> khai <code>spec.priorityClassName: high-priority</code> — mới chỉ là một cái tên.',
+        '<b>PriorityClass admission plugin</b> ở bước Admission tra object <code>PriorityClass</code> tương ứng và ghi giá trị thật vào <code>spec.priority: 1000</code>. Từ đây scheduler chỉ làm việc với con số đó. '
         + 'Pod không khai gì thì nhận <code>globalDefault</code>, thường là <span class="hi">0</span>.',
-        '<b>Con số này được đóng băng ngay lúc tạo Pod.</b> Sửa object <code>PriorityClass</code> sau đó <span class="danger">không</span> thay đổi priority của các Pod đang chạy — chúng giữ nguyên giá trị đã ghi. Muốn đổi thì phải tạo lại Pod.'),
+        '<b>Con số này đóng băng ngay lúc tạo Pod.</b> Sửa object <code>PriorityClass</code> sau đó <span class="danger">không</span> đổi priority của Pod đang chạy — chúng giữ nguyên giá trị đã ghi. Muốn đổi phải tạo lại Pod.'),
       labels: ['apiserver', 'etcd', 'pod-checkout'],
       show: ['pod-checkout'],
       showAt: { 'pod-checkout': 1.15 },
@@ -142,8 +142,8 @@ window.PREEMPT_STEPS_FILTER = [
       title: 'ActiveQ sắp lại hàng — Pod P=1000 chen lên đầu',
       desc: KIT.desc(
         'Scheduler nhận watch event và đẩy Pod vào <span class="hi">ActiveQ</span> — một <b>priority queue</b>, không phải FIFO.',
-        'Pod <code>report</code> (<code>P=200</code>) đã nằm chờ sẵn, nhưng <code>checkout</code> (<code>P=1000</code>) vẫn được <b>pop ra trước</b>. Priority quyết định <b>thứ tự xét</b>, trước khi nó quyết định bất cứ điều gì khác.',
-        '<b>Đây là tác dụng đầu tiên và rẻ nhất của priority.</b> Khi cluster còn chỗ, câu chuyện dừng ở đây: Pod cao điểm được xét sớm hơn, rồi mọi Pod đều được schedule. <b>Preemption chỉ xuất hiện khi bước tiếp theo — Filter — không tìm được Node nào.</b>'),
+        'Pod <code>report</code> (<code>P=200</code>) đã chờ sẵn, nhưng <code>checkout</code> (<code>P=1000</code>) vẫn <b>pop ra trước</b>. Priority quyết định <b>thứ tự xét</b>, trước cả những thứ khác.',
+        '<b>Đây là tác dụng đầu tiên và rẻ nhất của priority.</b> Khi cluster còn chỗ, câu chuyện dừng ở đây: Pod ưu tiên cao được xét sớm hơn rồi mọi Pod đều được schedule. <b>Preemption chỉ xuất hiện khi Filter không tìm được Node nào.</b>'),
       labels: ['scheduler', 'queue', 'pod-checkout', 'pod-report'],
       show: ['queue', 'pod-report'],
       showAt: { 'queue': 0.35, 'pod-report': 0.75 },
@@ -163,7 +163,7 @@ window.PREEMPT_STEPS_FILTER = [
         ['<b>Worker A</b> — 12Gi, đã cấp 11Gi (<code>batch-job</code> 1Gi + <code>log-agent</code> 3Gi + <code>payments</code> 7Gi) → còn <span class="warn">1Gi</span>',
          '<b>Worker B</b> — 16Gi, đã cấp hết cho <code>ingress-ctrl</code> và <code>core-dns</code>, cả hai <code>P=2000</code>',
          '<b>Worker C</b> — còn tới 10Gi trống, nhưng mang <code>taint</code> <code>gpu=true:NoSchedule</code>.'],
-        '<b>Chú ý “đã cấp” chứ không phải “đang dùng”.</b> Scheduler cộng <code>requests</code>, không nhìn RAM thực tế. Ba Pod trên Worker A có thể chỉ đang dùng 2Gi thật — Node vẫn được coi là kín chỗ. Đây là lý do đặt <code>requests</code> quá tay làm cluster “hết chỗ” trong khi <code>top nodes</code> báo còn rất rảnh.'),
+        '<b>Chú ý "đã cấp" chứ không phải "đang dùng".</b> Scheduler cộng <code>requests</code>, không nhìn RAM thực tế — ba Pod trên Worker A có thể chỉ dùng 2Gi thật mà Node vẫn coi là kín chỗ. Đặt <code>requests</code> quá tay khiến cluster "hết chỗ" dù <code>top nodes</code> báo còn rất rảnh.'),
       focus: ['node-a', 'node-b', 'node-c', 'pod-a1', 'pod-a2', 'pod-a3', 'pod-b1', 'pod-b2', 'pod-c1'],
       // Phase kiểm kê cả cluster — đây là chỗ duy nhất mọi con số nên hiện
       // cùng lúc, cộng thêm yêu cầu 4Gi của Pod để so sánh.
@@ -192,7 +192,7 @@ window.PREEMPT_STEPS_FILTER = [
    `KIT.beat` encoding the timing constraint. The last phase adds a
    FailedScheduling pulse on the Pod. */
 {
-  title: 'Filter chạy — 0/3 Node khả thi',
+  title: 'Filter chạy xong: cả 3 Node đều trượt',
   pipelineStep: 1,
   focus: ['scheduler', 'node-a', 'node-b', 'node-c'],
   phases: KIT.sweep(RUN.filter.evaluated, function(e, i) {
@@ -223,7 +223,7 @@ window.PREEMPT_STEPS_FILTER = [
 
 /* ── STEP ③: PostFilter — mô phỏng và chọn victim ── */
 {
-  title: 'PostFilter — “nếu xoá bớt Pod thì Node nào vừa?”',
+  title: 'PostFilter: nếu xoá bớt Pod thì Node nào vừa?',
   pipelineStep: 2,
   focus: ['scheduler', 'node-a', 'node-b', 'node-c'],
   phases: [
@@ -231,13 +231,13 @@ window.PREEMPT_STEPS_FILTER = [
       title: 'PostFilter chỉ chạy khi Filter đã thất bại hoàn toàn',
       desc: KIT.desc(
         'Preemption <b>không phải</b> một tính năng riêng — nó là plugin <code>DefaultPreemption</code> cắm vào extension point <span class="hi">PostFilter</span> của Scheduler Framework.',
-        'PostFilter chỉ được gọi khi <b>không Node nào</b> qua được Filter. Và plugin chỉ chịu làm việc nếu Pod thoả hai điều kiện: '
-        + '<code>spec.priority</code> đủ để có Pod nào đó thấp hơn, và <code>spec.preemptionPolicy</code> <span class="warn">không phải</span> <code>Never</code>.',
-        '<b>Thứ tự này quan trọng:</b> preemption <span class="danger">không bao giờ</span> chạy song song hay chạy trước Filter. Cluster còn dù chỉ một Node vừa chỗ → không có Pod nào bị đuổi, bất kể priority chênh lệch bao nhiêu. <b>Preemption là phương án cuối, không phải quyền ưu tiên thường trực.</b>'),
+        'PostFilter chỉ được gọi khi <b>không Node nào</b> qua được Filter, và chỉ chạy nếu Pod thoả hai điều kiện: '
+        + '<code>spec.priority</code> đủ cao để có Pod nào đó thấp hơn, và <code>spec.preemptionPolicy</code> <span class="warn">không phải</span> <code>Never</code>.',
+        '<b>Thứ tự này quan trọng:</b> preemption <span class="danger">không bao giờ</span> chạy song song hay trước Filter. Còn dù chỉ một Node vừa chỗ → không Pod nào bị đuổi, bất kể priority chênh lệch bao nhiêu. <b>Preemption là phương án cuối, không phải quyền ưu tiên thường trực.</b>'),
       // Phase này nói về điều kiện chạy plugin, không về Node nào cả.
       labels: ['scheduler', 'pod-checkout'],
       set: {
-        'scheduler': KIT.pulse('accent', 'PostFilter · DefaultPreemption', {at: 0.55, dy: 3.9})
+        'scheduler': KIT.pulse('accent', 'PostFilter plugin', {at: 0.55, dy: 3.9})
       },
       scene(a) {
         KIT.note(a, 'Filter fail → PostFilter', 'scheduler', 'accent', 0.2);
@@ -246,11 +246,11 @@ window.PREEMPT_STEPS_FILTER = [
     {
       title: 'Mô phỏng trên từng Node — hai trong ba Node bị loại ngay',
       desc: KIT.desc(
-        'Với mỗi Node vừa trượt, scheduler chạy một phép thử <b>trong bộ nhớ</b>: <i>giả sử xoá hết Pod có priority thấp hơn 1000, Node có pass Filter không?</i>',
+        'Với mỗi Node vừa trượt, scheduler chạy một phép thử <b>trong bộ nhớ</b>: <i>giả sử xoá hết Pod priority thấp hơn 1000, Node có pass Filter không?</i>',
         ['<b>Worker A</b> → xoá <code>batch-job</code>, <code>log-agent</code>, <code>payments</code> thì dư sức chứa → <span class="ok">ứng viên hợp lệ</span>',
          '<b>Worker B</b> → mọi Pod đều <code>P=2000</code>, <span class="danger">không có gì hợp lệ để xoá</span>, Node vẫn đầy → loại',
-         '<b>Worker C</b> → xoá <code>gpu-train</code> cũng vô ích, vì Node trượt vì <b>taint</b> chứ không phải vì thiếu chỗ → loại.'],
-        '<b>Đây là quy tắc gọn nhất về preemption:</b> nó chỉ gỡ được những Filter thất bại <b>do tài nguyên bị Pod khác giữ</b>. Taint, node affinity, nodeSelector, volume zone mismatch — <span class="danger">xoá bao nhiêu Pod cũng không sửa được</span>. Pod của bạn kẹt <code>Pending</code> vì taint thì priority cao đến mấy cũng vô nghĩa.'),
+         '<b>Worker C</b> → xoá <code>gpu-train</code> cũng vô ích, vì Node trượt vì <b>taint</b> chứ không phải thiếu chỗ → loại.'],
+        '<b>Quy tắc gọn nhất về preemption:</b> nó chỉ gỡ được Filter thất bại <b>do tài nguyên bị Pod khác giữ</b>. Taint, node affinity, nodeSelector, volume zone mismatch — <span class="danger">xoá bao nhiêu Pod cũng không sửa được</span>. Kẹt <code>Pending</code> vì taint thì priority cao đến mấy cũng vô nghĩa.'),
       // Phép thử chạy trên cả ba Node, và nó so priority của từng Pod đang
       // chiếm chỗ — nên cấu hình của Pod phải đọc được ở đây.
       labels: ['node-a', 'node-b', 'node-c', 'pod-a1', 'pod-a2', 'pod-a3', 'pod-b1', 'pod-b2', 'pod-c1'],
@@ -267,9 +267,9 @@ window.PREEMPT_STEPS_FILTER = [
       }
     },
     {
-      title: 'Tập victim tối thiểu — xoá từ dưới lên, dừng ngay khi vừa đủ',
+      title: 'Tập victim tối thiểu — xoá từ dưới lên, dừng khi vừa đủ',
       desc: KIT.desc(
-        'Trên Worker A, scheduler <b>không</b> xoá sạch. Nó sắp Pod theo priority tăng dần rồi cộng dồn cho tới khi vừa đủ chỗ:',
+        'Trên Worker A, scheduler <b>không</b> xoá sạch. Nó sắp Pod theo priority tăng dần rồi cộng dồn tới khi vừa đủ chỗ:',
         CUMULATIVE.map(function(row, i) {
           const enough = row.freeGi >= NEED;
           const last = i === CUMULATIVE.length - 1;
@@ -279,10 +279,10 @@ window.PREEMPT_STEPS_FILTER = [
                 ? '<span class="ok">' + MODEL.fmtGi(row.freeGi) + ' ≥ ' + MODEL.fmtGi(NEED) + '</span>' + (last ? ' → <b>dừng</b>' : '')
                 : MODEL.fmtGi(row.freeGi) + ' — <span class="warn">chưa đủ ' + MODEL.fmtGi(NEED) + '</span>');
         }).concat(PLAN.spared.map(function(p) {
-          return '<code>' + p.name + '</code> <b>P=' + p.priority + '</b> tuy vẫn thấp hơn '
+          return '<code>' + p.name + '</code> <b>P=' + p.priority + '</b> tuy thấp hơn '
             + POD.priority + ' nhưng <span class="ok">được giữ nguyên</span>.';
         })),
-        '<b>Hai điều thường bị hiểu sai ở bước này.</b> Thứ nhất, scheduler cố <b>tránh vi phạm PodDisruptionBudget</b> khi chọn victim — nhưng đó là <i>ưu tiên</i>, không phải ràng buộc: hết lựa chọn thì nó vẫn xoá và vẫn vi phạm PDB. Thứ hai, <b>QoS class hoàn toàn không được xét</b> ở đây — một Pod <code>Guaranteed</code> priority thấp vẫn bị đuổi trước một Pod <code>BestEffort</code> priority cao. Kubelet Eviction cũng không sort trực tiếp theo QoS: với memory pressure nó xét usage vượt request, rồi Priority, rồi excess usage — hai cơ chế vẫn có trigger và owner khác nhau hoàn toàn.'),
+        '<b>Hai điều hay bị hiểu sai.</b> Một, scheduler cố <b>tránh vi phạm PodDisruptionBudget</b> khi chọn victim — nhưng đó là <i>ưu tiên</i>, không phải ràng buộc: hết lựa chọn thì vẫn xoá và vẫn vi phạm PDB. Hai, <b>QoS class hoàn toàn không được xét</b> — Pod <code>Guaranteed</code> priority thấp vẫn bị đuổi trước Pod <code>BestEffort</code> priority cao. Kubelet Eviction cũng không sort theo QoS: với memory pressure nó xét usage vượt request, rồi Priority, rồi excess usage — hai cơ chế có trigger và owner khác hẳn nhau.'),
       focus: ['node-a', 'pod-a1', 'pod-a2', 'pod-a3'],
       // Cộng dồn theo đúng thứ tự scheduler duyệt: hàng thứ hai chạm 100% là
       // chỗ nó dừng lại — `payments` không có mặt vì không bị đụng tới.

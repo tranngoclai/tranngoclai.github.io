@@ -56,10 +56,10 @@ const SCORE_ROWS = RUN.scored.map(function(e) {
    Descriptions are the whole point of the deck, so they stay hand-written.
    Only the structural boilerplate (set, scene, timing) is generated. */
 var FILTER_TITLES = {
-  'node-a': 'Worker A — pass: đủ tài nguyên, không vướng taint',
-  'node-d': 'Worker D — pass: chật hơn nhưng vẫn đủ',
-  'node-b': 'Worker B — rejected: không đủ CPU',
-  'node-c': 'Worker C — rejected: vướng taint · 2 Node sống sót'
+  'node-a': 'Worker A đạt — đủ tài nguyên, không vướng taint',
+  'node-d': 'Worker D đạt — chật hơn nhưng vẫn đủ chỗ',
+  'node-b': 'Worker B bị loại — thiếu CPU',
+  'node-c': 'Worker C bị loại — vướng taint · còn 2 Node'
 };
 var FILTER_LABELS = {
   'node-a': ['scheduler', 'node-a'],
@@ -68,36 +68,36 @@ var FILTER_LABELS = {
   'node-c': ['scheduler', 'node-c']
 };
 var FILTER_HOVER = {
-  'node-a': 'cpu ' + MODEL.fmtCpu(V['node-a'].node) + ' — thừa chỗ cho Pod, không taint nào chặn',
-  'node-d': 'cpu ' + MODEL.fmtCpu(V['node-d'].node) + ' — chật hơn A, nhưng Filter không chấm điểm',
-  'node-b': 'cpu ' + MODEL.fmtCpu(V['node-b'].node) + ' — không còn chỗ cho requests của Pod',
-  'node-c': 'Còn thừa cpu — nhưng taint chặn, và xoá Pod không gỡ được taint'
+  'node-a': 'cpu ' + MODEL.fmtCpu(V['node-a'].node) + ' — thừa chỗ, không taint chặn',
+  'node-d': 'cpu ' + MODEL.fmtCpu(V['node-d'].node) + ' — chật hơn A nhưng Filter không chấm điểm',
+  'node-b': 'cpu ' + MODEL.fmtCpu(V['node-b'].node) + ' — hết chỗ cho requests của Pod',
+  'node-c': 'Còn thừa cpu — nhưng taint chặn, xoá Pod cũng không gỡ được taint'
 };
 var FILTER_DESCS = {
   'node-a': KIT.desc(
-    'Pha đầu của scheduling cycle là <span class="hi">Filter</span> — câu hỏi <b>nhị phân</b>, không có điểm số: Node này <b>có thể</b> chạy Pod hay không?',
-    'Scheduler lấy danh sách Node từ <span class="hi">in-memory cache</span> (bản sao cluster state giữ sẵn trong RAM, đồng bộ qua Watch — nên quyết định mất mili-giây chứ không phải gọi API mỗi lần), rồi chạy <b>song song</b> các Filter plugin trên từng Node. '
+    'Pha đầu của scheduling cycle là <span class="hi">Filter</span> — câu hỏi <b>nhị phân</b>: Node này <b>có thể</b> chạy Pod không?',
+    'Scheduler lấy danh sách Node từ <span class="hi">in-memory cache</span> (bản sao cluster state trong RAM, đồng bộ qua Watch — nên quyết định mất mili-giây, không cần gọi API mỗi lần), rồi chạy <b>song song</b> các Filter plugin trên từng Node. '
     + 'Worker A qua hết: <code>NodeResourcesFit</code> ✓, <code>TaintToleration</code> ✓, <code>NodeAffinity</code> ✓.',
-    '<code>NodeResourcesFit</code> so với <b><code>requests</code></b>, không phải mức dùng thực tế. Node đang chạy 90% CPU vẫn "còn chỗ" nếu tổng requests còn thấp — đó là lý do đặt requests sai làm hỏng toàn bộ scheduling.'),
+    '<code>NodeResourcesFit</code> so với <b><code>requests</code></b>, không phải mức dùng thực tế. Node chạy 90% CPU vẫn "còn chỗ" nếu tổng requests còn thấp — đặt requests sai là hỏng cả scheduling.'),
   'node-d': KIT.desc(
-    'Worker D cũng qua được toàn bộ Filter.',
-    'Nó còn ít tài nguyên trống hơn A (<code>cpu 11/16</code>), nhưng Filter <b>không quan tâm nhiều hay ít</b> — chỉ cần <code>requests</code> của Pod lọt vào phần <code>allocatable</code> còn lại là pass.',
-    '<b>Đây chính là ranh giới giữa hai pha:</b> Filter trả lời <b>"được hay không"</b>, còn chuyện <b>"A hay D tốt hơn"</b> hoàn toàn không thuộc về nó — đó là việc của pha Score ở bước ⑤. Trộn lẫn hai câu hỏi này là nguồn gốc của rất nhiều hiểu nhầm về scheduler.'),
+    'Worker D cũng qua toàn bộ Filter.',
+    'Nó ít tài nguyên trống hơn A (<code>cpu 11/16</code>), nhưng Filter <b>không quan tâm nhiều hay ít</b> — chỉ cần <code>requests</code> của Pod lọt vào <code>allocatable</code> còn lại là pass.',
+    '<b>Ranh giới giữa hai pha:</b> Filter trả lời <b>"được hay không"</b>, còn <b>"A hay D tốt hơn"</b> là việc của pha Score ở bước ⑤. Lẫn lộn hai câu hỏi này là nguồn hiểu nhầm phổ biến về scheduler.'),
   'node-b': KIT.desc(
-    'Worker B trượt <code>NodeResourcesFit</code>: tổng <code>requests</code> của các Pod đang chạy (<code>cpu 15/16</code>) cộng với Pod mới đã vượt <code>allocatable</code>.',
-    'Node <b>bị loại ngay lập tức</b> — scheduler không buồn chạy nốt các plugin còn lại cho Node này.',
-    '<b>Logic Filter là AND tuyệt đối:</b> <span class="danger">chỉ cần MỘT plugin trả về false là Node bị loại</span>, bất kể nó tốt đến đâu ở mọi tiêu chí khác. Không có "gần đủ", không có điểm an ủi.'),
+    'Worker B trượt <code>NodeResourcesFit</code>: tổng <code>requests</code> của các Pod đang chạy (<code>cpu 15/16</code>) cộng Pod mới đã vượt <code>allocatable</code>.',
+    'Node <b>bị loại ngay</b> — scheduler không buồn chạy nốt các plugin còn lại.',
+    '<b>Logic Filter là AND tuyệt đối:</b> <span class="danger">chỉ cần MỘT plugin false là Node bị loại</span>, dù tốt đến đâu ở tiêu chí khác. Không có "gần đủ", không có điểm an ủi.'),
   'node-c': KIT.desc(
     'Worker C trượt <code>TaintToleration</code>: Node bị bôi <code>taint</code> (<code>node-role.kubernetes.io/control-plane:NoSchedule</code>) mà Pod không khai <code>toleration</code> tương ứng.',
-    'Nó là Node <b>rỗng nhất cluster</b> (<code>cpu 2/16</code>) và vẫn bị loại. Kết quả bước ④: <b>4 Node vào, 2 Node ra</b> — chỉ A và D được chuyển sang pha Score.',
-    '<b>Đây là lý do #1 khiến Pod không chạy.</b> Nếu <b>không Node nào</b> qua được Filter, Pod quay về queue với event <code>FailedScheduling</code> và đứng mãi ở <code>Pending</code>. <code>kubectl describe pod</code> sẽ nói chính xác plugin nào đã loại và loại bao nhiêu Node: <i>"0/4 nodes are available: 2 Insufficient cpu, 2 node(s) had untolerated taint"</i> — đọc dòng đó là biết phải sửa gì.')
+    'Nó là Node <b>rỗng nhất cluster</b> (<code>cpu 2/16</code>) mà vẫn bị loại. Kết quả bước ④: <b>4 Node vào, 2 Node ra</b> — chỉ A và D vào pha Score.',
+    '<b>Lý do #1 khiến Pod không chạy.</b> Nếu <b>không Node nào</b> qua Filter, Pod quay về queue với event <code>FailedScheduling</code> và kẹt ở <code>Pending</code>. <code>kubectl describe pod</code> nói rõ plugin nào loại bao nhiêu Node: <i>"0/4 nodes are available: 2 Insufficient cpu, 2 node(s) had untolerated taint"</i> — đọc dòng đó là biết sửa gì.')
 };
 
 window.SCHED_STEPS_CONTROL_PLANE = [
 
 /* ── STEP ①: Client → API Server ── */
 {
-  title: 'Bạn gửi Pod — API Server gác 3 cửa',
+  title: 'Bạn gửi Pod đi — API Server gác 3 cửa',
   pipelineStep: 0,
   focus: ['client', 'authn', 'admission', 'apiserver'],
   phases: [
@@ -105,9 +105,9 @@ window.SCHED_STEPS_CONTROL_PLANE = [
       title: 'kubectl dịch YAML thành một HTTP request',
       desc: KIT.desc(
         'Mọi thứ bắt đầu bằng một HTTP request bình thường.',
-        'Bạn gõ <code>kubectl apply -f deploy.yaml</code>. kubectl đọc file, dịch sang JSON và gửi <code>POST /apis/apps/v1/deployments</code> tới <span class="hi">API Server</span> — <b>cửa duy nhất</b> để vào cluster. '
-        + 'Không component nào (kể cả scheduler, kubelet) được phép đi đường khác.',
-        '<b>Ghi nhớ:</b> lúc này chưa có gì được ghi, chưa có Pod nào tồn tại. Mới chỉ là một request đang bay tới cổng.'),
+        'Bạn gõ <code>kubectl apply -f deploy.yaml</code>. kubectl đọc file, dịch sang JSON và gửi <code>POST /apis/apps/v1/deployments</code> tới <span class="hi">API Server</span> — <b>cửa duy nhất</b> vào cluster. '
+        + 'Không component nào, kể cả scheduler hay kubelet, được đi đường khác.',
+        '<b>Ghi nhớ:</b> chưa có gì được ghi, chưa Pod nào tồn tại — chỉ là một request đang bay tới cổng.'),
       labels: ['client', 'apiserver'],
       set: {
         'client': KIT.pulse('info', 'kubectl apply', {at: 0.15})
@@ -120,10 +120,10 @@ window.SCHED_STEPS_CONTROL_PLANE = [
     {
       title: 'Cửa 1 — Authentication: “Bạn là ai?”',
       desc: KIT.desc(
-        'API Server phải biết <b>ai</b> đang gọi trước khi nghĩ tới chuyện cho phép hay không.',
-        'Nó xác thực danh tính bằng <span class="hi">client certificate</span>, <span class="hi">bearer token</span> (ServiceAccount) hoặc <span class="hi">OIDC</span> — tuỳ cách cluster được cấu hình. '
-        + 'Kết quả chỉ là một danh tính: username + groups. ',
-        '<b>Thất bại ở đây → <code>401 Unauthorized</code>.</b> Kubernetes <b>không có</b> khái niệm “user object” trong etcd — danh tính đến từ certificate/token do bên ngoài cấp.'),
+        'API Server phải biết <b>ai</b> đang gọi trước khi tính chuyện cho phép.',
+        'Nó xác thực bằng <span class="hi">client certificate</span>, <span class="hi">bearer token</span> (ServiceAccount) hoặc <span class="hi">OIDC</span> — tuỳ cấu hình cluster. '
+        + 'Kết quả chỉ là một danh tính: username + groups.',
+        '<b>Thất bại → <code>401 Unauthorized</code>.</b> Kubernetes <b>không có</b> "user object" trong etcd — danh tính đến từ certificate/token do bên ngoài cấp.'),
       labels: ['authn'],
       set: {
         'authn': KIT.mark('core', 'certificate / token ✓', {at: 0.55})
@@ -136,9 +136,9 @@ window.SCHED_STEPS_CONTROL_PLANE = [
       title: 'Cửa 2 — Authorization / RBAC: “Bạn được phép làm việc này không?”',
       desc: KIT.desc(
         'Danh tính đã rõ, giờ mới xét quyền.',
-        'RBAC đối chiếu: user này có <code>Role</code> / <code>ClusterRole</code> nào cho phép <code>create</code> trên resource <code>deployments</code>, trong đúng namespace này không? '
-        + 'Quyền được nối vào user qua <code>RoleBinding</code> / <code>ClusterRoleBinding</code>. ',
-        '<b>Thất bại ở đây → <code>403 Forbidden</code>.</b> Phân biệt rõ với 401: <b>401 = không biết bạn là ai</b>, <b>403 = biết bạn là ai nhưng không cho phép</b>. Đọc đúng mã lỗi giúp bạn sửa đúng chỗ.'),
+        'RBAC kiểm tra: user này có <code>Role</code> / <code>ClusterRole</code> nào cho phép <code>create</code> trên <code>deployments</code>, đúng namespace này không? '
+        + 'Quyền nối vào user qua <code>RoleBinding</code> / <code>ClusterRoleBinding</code>.',
+        '<b>Thất bại → <code>403 Forbidden</code>.</b> Phân biệt với 401: <b>401 = không biết bạn là ai</b>, <b>403 = biết nhưng không cho phép</b>. Đọc đúng mã lỗi là sửa đúng chỗ.'),
       labels: ['authn'],
       set: {
         'authn': KIT.mark('ok', 'RBAC: allow', {at: 0.55, flash: KIT.ink('pass')})
@@ -148,13 +148,13 @@ window.SCHED_STEPS_CONTROL_PLANE = [
       }
     },
     {
-      title: 'Cửa 3 — Admission Controllers: sửa và kiểm nội dung, rồi chấp nhận',
+      title: 'Cửa 3 — Admission Controllers: sửa, kiểm rồi mới chấp nhận',
       desc: KIT.desc(
-        'Cửa cuối chạy <b>2 pha</b> và là nơi duy nhất object có thể bị <b>thay đổi</b>.',
+        'Cửa cuối chạy <b>2 pha</b> — nơi duy nhất object có thể bị <b>thay đổi</b>.',
         '<b>Mutating</b> chạy trước — sửa object: inject sidecar (Istio), gắn default <code>resources</code>, thêm label, gán ServiceAccount. '
-        + '<b>Validating</b> chạy sau — chỉ được nói có/không: <code>ResourceQuota</code> của namespace còn đủ? Pod Security Standard có pass? '
-        + 'Qua hết → API Server chấp nhận request.',
-        '<b>Toàn bộ lớp bảo mật này fail-fast:</b> chỉ cần một cửa từ chối là dừng ngay, chưa ghi gì xuống. Nếu <code>kubectl apply</code> báo lỗi mà <code>kubectl get pods</code> không thấy gì, request đã chết ở bước ① này.'),
+        + '<b>Validating</b> chạy sau — chỉ nói có/không: <code>ResourceQuota</code> namespace còn đủ? Pod Security Standard pass chưa? '
+        + 'Qua hết → API Server chấp nhận.',
+        '<b>Cả lớp này fail-fast:</b> một cửa từ chối là dừng ngay, chưa ghi gì xuống. <code>kubectl apply</code> báo lỗi mà <code>kubectl get pods</code> không thấy gì → request đã chết ở bước ① này.'),
       labels: ['admission', 'apiserver'],
       set: {
         'admission': KIT.mark('ok', 'mutate ✓ · validate ✓', {at: 0.60, flash: KIT.ink('pass')}),
@@ -170,17 +170,17 @@ window.SCHED_STEPS_CONTROL_PLANE = [
 
 /* ── STEP ②: API Server → etcd ── */
 {
-  title: 'Pod được ghi vào etcd — ra đời ở trạng thái Pending',
+  title: 'Pod ra đời trong etcd — nhưng vẫn đang Pending',
   pipelineStep: 1,
   focus: ['apiserver', 'etcd', 'pod'],
   phases: [
     {
       title: 'Pod object được ghi xuống etcd',
       desc: KIT.desc(
-        'API Server persist object vào <span class="hi">etcd</span> — key-value store là <b>nguồn sự thật duy nhất</b> của cluster.',
-        'Hai field quyết định số phận Pod lúc này: <code>spec.nodeName: ""</code> (chuỗi rỗng — <span class="warn">chưa Node nào nhận</span>) và <code>status.phase: Pending</code>. '
-        + 'Từ giây phút này Pod chính thức <b>tồn tại</b> trong cluster, dù chưa có container nào chạy và chưa Node nào biết đến nó.',
-        'etcd là <b>component duy nhất</b> có trạng thái (stateful) trong control plane. Mất etcd = mất cluster; mọi thứ còn lại đều có thể dựng lại từ nó.'),
+        'API Server persist object vào <span class="hi">etcd</span> — key-value store, <b>nguồn sự thật duy nhất</b> của cluster.',
+        'Hai field quyết định số phận Pod: <code>spec.nodeName: ""</code> (rỗng — <span class="warn">chưa Node nào nhận</span>) và <code>status.phase: Pending</code>. '
+        + 'Từ giây này Pod chính thức <b>tồn tại</b> trong cluster, dù chưa container nào chạy và chưa Node nào biết đến nó.',
+        'etcd là <b>component duy nhất</b> stateful trong control plane. Mất etcd là mất cluster; mọi thứ khác dựng lại được từ nó.'),
       labels: ['etcd', 'pod'],
       show: ['pod'],
       showAt: { 'pod': 1.15 },
@@ -197,9 +197,9 @@ window.SCHED_STEPS_CONTROL_PLANE = [
     {
       title: 'Raft consensus — write chỉ commit khi đa số đồng ý',
       desc: KIT.desc(
-        'etcd không ghi ngay lập tức.',
-        'Nó chạy <span class="hi">Raft consensus</span>: node leader đề xuất write, gửi tới các member, và <b>chờ quá bán (quorum) xác nhận</b> rồi mới commit. Với cluster 3 node etcd, cần 2 node đồng ý.',
-        '<b>Đây là lý do etcd luôn chạy số lẻ (3, 5, 7).</b> Quorum của 3 là 2 → chịu được 1 node chết. Quorum của 4 cũng là 3 → vẫn chỉ chịu được 1 node chết, nhưng tốn thêm một máy. Số chẵn không mua thêm được khả năng chịu lỗi nào.'),
+        'etcd không ghi ngay.',
+        'Nó chạy <span class="hi">Raft consensus</span>: leader đề xuất write, gửi tới các member, <b>chờ quá bán (quorum) xác nhận</b> rồi mới commit. Cluster 3 node etcd cần 2 node đồng ý.',
+        '<b>Vì vậy etcd luôn chạy số lẻ (3, 5, 7).</b> Quorum của 3 là 2 → chịu được 1 node chết. Quorum của 4 cũng là 3 → vẫn chỉ chịu 1 node chết, nhưng tốn thêm một máy. Số chẵn không mua thêm khả năng chịu lỗi.'),
       labels: ['etcd'],
       set: {
         'etcd': KIT.pulse('warn', 'Raft commit ✓ (quorum)', {at: 0.55})
@@ -209,11 +209,11 @@ window.SCHED_STEPS_CONTROL_PLANE = [
       }
     },
     {
-      title: '201 Created — và terminal của bạn thoát ngay tại đây',
+      title: '201 Created — và lệnh apply của bạn kết thúc ngay đây',
       desc: KIT.desc(
-        'Commit xong, API Server trả <code>201 Created</code> về cho kubectl. Lệnh <code>apply</code> kết thúc.',
-        'Pod vẫn đang <span class="warn">Pending</span>, chưa có Node, chưa có container. Nhưng với client thì request đã <b>thành công</b>.',
-        '<b>Hiểu nhầm phổ biến nhất:</b> <code>kubectl apply</code> trả về OK <span class="danger">không có nghĩa là ứng dụng đã chạy</span>. Nó chỉ có nghĩa <b>“ý định của bạn đã được ghi nhận vào etcd”</b>. Kubernetes là hệ <b>khai báo và bất đồng bộ</b>: bạn khai báo trạng thái mong muốn, các controller mới dần dần kéo thực tế về khớp với nó. Đó là lý do Pod có thể kẹt <code>Pending</code> hàng giờ mà lệnh apply vẫn “thành công”.'),
+        'Commit xong, API Server trả <code>201 Created</code> cho kubectl. Lệnh <code>apply</code> kết thúc.',
+        'Pod vẫn <span class="warn">Pending</span>, chưa Node, chưa container. Nhưng với client, request đã <b>thành công</b>.',
+        '<b>Hiểu nhầm phổ biến nhất:</b> <code>kubectl apply</code> trả OK <span class="danger">không có nghĩa ứng dụng đã chạy</span> — chỉ nghĩa là <b>"ý định của bạn đã ghi vào etcd"</b>. Kubernetes <b>khai báo và bất đồng bộ</b>: bạn khai báo trạng thái mong muốn, controller dần kéo thực tế khớp nó. Vì vậy Pod có thể kẹt <code>Pending</code> hàng giờ mà apply vẫn "thành công".'),
       labels: ['client', 'apiserver', 'pod'],
       set: {
         'apiserver': KIT.pulse('pass', '201 Created', {at: 1.30})
@@ -228,17 +228,17 @@ window.SCHED_STEPS_CONTROL_PLANE = [
 
 /* ── STEP ③: Scheduler WATCH → Queue ── */
 {
-  title: 'Scheduler thấy Pod chưa có Node — xếp vào hàng đợi',
+  title: 'Scheduler thấy Pod chưa có Node và xếp nó vào hàng đợi',
   pipelineStep: 2,
   focus: ['apiserver', 'scheduler', 'queue', 'pod', 'q-pod-lo'],
   phases: [
     {
       title: 'Scheduler mở List-Watch — không ai “gọi” nó cả',
       desc: KIT.desc(
-        'Không có ai ra lệnh cho scheduler. Nó <b>chủ động lắng nghe</b>.',
-        'Cơ chế 2 pha: <b>List</b> lấy snapshot toàn bộ Pod đang có; <b>Watch</b> giữ một HTTP streaming connection dài hạn để nhận event <code>ADDED / MODIFIED / DELETED</code> ngay khi có thay đổi — <b>không hề polling</b>. '
-        + 'Thấy Pod có <code>spec.nodeName == ""</code> → đây là Pod chưa ai nhận, việc của scheduler.',
-        '<b>Chi tiết quan trọng:</b> scheduler <span class="danger">không bao giờ nói chuyện trực tiếp với etcd</span>. Mọi component đều đi qua API Server — nhờ vậy etcd không bị hàng chục client cày, và mọi truy cập đều chịu chung một lớp auth + admission.'),
+        'Không ai ra lệnh cho scheduler. Nó <b>chủ động lắng nghe</b>.',
+        'Cơ chế 2 pha: <b>List</b> lấy snapshot toàn bộ Pod hiện có; <b>Watch</b> giữ một HTTP streaming connection dài hạn nhận event <code>ADDED / MODIFIED / DELETED</code> ngay khi có thay đổi — <b>không polling</b>. '
+        + 'Thấy Pod <code>spec.nodeName == ""</code> → Pod chưa ai nhận, việc của scheduler.',
+        '<b>Chi tiết quan trọng:</b> scheduler <span class="danger">không bao giờ nói chuyện trực tiếp với etcd</span>. Mọi component đi qua API Server — nhờ vậy etcd không bị hàng chục client cày, và mọi truy cập chịu chung lớp auth + admission.'),
       labels: ['apiserver', 'scheduler', 'pod'],
       set: {
         'scheduler': KIT.pulse('accent', 'watch event nhận được', {at: 1.20})
@@ -251,9 +251,9 @@ window.SCHED_STEPS_CONTROL_PLANE = [
     {
       title: 'Pod được đẩy vào ActiveQ',
       desc: KIT.desc(
-        'Scheduler không xử lý Pod ngay khi nhận event — nó đẩy Pod vào hàng đợi <span class="hi">ActiveQ</span>.',
-        'Thực tế scheduler quản 3 hàng đợi: <b>activeQ</b> (sẵn sàng schedule), <b>backoffQ</b> (vừa thất bại, chờ retry với backoff tăng dần), và <b>unschedulableQ</b> (không có Node nào phù hợp, nằm chờ cho tới khi cluster đổi trạng thái).',
-        '<b>Vì sao phải có queue:</b> scheduler chỉ chạy <b>một Pod tại một thời điểm</b> (single-threaded scheduling cycle), để mỗi quyết định luôn nhất quán với snapshot tài nguyên hiện tại. Queue vừa hấp thụ burst hàng nghìn Pod, vừa là nơi Pod thất bại quay về retry thay vì bị bỏ rơi.'),
+        'Scheduler không xử lý Pod ngay — nó đẩy Pod vào hàng đợi <span class="hi">ActiveQ</span>.',
+        'Scheduler quản 3 hàng đợi: <b>activeQ</b> (sẵn sàng schedule), <b>backoffQ</b> (vừa thất bại, chờ retry với backoff tăng dần), <b>unschedulableQ</b> (không Node nào phù hợp, chờ tới khi cluster đổi trạng thái).',
+        '<b>Vì sao cần queue:</b> scheduler chỉ chạy <b>một Pod một lúc</b> (single-threaded), để quyết định luôn khớp snapshot tài nguyên hiện tại. Queue hấp thụ burst hàng nghìn Pod, và giữ chỗ cho Pod thất bại quay lại retry.'),
       labels: ['scheduler', 'queue'],
       show: ['queue'],
       showAt: { 'queue': 0.85 },
@@ -267,9 +267,9 @@ window.SCHED_STEPS_CONTROL_PLANE = [
     {
       title: 'Xếp hàng theo PriorityClass — không phải FIFO',
       desc: KIT.desc(
-        'ActiveQ là <b>priority queue</b>, không phải hàng đợi vào-trước-ra-trước.',
-        'Pod được sắp theo <span class="warn">PriorityClass</span> (field <code>spec.priority</code>). Pod <code>' + PRI + '</code> vừa vào sẽ <b>chen lên trước</b> Pod <code>P=' + PEER.priority + '</code> đã đợi sẵn, và được pop ra xử lý trước.',
-        '<b>Đây là chỗ PriorityClass thực sự phát huy tác dụng.</b> Khi cluster rảnh, priority gần như vô nghĩa — mọi Pod đều được schedule. Khi tài nguyên cạn và hàng đợi dài, nó quyết định workload nào được xét trước. Và nếu vẫn không đủ chỗ, priority còn kích hoạt <b>Preemption</b> — đuổi Pod thấp điểm để nhường chỗ (xem kịch bản Preemption).'),
+        'ActiveQ là <b>priority queue</b>, không phải vào-trước-ra-trước.',
+        'Pod sắp theo <span class="warn">PriorityClass</span> (field <code>spec.priority</code>). Pod <code>' + PRI + '</code> vừa vào <b>chen lên trước</b> Pod <code>P=' + PEER.priority + '</code> đã đợi sẵn, và được pop ra xử lý trước.',
+        '<b>Đây là chỗ PriorityClass phát huy tác dụng.</b> Cluster rảnh, priority gần như vô nghĩa — mọi Pod đều được schedule. Tài nguyên cạn và hàng đợi dài, nó quyết định workload nào được xét trước. Vẫn không đủ chỗ thì priority kích hoạt <b>Preemption</b> — đuổi Pod thấp điểm nhường chỗ (xem kịch bản Preemption).'),
       labels: ['queue', 'pod', 'q-pod-lo'],
       show: ['q-pod-lo'],
       showAt: { 'q-pod-lo': 0.35 },
@@ -332,10 +332,10 @@ window.SCHED_STEPS_CONTROL_PLANE = [
     {
       title: 'Worker D được 71 điểm',
       desc: KIT.desc(
-        'Filter cho ta các Node <b>khả thi</b>. Pha Score chọn ra Node <b>tối ưu</b> — ở đây không còn đúng/sai, chỉ có tốt hơn / kém hơn.',
-        'Mỗi plugin chấm Node một điểm 0–100, rồi cộng có trọng số: <code>Score = Σ(plugin_score × weight)</code>. '
-        + 'Worker D được <span class="hi">71</span>: hợp lệ hoàn toàn, nhưng <code>cpu 11/16</code> đã khá chật nên <code>LeastAllocated</code> chấm thấp.',
-        'Điểm số <b>không</b> được lưu ở đâu cả — nó được tính lại từ đầu cho mỗi lần schedule. Cùng một Pod, schedule ở hai thời điểm khác nhau, có thể ra hai Node khác nhau.'),
+        'Filter cho ta các Node <b>khả thi</b>. Pha Score chọn Node <b>tối ưu</b> — không còn đúng/sai, chỉ tốt hơn / kém hơn.',
+        'Mỗi plugin chấm Node 0–100, rồi cộng có trọng số: <code>Score = Σ(plugin_score × weight)</code>. '
+        + 'Worker D được <span class="hi">71</span>: hợp lệ hoàn toàn, nhưng <code>cpu 11/16</code> khá chật nên <code>LeastAllocated</code> chấm thấp.',
+        'Điểm số <b>không</b> lưu ở đâu cả — tính lại từ đầu mỗi lần schedule. Cùng một Pod, schedule ở hai thời điểm khác nhau có thể ra hai Node khác nhau.'),
       labels: ['node-a', 'node-d'],
       scoreMode: true,
       set: {
@@ -349,11 +349,11 @@ window.SCHED_STEPS_CONTROL_PLANE = [
     {
       title: 'Worker A được 94 điểm — các plugin đã chấm những gì',
       desc: KIT.desc(
-        'Worker A đạt <span class="ok">94</span>. Các plugin chính đóng góp vào con số đó:',
-        ['<code>NodeResourcesLeastAllocated</code> — Node còn trống nhiều được điểm cao (A mới dùng <code>cpu 4/16</code>), giúp <b>trải đều tải</b> (mặc định); đổi sang <code>MostAllocated</code> nếu bạn muốn <b>dồn Pod để scale-down bớt Node</b> cho rẻ',
+        'Worker A đạt <span class="ok">94</span>. Các plugin chính góp vào con số đó:',
+        ['<code>NodeResourcesLeastAllocated</code> — Node càng trống điểm càng cao (A mới dùng <code>cpu 4/16</code>), giúp <b>trải đều tải</b> (mặc định); đổi sang <code>MostAllocated</code> nếu muốn <b>dồn Pod để scale-down</b> cho rẻ',
          '<code>InterPodAffinity / AntiAffinity</code> — thưởng Node đã có Pod “bạn” (giảm latency), phạt Node đã có Pod cùng loại (tránh trứng một giỏ)',
-         '<code>PodTopologySpread</code> — thưởng Node ở zone đang có ít replica, để service sống sót khi mất cả một AZ',
-         '<code>ImageLocality</code> — Node đã cache sẵn image được cộng điểm vì khỏi phải pull vài trăm MB.']),
+         '<code>PodTopologySpread</code> — thưởng Node ở zone ít replica, để service sống sót khi mất cả một AZ',
+         '<code>ImageLocality</code> — Node đã cache sẵn image được cộng điểm vì khỏi pull vài trăm MB.']),
       labels: ['node-a', 'node-d'],
       scoreMode: true,
       set: {
@@ -366,9 +366,9 @@ window.SCHED_STEPS_CONTROL_PLANE = [
     {
       title: 'Node điểm cao nhất thắng — và đây là chỗ bạn “lái” được scheduler',
       desc: KIT.desc(
-        'Scheduler chọn Node có tổng điểm cao nhất: <b>Worker A (94)</b>. Hoà điểm thì chọn ngẫu nhiên trong nhóm dẫn đầu, để tránh dồn cục vào một Node.',
-        'Quyết định đã xong — nhưng lưu ý nó mới chỉ nằm <b>trong bộ nhớ của scheduler</b>, chưa ai khác biết.',
-        '<b>Đây là toàn bộ chỗ bạn có thể điều khiển hành vi đặt Pod:</b> chỉnh <code>weight</code> của từng plugin trong <b>Scheduler Profile</b>, thêm <code>topologySpreadConstraints</code>, dùng affinity, hoặc viết plugin riêng qua <b>Scheduler Framework</b> — <span class="danger">không cần fork kube-scheduler.</span> Nếu Pod cứ dồn vào một Node, câu trả lời gần như luôn nằm ở pha Score chứ không phải Filter.'),
+        'Scheduler chọn Node tổng điểm cao nhất: <b>Worker A (94)</b>. Hoà điểm thì chọn ngẫu nhiên trong nhóm dẫn đầu, tránh dồn cục vào một Node.',
+        'Quyết định xong — nhưng mới nằm <b>trong bộ nhớ scheduler</b>, chưa ai khác biết.',
+        '<b>Đây là chỗ bạn điều khiển được hành vi đặt Pod:</b> chỉnh <code>weight</code> từng plugin trong <b>Scheduler Profile</b>, thêm <code>topologySpreadConstraints</code>, dùng affinity, hoặc viết plugin riêng qua <b>Scheduler Framework</b> — <span class="danger">không cần fork kube-scheduler.</span> Pod cứ dồn vào một Node? Câu trả lời gần như luôn nằm ở pha Score, không phải Filter.'),
       labels: ['node-a'],
       scoreMode: true,
       set: {
