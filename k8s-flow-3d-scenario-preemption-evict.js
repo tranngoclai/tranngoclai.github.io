@@ -42,7 +42,6 @@ window.PREEMPT_STEPS_EVICT = [
   title: 'Giữ chỗ, rồi xoá victim — nhẹ nhàng chứ không đột ngột',
   pipelineStep: 3,   // Evict — trừ hai phase override bên dưới
   focus: ['scheduler', 'apiserver', 'etcd', 'pod-checkout', 'node-a', 'pod-a1', 'pod-a2'],
-  cam: [-8, 1, 2], dist: 34,
   phases: [
     {
       title: 'nominatedNodeName — đặt gạch trước khi dọn chỗ',
@@ -55,7 +54,6 @@ window.PREEMPT_STEPS_EVICT = [
       focus: ['scheduler', 'apiserver', 'etcd', 'pod-checkout', 'queue'],
       // Chỉ Pod đang được ghi nominatedNodeName mới cần đọc cấu hình.
       labels: ['scheduler', 'apiserver', 'etcd', 'pod-checkout'],
-      cam: [-13, 1, 3], dist: 28,
       set: {
         'pod-checkout': KIT.mark('warn', 'nominatedNodeName ← worker-a', {
           at: 1.35, dy: 2.2,
@@ -65,7 +63,7 @@ window.PREEMPT_STEPS_EVICT = [
       scene(a) {
         KIT.link(a, 'scheduler', 'apiserver', 'info', {at: 0.25, dur: 0.75});
         KIT.link(a, 'apiserver', 'pod-checkout', 'warn', {at: 1.05, dur: 1.00});
-        KIT.note(a, 'status.nominatedNodeName', [-15.0, 5.6, 2], 'warn', 0.3);
+        KIT.note(a, 'status.nominatedNodeName', 'apiserver', 'warn', 0.3);
       }
     },
     {
@@ -81,11 +79,10 @@ window.PREEMPT_STEPS_EVICT = [
         'pod-a2': KIT.pulse('danger', 'Terminating · SIGTERM', {dy: 2.2})
       },
       focus: ['node-a', 'pod-a1', 'pod-a2', 'pod-a3'],
-      cam: [4, 0, 8], dist: 28,
       scene(a) {
         KIT.link(a, 'scheduler', 'pod-a1', 'danger', {at: 0.25, dur: 0.80, loop: 3.4});
         KIT.link(a, 'scheduler', 'pod-a2', 'danger', {at: 0.75, dur: 0.80, loop: 3.4, lift: 0.5});
-        KIT.note(a, 'preStop → SIGTERM → (30s) → SIGKILL', [6, -3.2, 11.9], 'danger', 0.4);
+        KIT.note(a, 'preStop → SIGTERM → (30s) → SIGKILL', {of: 'node-a', band: true}, 'danger', 0.4);
       }
     },
     {
@@ -97,13 +94,12 @@ window.PREEMPT_STEPS_EVICT = [
       // Thanh pipeline chạy ngược về Queue — vì Pod thật sự quay lại hàng đợi.
       pipelineStep: 0,
       focus: ['scheduler', 'queue', 'pod-checkout', 'pod-report'],
-      cam: [-11, 1, 4], dist: 24,
       set: {
         'pod-checkout': KIT.pulse('accent', 'requeue · Pending', {at: 0.75, dy: 2.2})
       },
       scene(a) {
         KIT.link(a, 'scheduler', 'queue', 'accent', {at: 0.25, dur: 0.90, loop: 3.4});
-        KIT.note(a, '④ cycle thất bại', [-11.5, -4.2, 7], 'mute', 1.0);
+        KIT.note(a, '④ cycle thất bại', {of: 'queue', band: true}, 'mute', 1.0);
       }
     }
   ]
@@ -114,7 +110,6 @@ window.PREEMPT_STEPS_EVICT = [
   title: 'Vòng schedule sau — lần này Worker A vừa chỗ',
   pipelineStep: 3,   // Evict vừa xong — hai phase sau đi tiếp Filter rồi Bind
   focus: ['scheduler', 'node-a', 'pod-a3'],
-  cam: [0, 1, 5], dist: 34,
   phases: [
     {
       title: 'Victim biến mất — ' + AFTER.name + ' còn ' + MODEL.fmtGi(FREED),
@@ -133,7 +128,6 @@ window.PREEMPT_STEPS_EVICT = [
         })
       },
       focus: ['node-a', 'pod-a3'],
-      cam: [3, 0, 8], dist: 28,
       // Cùng HUD, cùng thứ tự Node như bước ①.3 — chỉ hàng Worker A đổi. Đó là
       // toàn bộ thứ preemption làm được: một Node bớt chật, hai Node còn nguyên.
       scoreMode: true,
@@ -149,7 +143,7 @@ window.PREEMPT_STEPS_EVICT = [
       scene(a) {
         KIT.note(a, MODEL.fmtGi(AFTER.memTotal) + ' − ' + MODEL.fmtGi(AFTER.memUsed)
                   + ' = ' + MODEL.fmtGi(FREED) + ' ≥ ' + MODEL.fmtGi(NEED),
-                 [6, -3.2, 11.9], 'ok', 0.6);
+                 {of: 'node-a', band: true}, 'ok', 0.6);
       }
     },
     {
@@ -164,7 +158,6 @@ window.PREEMPT_STEPS_EVICT = [
       // Filter chạy lại cho chính Pod này — cần thấy lại yêu cầu 4Gi của nó
       // bên cạnh con số mới của Worker A.
       labels: ['scheduler', 'node-a', 'node-b', 'node-c', 'pod-checkout'],
-      cam: [-2, 1, 0], dist: 40,
       // Score vẫn chạy, chỉ là không còn gì để so — HUD nói ra điều đó thay vì
       // để người xem tưởng scheduler bỏ qua pha Score khi có preemption.
       scoreMode: true,
@@ -194,10 +187,9 @@ window.PREEMPT_STEPS_EVICT = [
       // Bind rồi Running — chặng cuối của hành trình Pod checkout.
       pipelineStep: 5,
       focus: ['node-a', 'pod-a3', 'pod-checkout'],
-      cam: [3, 0, 7], dist: 30,
       scene(a) {
         KIT.link(a, 'scheduler', 'pod-checkout', 'ok', {at: 0.25, dur: 1.10, loop: 3.8});
-        KIT.note(a, '⑤ preemption hoàn tất', [6, -3.2, 3.9], 'ok', 1.5);
+        KIT.note(a, '⑤ preemption hoàn tất', {of: 'node-a', band: true}, 'ok', 1.5);
       }
     }
   ]
@@ -208,7 +200,6 @@ window.PREEMPT_STEPS_EVICT = [
   title: 'Cái giá của preemption — và cách bạn ghìm nó lại',
   pipelineStep: 5,   // mỗi phase nhảy về đúng chặng mà nó đang nói tới
   focus: [],
-  cam: [-2, 1, 0], dist: 46,
   phases: [
     {
       title: 'Victim không biến mất — chúng quay lại hàng đợi',
@@ -219,7 +210,6 @@ window.PREEMPT_STEPS_EVICT = [
       // Vòng lặp khép lại: hai victim quay về đúng chặng Queue đã mở màn ①.
       pipelineStep: 0,
       focus: ['queue', 'pod-report', 'pod-a1', 'pod-a2', 'scheduler'],
-      cam: [-11, 1, 4], dist: 31,
       // Chính hai hộp victim quay về queue — vòng đời khép kín, không hộp mới.
       // Chúng đổi tone sang `peer` (Pod đang chờ) nhưng vẫn chớp đỏ, vì thứ
       // vừa xảy ra với chúng là một lần bị đuổi.
@@ -233,7 +223,7 @@ window.PREEMPT_STEPS_EVICT = [
                                       flash: KIT.ink('danger'), at: 1.55, dy: 1.75})
       },
       scene(a) {
-        KIT.note(a, '⑥ Pending lại', [-11.5, -4.2, 7], 'danger', 1.8);
+        KIT.note(a, '⑥ Pending lại', {of: 'queue', band: true}, 'danger', 1.8);
       }
     },
     {
@@ -245,9 +235,8 @@ window.PREEMPT_STEPS_EVICT = [
       // Phase này nói về cách victim bị xoá → đứng ở chặng Evict.
       pipelineStep: 3,
       focus: ['node-a', 'pod-a3', 'pod-checkout'],
-      cam: [4, 0, 8], dist: 30,
       scene(a) {
-        KIT.note(a, 'DELETE ≠ Eviction API', [6, -3.2, 11.9], 'warn', 0.4);
+        KIT.note(a, 'DELETE ≠ Eviction API', {of: 'node-a', band: true}, 'warn', 0.4);
       }
     },
     {
@@ -262,12 +251,11 @@ window.PREEMPT_STEPS_EVICT = [
       // Bốn cái nút đều vặn vào PostFilter — nơi quyết định có preempt hay không.
       pipelineStep: 2,
       focus: ['scheduler', 'node-a', 'node-b', 'node-c'],
-      cam: [-2, 1, 0], dist: 46,
       set: {
         'scheduler': KIT.pulse('accent', 'preemptionPolicy · PriorityClass', {at: 0.55, dy: 3.9})
       },
       scene(a) {
-        KIT.note(a, '⑥ chỉ gỡ được thất bại tài nguyên', [-4.6, -3.6, 0], 'mute', 1.2);
+        KIT.note(a, '⑥ chỉ gỡ được thất bại tài nguyên', {of: 'scheduler', band: true}, 'mute', 1.2);
       }
     }
   ]

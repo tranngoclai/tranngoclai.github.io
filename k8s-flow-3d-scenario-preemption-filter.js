@@ -120,7 +120,6 @@ window.PREEMPT_STEPS_FILTER = [
   title: 'Pod priority cao vào hàng đợi — cluster đã kín chỗ',
   pipelineStep: 0,
   focus: ['apiserver', 'etcd', 'pod-checkout', 'scheduler', 'queue', 'pod-report'],
-  cam: [-13, 1, 2], dist: 26,
   phases: [
     {
       title: 'PriorityClass biến một cái tên thành một con số',
@@ -169,7 +168,6 @@ window.PREEMPT_STEPS_FILTER = [
       // Phase kiểm kê cả cluster — đây là chỗ duy nhất mọi con số nên hiện
       // cùng lúc, cộng thêm yêu cầu 4Gi của Pod để so sánh.
       labels: ['node-a', 'node-b', 'node-c', 'pod-a1', 'pod-a2', 'pod-a3', 'pod-b1', 'pod-b2', 'pod-c1', 'pod-checkout'],
-      cam: [2, 1, 0], dist: 42,
       // Kế toán tài nguyên của cả cluster trong một khung hình — chính con số
       // này sẽ được so lại ở bước ⑤ sau khi victim tắt.
       scoreMode: true,
@@ -183,7 +181,7 @@ window.PREEMPT_STEPS_FILTER = [
         'pod-checkout': KIT.pulse('accent', 'requests.memory: ' + MODEL.fmtGi(NEED), {at: 0.35, dy: 2.2})
       },
       scene(a) {
-        KIT.note(a, '① requests ≠ usage', [-4.6, -3.4, 0], 'mute', 0.6);
+        KIT.note(a, '① requests ≠ usage', {of: 'node-a', band: true}, 'mute', 0.6);
       }
     }
   ]
@@ -197,7 +195,6 @@ window.PREEMPT_STEPS_FILTER = [
   title: 'Filter chạy — 0/3 Node khả thi',
   pipelineStep: 1,
   focus: ['scheduler', 'node-a', 'node-b', 'node-c'],
-  cam: [-2, 1, 0], dist: 40,
   phases: KIT.sweep(RUN.filter.evaluated, function(e, i) {
     var isLast = i === RUN.filter.evaluated.length - 1;
     var beat = KIT.beat('scheduler', e.key, 'danger', {
@@ -218,7 +215,7 @@ window.PREEMPT_STEPS_FILTER = [
       set:   set,
       scene: isLast ? function(a) {
         baseSc(a);
-        KIT.note(a, '② ' + FEASIBLE_LABEL + ' nodes are available', [-4.6, -3.4, 0], 'danger', 1.6);
+        KIT.note(a, '② ' + FEASIBLE_LABEL + ' nodes are available', {of: 'scheduler', band: true}, 'danger', 1.6);
       } : baseSc
     };
   })
@@ -229,7 +226,6 @@ window.PREEMPT_STEPS_FILTER = [
   title: 'PostFilter — “nếu xoá bớt Pod thì Node nào vừa?”',
   pipelineStep: 2,
   focus: ['scheduler', 'node-a', 'node-b', 'node-c'],
-  cam: [-2, 1, 0], dist: 40,
   phases: [
     {
       title: 'PostFilter chỉ chạy khi Filter đã thất bại hoàn toàn',
@@ -243,9 +239,8 @@ window.PREEMPT_STEPS_FILTER = [
       set: {
         'scheduler': KIT.pulse('accent', 'PostFilter · DefaultPreemption', {at: 0.55, dy: 3.9})
       },
-      cam: [-8, 1, 1], dist: 30,
       scene(a) {
-        KIT.note(a, 'Filter fail → PostFilter', [-11.5, 5.4, 3], 'accent', 0.2);
+        KIT.note(a, 'Filter fail → PostFilter', 'scheduler', 'accent', 0.2);
       }
     },
     {
@@ -268,7 +263,7 @@ window.PREEMPT_STEPS_FILTER = [
         'node-c': KIT.pulse('danger', 'taint ≠ resource', {at: 1.45, dy: 3.0})
       },
       scene(a) {
-        KIT.note(a, '③ chỉ Worker A còn cửa', [-4.6, -3.4, 0], 'ok', 1.7);
+        KIT.note(a, '③ chỉ Worker A còn cửa', {of: 'node-a', band: true}, 'ok', 1.7);
       }
     },
     {
@@ -289,7 +284,6 @@ window.PREEMPT_STEPS_FILTER = [
         })),
         '<b>Hai điều thường bị hiểu sai ở bước này.</b> Thứ nhất, scheduler cố <b>tránh vi phạm PodDisruptionBudget</b> khi chọn victim — nhưng đó là <i>ưu tiên</i>, không phải ràng buộc: hết lựa chọn thì nó vẫn xoá và vẫn vi phạm PDB. Thứ hai, <b>QoS class hoàn toàn không được xét</b> ở đây — một Pod <code>Guaranteed</code> priority thấp vẫn bị đuổi trước một Pod <code>BestEffort</code> priority cao. Kubelet Eviction cũng không sort trực tiếp theo QoS: với memory pressure nó xét usage vượt request, rồi Priority, rồi excess usage — hai cơ chế vẫn có trigger và owner khác nhau hoàn toàn.'),
       focus: ['node-a', 'pod-a1', 'pod-a2', 'pod-a3'],
-      cam: [4, 0, 8], dist: 26,
       // Cộng dồn theo đúng thứ tự scheduler duyệt: hàng thứ hai chạm 100% là
       // chỗ nó dừng lại — `payments` không có mặt vì không bị đụng tới.
       scoreMode: true,
@@ -314,7 +308,7 @@ window.PREEMPT_STEPS_FILTER = [
         return out;
       })(),
       scene(a) {
-        KIT.note(a, 'tập victim tối thiểu', [6, -3.2, 11.9], 'mute', 1.8);
+        KIT.note(a, 'tập victim tối thiểu', {of: 'node-a', band: true}, 'mute', 1.8);
       }
     }
   ]

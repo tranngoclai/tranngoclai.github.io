@@ -14,7 +14,7 @@ FLOW3D.deck({
   title: 'Kubernetes – 3D Scenarios',
   brand: '⎈ k8s-sim',
   sidebarTitle: 'Scenarios',
-  canvasLabel: 'Mô phỏng 3D Kubernetes; nội dung và kết luận đầy đủ nằm trong bảng giải thích bên dưới',
+  canvasLabel: 'Mô phỏng 3D Kubernetes; nội dung và kết luận đầy đủ nằm trong bảng giải thích bên trái',
   intro: {
     eyebrow: '⎈ kube-scheduler · 3D Simulator',
     title: 'Kubernetes Scheduling<br>Visualized in 3D',

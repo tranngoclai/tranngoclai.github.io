@@ -2,17 +2,39 @@
    LABEL PROJECTION — update each frame
 ══════════════════════════════════════════════ */
 const _v3 = new THREE.Vector3();
+// Two labels can project to (near-)identical screen points — e.g. two pods on
+// the same node both flip to "Terminating" in the same beat, or a state badge
+// lands right where a lingering flow-line caption sits. Projection alone has
+// no notion of the other labels on screen, so it stacks them illegibly.
+// This is a cheap decluttering pass: place labels in order, and any label
+// whose box would overlap an already-placed one gets nudged straight down
+// until it clears. O(n²) but n is a handful of labels per scene.
+const _placedLabels = [];
 function updateLabels() {
   // #labels overlays the canvas, so project into canvas-local coordinates.
   const W = cvs.clientWidth, H = cvs.clientHeight;
+  _placedLabels.length = 0;
   labelEls.forEach(function(item) {
     _v3.setFromMatrixPosition(item.obj.matrixWorld);
     _v3.project(camera);
-    const sx = (_v3.x * 0.5 + 0.5) * W;
-    const sy = (-_v3.y * 0.5 + 0.5) * H;
+    const visible = _v3.z < 1;
+    let sx = (_v3.x * 0.5 + 0.5) * W;
+    let sy = (-_v3.y * 0.5 + 0.5) * H;
+
+    if (visible) {
+      const w = item.div.offsetWidth || 90, h = item.div.offsetHeight || 20;
+      for (let i = 0; i < _placedLabels.length; i++) {
+        const p = _placedLabels[i];
+        if (Math.abs(sx - p.sx) < (w + p.w) / 2 && Math.abs(sy - p.sy) < (h + p.h) / 2) {
+          sy = p.sy + (h + p.h) / 2 + 2;
+        }
+      }
+      _placedLabels.push({sx, sy, w, h});
+    }
+
     item.div.style.left = sx + 'px';
     item.div.style.top  = sy + 'px';
-    item.div.style.display = _v3.z < 1 ? 'block' : 'none';
+    item.div.style.display = visible ? 'block' : 'none';
   });
 }
 

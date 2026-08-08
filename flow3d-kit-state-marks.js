@@ -128,8 +128,51 @@ KIT.flow = function(a, points, ink, o) {
 
 /* ── note ── a caption anchored in the scene for this phase only.
    One per phase at most: it is the phase's headline inside the 3D frame,
-   and a second one turns the frame back into a wall of text. */
-KIT.note = function(a, text, pos, ink, at) {
+   and a second one turns the frame back into a wall of text.
+
+   `ref` names the component the caption is ABOUT, exactly as KIT.link names
+   its endpoints — so a caption follows the box it explains when that box is
+   moved or resized, and a step that reframes its camera around its focus
+   still has the caption inside the frame. Hand-typed coordinates could do
+   neither: they are correct only for the layout they were eyeballed in.
+
+     KIT.note(a, 'working_set = usage − inactive_file', 'cgroups', 'warn', .4)
+     KIT.note(a, '④ cycle thất bại', {of: 'scheduler', band: true}, 'mute', 1)
+
+   Two placements, and the choice says what kind of caption it is:
+
+     over   (default) the caption belongs to ONE component and floats just
+            above it, close enough that the pairing needs no arrow.
+     band   the caption is the phase's own headline rather than a fact about
+            one box. It drops to KIT.NOTE_BAND — a single height shared by the
+            whole deck — so consecutive summary notes sit on one line instead
+            of stepping up and down with whatever geometry they hang off.
+
+   `dx` / `dz` / `dy` nudge from there, for the rare case where two captions in
+   one phase would otherwise overlap. */
+
+/* Caption band: one height for every summary note in the deck, below the
+   ground plane so a headline never collides with the badges above a box. */
+KIT.NOTE_BAND = -3.6;
+
+/* Clearance above a component's top face for an `over` caption: higher than a
+   badge (KIT.mark's `dy` tops out near 3.0) so the two can coexist. */
+const NOTE_LIFT = 2.2;
+
+function notePos(ref, t) {
+  if (Array.isArray(ref)) return ref.slice();
+
+  const o = typeof ref === 'string' ? {of: ref} : (ref || {});
+  const p = componentAnchor(o.of, t);          // dead-centre on the top face
+  if (!p) return null;
+
+  const y = o.band ? KIT.NOTE_BAND : p[1] + NOTE_LIFT;
+  return [p[0] + (o.dx || 0), y + (o.dy || 0), p[2] + (o.dz || 0)];
+}
+
+KIT.note = function(a, text, ref, ink, at) {
+  const pos = notePos(ref, at || 0);
+  if (!pos) return;
   a.note(text, pos[0], pos[1], pos[2], KIT.ink(ink || 'mute'), at || 0);
 };
 

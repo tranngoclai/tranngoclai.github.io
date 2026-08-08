@@ -68,6 +68,9 @@ function makeWorldCtx() {
       n.baseCol = o.col;
       n.baseEdge = o.edge;
       n.basePos = [x, y, z];
+      // Kept so the engine can frame a step around the components it focuses
+      // (see frameFocus) without the scenario re-typing any coordinates.
+      n.size = [w, h, d];
       // Caption offset relative to the box, kept constant while the box moves.
       n.labelOff = n.labelObj
         ? [n.labelObj.position.x - x, n.labelObj.position.y - y, n.labelObj.position.z - z]
@@ -141,6 +144,41 @@ function applyPersistentStep(sc, stepIdx) {
   refreshHover();
 
   if (step.cam) startCamTween(step.cam, step.dist);
+  else frameFocus(step);
+}
+
+/* ─ Auto-frame ─
+   A step that does not name a camera gets one derived from the components it
+   focuses. Cameras then belong to the same regime as captions and arrows: the
+   world file owns every coordinate, and moving a component re-aims every shot
+   of it instead of leaving a hand-typed number pointing at empty floor.
+
+   A component that this step is about to move is framed at its DESTINATION —
+   the viewer should be looking at where the action lands, not where it left. */
+function frameFocus(step) {
+  const keys = step.focus || [];
+  const set = step.set || {};
+  let lo = null, hi = null;
+
+  keys.forEach(function(k) {
+    const n = worldNodes[k];
+    if (!n || !n.visible) return;
+    const p = (set[k] && set[k].pos) || [n.g.position.x, n.baseY, n.g.position.z];
+    const s = n.size || [1, 1, 1];
+    if (!lo) { lo = [Infinity, Infinity, Infinity]; hi = [-Infinity, -Infinity, -Infinity]; }
+    for (let i = 0; i < 3; i++) {
+      lo[i] = Math.min(lo[i], p[i] - s[i] / 2);
+      hi[i] = Math.max(hi[i], p[i] + s[i] / 2);
+    }
+  });
+  if (!lo) return;
+
+  // Enough distance to hold the focused span plus room for its captions and
+  // the arrows arcing above it, clamped so no shot goes claustrophobic or
+  // zooms out past the point where labels are readable.
+  const span = Math.max(hi[0] - lo[0], hi[2] - lo[2]);
+  const dist = Math.max(24, Math.min(58, span * 1.55 + 14));
+  startCamTween([(lo[0] + hi[0]) / 2, 0, (lo[2] + hi[2]) / 2], dist);
 }
 
 /* `played` = this is the current step, so timed entries animate instead of

@@ -346,10 +346,6 @@ function loadStep(si, step, direction) {
   }
   dotsEl.innerHTML = dotHtml;
 
-  document.querySelectorAll('.sc-item').forEach(function(el,i) {
-    el.classList.toggle('active', i===si);
-  });
-
   updatePipelineUI(sc, step);
   updateProgressBar(si, step);
   curSc = si; curSt = step;
@@ -364,13 +360,3 @@ function prev() {
   if (curSt > 0) loadStep(curSc, curSt-1, -1);
   else if (curSc > 0) { const ps = SCENARIOS[curSc-1]; loadStep(curSc-1, ps.steps.length-1, -1); }
 }
-
-/* ── Sidebar ── */
-const scList = document.getElementById('sc-list');
-SCENARIOS.forEach(function(sc, si) {
-  const el = document.createElement('div');
-  el.className = 'sc-item';
-  el.innerHTML = '<div class="sc-name">' + sc.name + '</div><div class="sc-tag">' + sc.tag + ' · ' + (sc.stepCount || sc.steps.length) + ' steps</div>';
-  el.addEventListener('click', function() { loadStep(si, 0); });
-  scList.appendChild(el);
-});

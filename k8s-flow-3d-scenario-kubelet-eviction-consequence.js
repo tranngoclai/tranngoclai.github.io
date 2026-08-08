@@ -36,7 +36,6 @@ window.createKubeletEvictionConsequenceSteps = function(config, run, condition, 
   title: 'Node bị đánh dấu — và người gắn taint không phải kubelet',
   pipelineStep: 5,
   focus: ['kubelet', 'apiserver', 'nodelife', 'node'],
-  cam: [-5.0, 0, -5.0], dist: 46,
   phases: [
     {
       title: 'kubelet ghi NodeCondition MemoryPressure=True',
@@ -45,7 +44,6 @@ window.createKubeletEvictionConsequenceSteps = function(config, run, condition, 
         'Đây chỉ là một <i>báo cáo</i> gắn lên object Node trong etcd. Bản thân condition <span class="warn">không ngăn</span> scheduler đặt Pod mới lên Worker A, và cũng không đuổi Pod nào đang chạy.',
         '<b>Condition là quan sát, không phải hành động.</b> Đây là lý do bạn có thể thấy <code>kubectl describe node</code> báo MemoryPressure mà Pod mới vẫn tiếp tục đáp xuống trong vài giây — cho tới khi actor ở phase sau kịp phản ứng.'),
       focus: ['kubelet', 'apiserver', 'node'],
-      cam: [-4.0, 0, -3.0], dist: 44,
       set: {
         kubelet: KIT.pulse('warn', 'patch node status', {at: 0.35, dy: 2.5}),
         apiserver: KIT.pulse('warn', condition.condition + '=' + condition.status, {at: 1.3, dy: 3.0}),
@@ -56,7 +54,7 @@ window.createKubeletEvictionConsequenceSteps = function(config, run, condition, 
       },
       scene(a) {
         KIT.link(a, 'kubelet', 'apiserver', 'warn', {at: 0.3});
-        KIT.note(a, 'condition = quan sát, chưa phải hiệu lực', [-6.0, -3.6, -8.0], 'warn', 1.0);
+        KIT.note(a, 'condition = quan sát, chưa phải hiệu lực', {of: 'node', band: true}, 'warn', 1.0);
       }
     },
     {
@@ -66,7 +64,6 @@ window.createKubeletEvictionConsequenceSteps = function(config, run, condition, 
         'Từ giây phút này, mọi Pod <b>không có toleration tương ứng</b> đều bị NodeResourcesFit… thực ra là bị loại sớm hơn thế, ngay ở <code>TaintToleration</code> filter của scheduler. Worker A biến mất khỏi danh sách ứng viên.',
         '<b>Hai component, hai trách nhiệm — và người ta hay gán nhầm cả hai cho kubelet.</b> kubelet <i>báo cáo</i>; controller <i>áp đặt</i>. Nếu kube-controller-manager gặp sự cố, Node vẫn hiện MemoryPressure nhưng <span class="danger">không bao giờ bị taint</span>, và scheduler sẽ tiếp tục dồn Pod mới vào đúng cái Node đang hấp hối. Lưu ý taint này là <code>NoSchedule</code>, không phải <code>NoExecute</code>: Pod đang chạy <span class="ok">không</span> bị nó đuổi đi.'),
       focus: ['apiserver', 'nodelife', 'node'],
-      cam: [-6.0, 0, -7.0], dist: 44,
       set: {
         nodelife: KIT.pulse('danger', 'add taint', {at: 0.9, dy: 2.3}),
         node: KIT.mark('danger', 'taint · NoSchedule', {
@@ -77,7 +74,7 @@ window.createKubeletEvictionConsequenceSteps = function(config, run, condition, 
       scene(a) {
         KIT.link(a, 'apiserver', 'nodelife', 'warn', {at: 0.25});
         KIT.link(a, 'nodelife', 'node', 'danger', {at: 0.95});
-        KIT.note(a, 'NoSchedule ≠ NoExecute', [2.5, -3.6, -8.0], 'danger', 1.4);
+        KIT.note(a, 'NoSchedule ≠ NoExecute', {of: 'node', band: true}, 'danger', 1.4);
       }
     },
     {
@@ -88,12 +85,11 @@ window.createKubeletEvictionConsequenceSteps = function(config, run, condition, 
         '<b>Đây thường là điều bạn đang thực sự quan sát khi “Node đã ổn mà vẫn không nhận Pod”.</b> Nó không hỏng, nó đang giữ đúng khoảng đệm chống dao động. Kiên nhẫn ' + transitionMinutes + ' phút, hoặc chỉnh <code>--eviction-pressure-transition-period</code> nếu bạn có lý do rõ ràng.'),
       focus: ['node', 'kubelet', 'nodelife'],
       labels: ['node', 'kubelet'],
-      cam: [-2.0, 0, -4.0], dist: 44,
       set: {
         kubelet: KIT.pulse('mute', 'hold ' + transitionMinutes + 'm before clearing', {at: 0.9, dy: 2.5})
       },
       scene(a) {
-        KIT.note(a, 'chống flapping: giữ condition ' + transitionMinutes + ' phút', [2.5, -3.6, -8.0], 'mute', 0.6);
+        KIT.note(a, 'chống flapping: giữ condition ' + transitionMinutes + ' phút', {of: 'node', band: true}, 'mute', 0.6);
       }
     }
   ]
@@ -104,7 +100,6 @@ window.createKubeletEvictionConsequenceSteps = function(config, run, condition, 
   title: 'Object mới, Node khác — và đống Evicted còn lại',
   pipelineStep: 6,
   focus: ['apiserver', 'controller', 'replacement'],
-  cam: [-6.0, 0, 3.0], dist: 46,
   phases: [
     {
       title: 'ReplicaSet controller tạo replacement với UID mới',
@@ -113,7 +108,6 @@ window.createKubeletEvictionConsequenceSteps = function(config, run, condition, 
         victim.name + ' cũ <b>không</b> sống lại. Nó nằm nguyên ở <code>Failed/Evicted</code> để bạn còn đọc được lý do. Đó là lý do trong scene này có hai hộp Pod chứ không phải một hộp di chuyển.',
         '<b>Pod không thuộc controller nào thì không có phase này.</b> Một Pod trần (không Deployment/ReplicaSet/StatefulSet) bị evict là <span class="danger">biến mất vĩnh viễn</span> — chỉ còn lại cái xác Failed. Đây là một trong những lý do thực tế nhất để không bao giờ chạy Pod trần trong production.'),
       focus: ['apiserver', 'controller', 'replacement'],
-      cam: [-11.0, 0, 2.0], dist: 32,
       show: ['replacement'],
       showAt: {replacement: 1.5},
       set: {
@@ -140,7 +134,6 @@ window.createKubeletEvictionConsequenceSteps = function(config, run, condition, 
       focus: ['apiserver', 'scheduler', 'replacement', 'worker-b', 'node'],
       labels: ['scheduler', 'replacement', 'worker-b', 'node'],
       pipelineStep: 7,
-      cam: [3.0, 0, 3.0], dist: 58,
       set: {
         apiserver: KIT.pulse('accent', 'Pending Pod observed', {at: 0.25, dy: 3.0}),
         scheduler: KIT.pulse(placement.scheduled ? 'ok' : 'warn',
@@ -165,9 +158,9 @@ window.createKubeletEvictionConsequenceSteps = function(config, run, condition, 
         if (placement.scheduled) {
           KIT.link(a, 'scheduler', 'worker-b', 'ok', {at: 0.8});
         } else {
-          KIT.note(a, 'Pending: request > Worker B free', [8.0, -3.6, 6.0], 'warn', 0.9);
+          KIT.note(a, 'Pending: request > Worker B free', {of: 'worker-b', band: true}, 'warn', 0.9);
         }
-        KIT.note(a, 'Worker A trượt ở TaintToleration', [2.5, -3.6, -8.0], 'danger', 0.5);
+        KIT.note(a, 'Worker A trượt ở TaintToleration', {of: 'node', band: true}, 'danger', 0.5);
       }
     },
     {
@@ -179,14 +172,13 @@ window.createKubeletEvictionConsequenceSteps = function(config, run, condition, 
       focus: ['apiserver', 'podgc', victim.key],
       labels: ['podgc', victim.key],
       pipelineStep: 6,
-      cam: [-6.0, 0, 6.0], dist: 50,
       set: {
         podgc: KIT.pulse('mute', 'threshold ' + gc.terminatedPodThreshold + ' · chưa dọn', {at: 1.0, dy: 2.2}),
         [victim.key]: KIT.mark('doomed', 'object vẫn còn trong etcd', {at: 1.3, dy: 2.2})
       },
       scene(a) {
         KIT.link(a, 'apiserver', 'podgc', 'mute', {at: 0.25});
-        KIT.note(a, 'eviction = triệu chứng của over-commit', [-4.0, -3.8, 9.0], 'mute', 1.2);
+        KIT.note(a, 'eviction = triệu chứng của over-commit', {of: 'podgc', band: true}, 'mute', 1.2);
       }
     }
   ]

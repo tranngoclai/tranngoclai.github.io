@@ -11,7 +11,7 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-ser
   position:fixed;inset:0;z-index:1000;
   background:radial-gradient(ellipse at 50% 40%, #0d1a2e 0%, #080d14 70%);
   display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:0;
+  gap:0;overflow-y:auto;padding:48px 20px;
   transition:opacity 0.7s ease, transform 0.7s ease;
 }
 #intro-splash.hiding{opacity:0;transform:scale(1.04);pointer-events:none;}
@@ -41,14 +41,31 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-ser
 }
 .intro-btn:hover{background:rgba(58,127,255,.22);border-color:rgba(58,127,255,.7);transform:translateY(-1px);box-shadow:0 0 20px rgba(58,127,255,.25);}
 
+.intro-scenarios-hd{
+  font-family:'IBM Plex Mono',monospace;font-size:8.5px;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;color:rgba(122,143,176,.4);
+  margin-top:36px;margin-bottom:12px;pointer-events:all;
+  animation:fadeSlideUp .6s .6s ease both;
+}
+/* Scenario nav — moved here from the old left sidebar. Cards, not tags: each
+   one is a real jump-in point, not just a label of what's inside the deck. */
 .intro-scenarios{
-  display:flex;gap:14px;margin-top:28px;flex-wrap:wrap;justify-content:center;
+  display:flex;flex-direction:column;gap:8px;width:100%;max-width:440px;
   animation:fadeSlideUp .6s .7s ease both;
 }
 .intro-tag{
-  font-family:'IBM Plex Mono',monospace;font-size:8.5px;letter-spacing:.1em;
-  text-transform:uppercase;color:rgba(122,143,176,.4);
-  border:1px solid rgba(58,127,255,.12);border-radius:4px;padding:4px 10px;
+  display:flex;flex-direction:column;align-items:flex-start;gap:3px;
+  width:100%;text-align:left;font-family:inherit;
+  background:rgba(255,255,255,.02);color:inherit;
+  border:1px solid rgba(58,127,255,.14);border-radius:7px;padding:10px 14px;
+  cursor:pointer;pointer-events:all;
+  transition:background .18s ease,border-color .18s ease,transform .18s ease;
+}
+.intro-tag:hover{background:rgba(58,127,255,.08);border-color:rgba(58,127,255,.4);transform:translateY(-1px);}
+.intro-tag-name{font-size:12.5px;font-weight:600;color:var(--bright);}
+.intro-tag-meta{
+  font-family:'IBM Plex Mono',monospace;font-size:8.5px;letter-spacing:.08em;
+  text-transform:uppercase;color:rgba(122,143,176,.45);
 }
 
 /* pulse ring around intro btn */
@@ -76,17 +93,6 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-ser
 
 /* layout */
 #layout{flex:1;display:flex;overflow:hidden;}
-
-/* sidebar */
-#sidebar{width:200px;min-width:200px;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
-#sidebar-hd{padding:12px 14px 8px;font-family:'IBM Plex Mono',monospace;font-size:8.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:rgba(122,143,176,.35);border-bottom:1px solid var(--border);}
-#sc-list{flex:1;overflow-y:auto;padding:6px;}
-.sc-item{padding:9px 11px;border-radius:5px;cursor:pointer;transition:background .18s,border-color .18s;margin-bottom:1px;border-left:2px solid transparent;}
-.sc-item:hover{background:rgba(58,127,255,.06);}
-.sc-item.active{background:rgba(58,127,255,.09);border-left-color:var(--blue);}
-.sc-name{font-size:11.5px;font-weight:600;color:var(--bright);line-height:1.35;margin-bottom:2px;transition:color .18s;}
-.sc-item.active .sc-name{color:var(--blue);}
-.sc-tag{font-family:'IBM Plex Mono',monospace;font-size:8.5px;color:rgba(122,143,176,.4);letter-spacing:.04em;text-transform:uppercase;}
 
 /* main */
 #main{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;}
@@ -212,8 +218,10 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-ser
    it out. Shares the plate and typography of the step title above; only the
    anchor differs. */
 #phase-announce{
-  /* Likewise pulled in by the plate's bottom padding. */
-  position:absolute;bottom:48px;left:50%;
+  /* Likewise pulled in by the plate's bottom padding. Sits above the
+     pipeline strip, which now sits closer to the scene's own bottom edge
+     since #explain no longer runs beneath it as a bottom bar. */
+  position:absolute;bottom:64px;left:50%;
   transform:translate(-50%,10px) scale(.96);
   opacity:0;transition:opacity .3s ease,transform .3s ease;
 }
@@ -255,19 +263,18 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-ser
 .score-bar.tone-warn{background:#c08000;}
 .score-bar.tone-ok{background:#22aa66;}
 
-/* bottom explain */
+/* explain — left column */
 #explain{
-  height:182px;min-height:182px;border-top:1px solid var(--border);
-  background:var(--surface);display:grid;
-  grid-template-columns:52px 1fr auto;
-  gap:18px;align-items:center;padding:0 24px;flex-shrink:0;
+  width:360px;min-width:360px;border-right:1px solid var(--border);
+  background:var(--surface);display:flex;flex-direction:column;
+  gap:16px;padding:22px 24px;flex-shrink:0;
   position:relative;overflow:hidden;
 }
 
 /* step number + phase sub-counter */
-#step-num-wrap{display:flex;flex-direction:column;align-items:center;gap:2px;user-select:none;}
+#step-num-wrap{display:flex;flex-direction:row;align-items:baseline;gap:10px;flex-shrink:0;user-select:none;}
 #step-num{
-  font-family:'IBM Plex Mono',monospace;font-size:32px;font-weight:600;
+  font-family:'IBM Plex Mono',monospace;font-size:26px;font-weight:600;
   color:rgba(58,127,255,.2);user-select:none;
   transition:opacity .2s ease,transform .25s cubic-bezier(.4,0,.2,1);
 }
@@ -278,7 +285,7 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-ser
 }
 
 /* explain body */
-#explain-body{position:relative;overflow:hidden;height:140px;min-height:140px;}
+#explain-body{position:relative;overflow:hidden;flex:1;min-height:0;}
 /* Slots are absolutely stacked for the crossfade, so each one owns its own
    scrollbar — long step descriptions stay readable instead of being clipped. */
 .explain-slot{
@@ -314,8 +321,9 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-ser
 .e-desc .ok{color:var(--green);font-weight:500;}
 .e-desc code{font-family:'IBM Plex Mono',monospace;font-size:10.5px;background:rgba(255,255,255,.05);padding:1px 5px;border-radius:3px;color:#a090dd;}
 
-#explain-nav{display:flex;flex-direction:column;align-items:flex-end;gap:8px;}
+#explain-nav{display:flex;flex-direction:column;gap:10px;flex-shrink:0;}
 .nav-row{display:flex;gap:6px;}
+.nav-row .btn{flex:1;}
 .btn{
   padding:6px 14px;border-radius:5px;border:1px solid var(--border);
   background:transparent;color:var(--text);font-family:'IBM Plex Mono',monospace;
@@ -337,7 +345,7 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-ser
 @keyframes btnPulse{0%{transform:scale(1);opacity:.7}100%{transform:scale(1.25);opacity:0}}
 
 /* dots — phases within the current step */
-.dots{display:flex;gap:4px;align-items:center;}
+.dots{display:flex;gap:4px;align-items:center;justify-content:center;}
 .dot{
   width:4px;height:4px;border-radius:50%;
   background:rgba(255,255,255,.1);
@@ -372,8 +380,9 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-ser
 
 /* ─── PIPELINE CONNECTOR ─── */
 #pipeline-ui{
-  /* sits just above #explain — keep in sync with its height */
-  position:absolute;bottom:186px;left:0;right:0;
+  /* #explain is a left column now, not a bottom bar — the strip just needs
+     clearance from the scene-wrap's own bottom edge. */
+  position:absolute;bottom:20px;left:0;right:0;
   display:none;pointer-events:none;z-index:11;
   justify-content:center;gap:0;
 }
@@ -431,3 +440,42 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-ser
   box-shadow:0 0 14px rgba(192,128,0,.18);
 }
 .pip-node.tone-warn.active .pip-lbl{color:#e0a020;}
+
+/* ─── MOBILE / NARROW VIEWPORT ───
+   Below this width #explain's fixed 360px column ate most of the screen and
+   squeezed #scene-wrap down to a sliver — narrow enough that the 3D scene's
+   title/phase text wrapped to one word per line. Restack instead: scene on
+   top (it's the point of the page), explain panel as a scrollable sheet
+   underneath, pipeline strip made horizontally scrollable so its 7 stage
+   icons stay legible rather than being clipped off-screen. */
+@media (max-width:760px){
+  #topbar{padding:0 12px;gap:10px;}
+  #kb{display:none;}
+  #breadcrumb{font-size:9px;gap:6px;}
+
+  #layout{flex-direction:column;overflow-y:auto;}
+
+  #main{order:1;flex:1 1 44vh;min-height:220px;}
+  #explain{
+    order:2;width:100%;min-width:0;max-height:46vh;
+    border-right:none;border-top:1px solid var(--border);
+    padding:16px 18px;flex-shrink:0;
+  }
+
+  #step-announce,#phase-announce{padding:12px 22px 14px;}
+  #step-announce .sa-title,#phase-announce .pa-title{font-size:12.5px;max-width:100%;}
+  #phase-announce{bottom:56px;}
+
+  #score-hud{top:12px;right:12px;}
+  .score-node{width:44px;}
+  .score-bar-wrap{width:52px;}
+
+  #pipeline-ui{
+    justify-content:flex-start;overflow-x:auto;-webkit-overflow-scrolling:touch;
+    padding:0 14px;bottom:12px;pointer-events:auto;
+  }
+  #pipeline-ui.show{display:flex;}
+  .pip-node{min-width:56px;padding:5px 8px;}
+  .pip-lbl{font-size:7px;}
+  .pip-arrow{width:16px;}
+}

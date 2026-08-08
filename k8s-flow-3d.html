@@ -21,6 +21,10 @@
   <div class="intro-btn-wrap" id="intro-btn-wrap">
     <button class="intro-btn" id="intro-start-btn"></button>
   </div>
+  <!-- Scenario navigation lives here now — click a card to jump straight
+       into that scenario's first step. Rendered from SCENARIOS[] by
+       flow3d-deck.js; see its "Why the chips are not declarable" note. -->
+  <div class="intro-scenarios-hd" id="intro-scenarios-hd"></div>
   <div class="intro-scenarios" id="intro-scenarios"></div>
 </div>
 
@@ -31,9 +35,32 @@
   <span id="kb">← → keys</span>
 </div>
 <div id="layout">
-  <div id="sidebar">
-    <div id="sidebar-hd"></div>
-    <div id="sc-list"></div>
+  <div id="explain">
+    <div id="step-num-wrap">
+      <div id="step-num">01</div>
+      <div id="step-phase"></div>
+    </div>
+    <div id="explain-body" aria-live="polite">
+      <div class="explain-slot visible" id="slot-a">
+        <div class="e-label" id="e-label">STEP 1 OF 1</div>
+        <div class="e-parent" id="e-parent"></div>
+        <div class="e-title" id="e-title">—</div>
+        <div class="e-desc" id="e-desc">—</div>
+      </div>
+      <div class="explain-slot hidden" id="slot-b">
+        <div class="e-label" id="e-label-b"></div>
+        <div class="e-parent" id="e-parent-b"></div>
+        <div class="e-title" id="e-title-b"></div>
+        <div class="e-desc" id="e-desc-b"></div>
+      </div>
+    </div>
+    <div id="explain-nav">
+      <div class="nav-row">
+        <button class="btn" id="btn-prev">← Prev</button>
+        <button class="btn primary" id="btn-next">Next →</button>
+      </div>
+      <div class="dots" id="dots"></div>
+    </div>
   </div>
   <div id="main">
     <div id="progress-bar"></div>
@@ -59,33 +86,6 @@
     </div>
     <!-- Pipeline strip — stages rendered from scenario.pipeline -->
     <div id="pipeline-ui" aria-label="Scenario pipeline"></div>
-    <div id="explain">
-      <div id="step-num-wrap">
-        <div id="step-num">01</div>
-        <div id="step-phase"></div>
-      </div>
-      <div id="explain-body" aria-live="polite">
-        <div class="explain-slot visible" id="slot-a">
-          <div class="e-label" id="e-label">STEP 1 OF 1</div>
-          <div class="e-parent" id="e-parent"></div>
-          <div class="e-title" id="e-title">—</div>
-          <div class="e-desc" id="e-desc">—</div>
-        </div>
-        <div class="explain-slot hidden" id="slot-b">
-          <div class="e-label" id="e-label-b"></div>
-          <div class="e-parent" id="e-parent-b"></div>
-          <div class="e-title" id="e-title-b"></div>
-          <div class="e-desc" id="e-desc-b"></div>
-        </div>
-      </div>
-      <div id="explain-nav">
-        <div class="nav-row">
-          <button class="btn" id="btn-prev">← Prev</button>
-          <button class="btn primary" id="btn-next">Next →</button>
-        </div>
-        <div class="dots" id="dots"></div>
-      </div>
-    </div>
   </div>
 </div>
 <div id="popup"></div>
@@ -108,6 +108,9 @@
      THE ONLY BAND THAT CHANGES PER DECK. Manifest first (it defines the
      chrome), then the scenario worlds and steps. -->
 <script src="k8s-flow-3d-deck.js"></script>
+<!-- Shared layout law: column order, role bands and the single size table every
+     scenario world reads from. Must load before any scenario world. -->
+<script src="k8s-flow-3d-layout.js"></script>
 <script src="k8s-flow-3d-scenarios-index.js"></script>
 <script src="k8s-flow-3d-scenario-scheduler-model.js"></script>
 <script src="k8s-flow-3d-scenario-scheduler-world.js"></script>

@@ -28,7 +28,6 @@ window.SCHED_STEPS_NODE = [
   title: 'Bind — chốt Node bằng một dòng spec.nodeName',
   pipelineStep: 4,
   focus: ['scheduler', 'apiserver', 'etcd', 'pod'],
-  cam: [-8, 1, 0], dist: 30,
   phases: [
     {
       title: 'Pod rời ActiveQ — và scheduler “assume” nó đã nằm trên Worker A',
@@ -38,12 +37,11 @@ window.SCHED_STEPS_NODE = [
         '<b>Vì sao cần assume:</b> bind là một network call, mất vài chục ms. Nếu trong lúc đó scheduler xử lý Pod tiếp theo mà cache vẫn báo Worker A còn trống, nó sẽ <b>phát cùng chỗ đó cho hai Pod</b>. Assume giữ cho các quyết định liên tiếp không giẫm lên nhau. Nếu bind fail, cache được rollback (<i>unassume</i>) và Pod quay lại queue.'),
       focus: ['scheduler', 'queue', 'pod', 'q-pod-lo'],
       labels: ['scheduler', 'queue', 'pod'],
-      cam: [-7, 1, 6], dist: 24,
       set: {
         'pod': KIT.pulse('accent', 'popped khỏi ActiveQ', {at: 0.35, dy: 2.0})
       },
       scene(a) {
-        KIT.note(a, 'assume: cache ghi trước, bind sau', [-6.4, 4.4, 6.2], 'accent', 0.2);
+        KIT.note(a, 'assume: cache ghi trước, bind sau', 'scheduler', 'accent', 0.2);
       }
     },
     {
@@ -59,7 +57,7 @@ window.SCHED_STEPS_NODE = [
       },
       scene(a) {
         KIT.link(a, 'scheduler', 'apiserver', 'info', {loop: 3.8});
-        KIT.note(a, 'POST .../pods/{name}/binding', [-5.2, 4.8, 4], 'info', 0.2);
+        KIT.note(a, 'POST .../pods/{name}/binding', 'apiserver', 'info', 0.2);
       }
     },
     {
@@ -78,7 +76,7 @@ window.SCHED_STEPS_NODE = [
       },
       scene(a) {
         KIT.link(a, 'apiserver', 'etcd', 'warn', {loop: 3.8});
-        KIT.note(a, '⑥ vẫn Pending — chỉ đổi nodeName', [-9, -2.8, -6], 'mute', 1.4);
+        KIT.note(a, '⑥ vẫn Pending — chỉ đổi nodeName', {of: 'etcd', band: true}, 'mute', 1.4);
       }
     }
   ]
@@ -89,7 +87,6 @@ window.SCHED_STEPS_NODE = [
   title: 'kubelet nhận ra “Pod này là của tôi”',
   pipelineStep: 5,
   focus: ['apiserver', 'node-a', 'kubelet', 'pod'],
-  cam: [-1, 1, 5], dist: 34,
   phases: [
     {
       title: 'Mỗi kubelet chỉ watch đúng Pod của Node mình',
@@ -100,7 +97,7 @@ window.SCHED_STEPS_NODE = [
       labels: ['apiserver', 'kubelet', 'node-a'],
       scene(a) {
         KIT.link(a, 'apiserver', 'kubelet', 'info', {dur: 1.35, loop: 4.0});
-        KIT.note(a, 'WATCH spec.nodeName=worker-a', [-1.5, 5.8, 6], 'sky', 0.2);
+        KIT.note(a, 'WATCH spec.nodeName=worker-a', 'kubelet', 'sky', 0.2);
       }
     },
     {
@@ -119,7 +116,7 @@ window.SCHED_STEPS_NODE = [
       },
       scene(a) {
         KIT.link(a, 'queue', 'pod', 'accent', {at: 0.55, dur: 1.10, loop: 3.8});
-        KIT.note(a, 'event MODIFIED → của tôi!', [6, -2.4, 11.9], 'sky', 0.3);
+        KIT.note(a, 'event MODIFIED → của tôi!', {of: 'kubelet', band: true}, 'sky', 0.3);
       }
     },
     {
@@ -130,7 +127,7 @@ window.SCHED_STEPS_NODE = [
         '<b>Mẹo debug quan trọng nhất trong toàn bộ pipeline:</b> đến đây scheduling đã <b>thành công</b> rồi. Nếu thiếu Secret, sai tên ConfigMap, PVC chưa bound hay không kéo được image, Pod sẽ đứng ở <code>ContainerCreating</code> / <code>ImagePullBackOff</code> — <b>không phải</b> <code>Pending</code>. Nên: <code>Pending</code> ⇒ lỗi ở scheduler (bước ④), <code>ContainerCreating</code> ⇒ lỗi ở kubelet/Node (bước ⑦–⑧). Nhìn phase là biết phải đi tìm ở đâu.'),
       labels: ['kubelet', 'pod'],
       scene(a) {
-        KIT.note(a, '⑦ image · volumes · Secrets · ConfigMaps', [6, -2.4, 11.9], 'mute', 0.2);
+        KIT.note(a, '⑦ image · volumes · Secrets · ConfigMaps', {of: 'kubelet', band: true}, 'mute', 0.2);
       }
     }
   ]
@@ -141,7 +138,6 @@ window.SCHED_STEPS_NODE = [
   title: 'containerd dựng và chạy container',
   pipelineStep: 5,
   focus: ['node-a', 'kubelet', 'containerd', 'sandbox', 'container', 'pod'],
-  cam: [10, 0, 8], dist: 22,
   phases: [
     {
       title: 'kubelet gọi CRI — nó không tự chạy container',
@@ -189,7 +185,7 @@ window.SCHED_STEPS_NODE = [
       },
       scene(a) {
         KIT.link(a, 'sandbox', 'container', 'ok', {at: 0.30, dur: 0.80, loop: 3.4});
-        KIT.note(a, '⑧ cgroups · namespaces · mounts', [10, -2.6, 11.9], 'mute', 0.9);
+        KIT.note(a, '⑧ cgroups · namespaces · mounts', {of: 'container', band: true}, 'mute', 0.9);
       }
     },
     {
@@ -207,7 +203,7 @@ window.SCHED_STEPS_NODE = [
         })
       },
       scene(a) {
-        KIT.note(a, 'kubelet poll liên tục', [14.4, -2.2, 7.2], 'mute', 0.3);
+        KIT.note(a, 'kubelet poll liên tục', 'kubelet', 'mute', 0.3);
       }
     }
   ]
@@ -218,7 +214,6 @@ window.SCHED_STEPS_NODE = [
   title: 'Pod Running — cả cluster biết tin',
   pipelineStep: 6,
   focus: [],
-  cam: [-1, 1, 0], dist: 46,
   phases: [
     {
       title: 'Container healthy — thông tin bắt đầu đi ngược chiều',
@@ -231,7 +226,7 @@ window.SCHED_STEPS_NODE = [
         'container': KIT.pulse('ok', 'healthy', {label: 'Container A\n▶ Running ✓', at: 0.40, dy: 1.3})
       },
       scene(a) {
-        KIT.note(a, 'spec = mong muốn · status = thực tế', [8, -2.6, 11.9], 'mute', 0.2);
+        KIT.note(a, 'spec = mong muốn · status = thực tế', {of: 'container', band: true}, 'mute', 0.2);
       }
     },
     {
@@ -246,7 +241,7 @@ window.SCHED_STEPS_NODE = [
       },
       scene(a) {
         KIT.link(a, 'kubelet', 'apiserver', 'ok', {dur: 1.35, loop: 4.0});
-        KIT.note(a, 'PATCH pod/status: Running', [-1.5, 6.0, 6], 'ok', 0.2);
+        KIT.note(a, 'PATCH pod/status: Running', 'apiserver', 'ok', 0.2);
       }
     },
     {
@@ -294,7 +289,7 @@ window.SCHED_STEPS_NODE = [
       },
       scene(a) {
         KIT.link(a, 'apiserver', 'kubeproxy', 'info', {loop: 3.8});
-        KIT.note(a, '⑨ toàn bộ vòng đời Pod đã khép kín', [-18, 0.4, 7], 'mute', 1.6);
+        KIT.note(a, '⑨ toàn bộ vòng đời Pod đã khép kín', {of: 'pod', band: true}, 'mute', 1.6);
       }
     }
   ]

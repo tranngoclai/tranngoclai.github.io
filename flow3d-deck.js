@@ -2,7 +2,8 @@
    DECK SHELL — CHROME AROUND THE SCENARIOS
 
    Everything on the page that is *not* a scenario: the splash, the topbar
-   brand, the sidebar heading, the document language and title. None of it is
+   brand, the splash's scenario-nav heading, the document language and title.
+   None of it is
    about Kubernetes, or about any other subject — so none of it belongs in the
    HTML, where it had to be hand-edited to build a second deck.
 
@@ -12,7 +13,7 @@
        lang:  'vi',
        title: 'Kubernetes – 3D Scenarios',
        brand: '⎈ k8s-sim',
-       sidebarTitle: 'Scenarios',
+       sidebarTitle: 'Scenarios',     // heading above the splash's scenario nav
        canvasLabel: '…',              // aria-label on the 3D canvas
        intro: {eyebrow: '…', title: '…', sub: '…', cta: 'Bắt đầu →'}
      });
@@ -63,16 +64,34 @@ function html(id, value) {
   if (el) el.innerHTML = value || '';
 }
 
-/* The scenario chips on the splash — derived, never declared. */
+/* The scenario nav on the splash — derived, never declared. Each card jumps
+   straight into that scenario's first step (this used to be the sidebar's
+   job, before the sidebar moved here). */
 function renderScenarioTags() {
   const wrap = document.getElementById('intro-scenarios');
   if (!wrap) return;
-  wrap.innerHTML = (window.SCENARIOS || []).map(function(sc) {
-    const el = document.createElement('span');
-    el.className = 'intro-tag';
-    el.textContent = sc.name;          // set as text, then read back escaped
-    return el.outerHTML;
-  }).join('');
+  wrap.innerHTML = '';
+  (window.SCENARIOS || []).forEach(function(sc, si) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'intro-tag';
+
+    const name = document.createElement('div');
+    name.className = 'intro-tag-name';
+    name.textContent = sc.name;
+    btn.appendChild(name);
+
+    const meta = document.createElement('div');
+    meta.className = 'intro-tag-meta';
+    meta.textContent = sc.tag + ' · ' + (sc.stepCount || sc.steps.length) + ' steps';
+    btn.appendChild(meta);
+
+    btn.addEventListener('click', function() {
+      if (typeof window.loadStep === 'function') window.loadStep(si, 0);
+      startApp();
+    });
+    wrap.appendChild(btn);
+  });
 }
 
 /* Dismisses the splash. Guarded so a double trigger — click plus keypress —
@@ -101,7 +120,7 @@ function applyDeck(def) {
   if (def.title) document.title = def.title;
 
   text('brand', def.brand);
-  text('sidebar-hd', def.sidebarTitle);
+  text('intro-scenarios-hd', def.sidebarTitle);
 
   const canvas = document.getElementById('canvas');
   if (canvas && def.canvasLabel) canvas.setAttribute('aria-label', def.canvasLabel);

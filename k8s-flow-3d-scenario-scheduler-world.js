@@ -6,38 +6,42 @@
    được dựng đúng một lần và không bao giờ bị tháo — 9 bước chỉ reveal, đổi
    tone, focus, move và chạy flow.
 
-   Layout (top view):
-        z+  ┌ scheduler · ActiveQ ────────────── Worker A (kubelet · CRI · Pod)
-        0   ┼ client → authn → admission → API Server ─ Worker D
-        z-  └ etcd · controller-manager ──────── Worker B / Worker C
+   Toạ độ và kích thước KHÔNG gõ tay ở đây. Chúng đến từ k8s-flow-3d-layout.js,
+   file luật bố cục dùng chung cho cả năm kịch bản — nên API Server ở đây to
+   bằng API Server ở mọi kịch bản khác, và cột control plane đứng đúng chỗ cũ
+   khi người xem đổi scenario.
 
-   Hai quy tắc của kit áp vào đây (trước đây kịch bản này vi phạm cả hai):
+   Layout (top view), đọc trái → phải theo đường đi của request:
+
+     client → authn → admission → API Server ─┬─ kube-scheduler ─ ActiveQ ─┐
+                                              │  (băng z+, đặt chỗ)        │
+                                       etcd ──┘  controller-manager        ├→ Worker A / D / B / C
+                                       (băng z−, nền)                      ┘
+
+   Bốn Node xếp thành bốn làn cùng kích thước — chúng đang bị **so sánh** với
+   nhau ở bước Filter và Score, nên không Node nào được to hơn Node nào.
+
+   Hai quy tắc của kit áp vào đây:
 
      1 · **Một thứ = một hộp.** Pod object trong etcd và Pod trong ActiveQ là
-         *cùng một Pod*, nên giờ chỉ còn **một hộp `pod`** đi suốt hành trình:
-         etcd → ActiveQ → Worker A. Trước đây nó là hai hộp (`pod-object` +
-         `q-pod-hi`) bật/tắt ở hai nơi, buộc người xem tự nối lại.
+         *cùng một Pod*, nên chỉ có **một hộp `pod`** đi suốt hành trình:
+         etcd → ActiveQ → Worker A.
 
-     2 · **Verdict nằm trên chính component.** Bốn hộp chip (`✓ Pass`,
-         `✗ Taint NoSchedule`…) đứng cạnh Node đã bị xoá: kết quả Filter/Score
-         giờ là tone + badge **trên chính Node đó**. Label Node chỉ mang
-         **tên + cấu hình** (`Worker B` / `cpu 15/16`) — và chính con số đó là
-         thứ giải thích vì sao nó trượt, nên không cần chữ nào thêm.
+     2 · **Verdict nằm trên chính component.** Kết quả Filter/Score là tone +
+         badge **trên chính Node đó**. Label Node chỉ mang **tên + cấu hình**
+         (`Worker B` / `cpu 15/16`) — và chính con số đó là thứ giải thích vì
+         sao nó trượt, nên không cần chữ nào thêm.
 
-   Cấu hình CPU của bốn Node được ghi thẳng vào label vì cả bước ④ (Filter) lẫn
-   bước ⑤ (Score) đều đọc đúng những con số này: A còn rộng nhất → điểm
-   `LeastAllocated` cao nhất; B gần kín → trượt `NodeResourcesFit`; C rộng
-   nhưng vướng taint.
-
-   Những con số đó KHÔNG gõ tay ở đây nữa. Chúng đến từ
-   k8s-flow-3d-scenario-scheduler-model.js, cùng nguồn với verdict ở bước ④ và
-   điểm số ở bước ⑤ — nên label, badge và HUD không thể lệch nhau.
+   Cấu hình CPU của bốn Node đến từ k8s-flow-3d-scenario-scheduler-model.js,
+   cùng nguồn với verdict ở bước ④ và điểm số ở bước ⑤ — nên label, badge và
+   HUD không thể lệch nhau.
 ══════════════════════════════════════════════ */
 
 (function() {
 const KIT = window.SCENE_KIT;
+const L = window.K8S_LAYOUT;
+const S = L.SIZE;
 const MODEL = window.SCHEDULER_MODEL;
-const Q = KIT.stack([-4.6, 0.4, 8.2], 2, 1.4);   // hai khe ActiveQ, từ trên xuống
 
 /* Node facts, tra theo key — label và hover cùng đọc từ đây. */
 const NODE = {};
@@ -48,141 +52,155 @@ function nodeLabel(key, suffix) {
   return NODE[key].name + '\ncpu ' + MODEL.fmtCpu(NODE[key]) + (suffix || '');
 }
 
+/* Bốn làn Node cùng độ sâu, canh giữa quanh z = 0: A gần người xem nhất vì nó
+   là Node thắng và là nơi Pod đáp xuống. */
+const LANE = L.lanes([S.node[2], S.node[2], S.node[2], S.node[2]]);
+const A = LANE[0];
+
+/* Hai hàng trên Worker A và các ô trong mỗi hàng. */
+const A_AGENT = L.row.agent(A);
+const A_POD   = L.row.pod(A);
+const A_COL   = L.cols(L.X.node, 3);
+
+const Q = L.queueSlots(2);
+
 /* Ba chỗ đứng của Pod trên hành trình của nó. Steps tham chiếu qua
    `KIT.move(SCHED_POS.x)` nên toạ độ chỉ tồn tại đúng một lần. */
 window.SCHED_POS = {
-  etcdShelf: [-9, 3.9, -8],    // Pod object vừa được ghi xuống etcd
+  etcdShelf: [L.X.core, L.Y.shelf, L.Z.store],   // Pod object vừa được ghi xuống etcd
   queue0: Q[0],
   queue1: Q[1],
-  nodeA: [10, -0.65, 6.2]      // hàng trước của Worker A, sau khi kubelet nhận việc
+  nodeA: [A_COL[0], L.on(S.pod[1]), A_POD]       // ô Pod trên Worker A, cạnh kubelet
 };
 
 window.SCHEDULER_WORLD = function(raw) {
   const w = KIT.world(raw);
   const P = window.SCHED_POS;
 
-  /* ── Control plane spine (z = 0) ── */
+  /* ── Đường đi request (băng z = 0) ── */
   w.node('client', {
-    label: 'Client\n(kubectl)', pos: [-24, 0, 0], size: [3, 3, 2.5],
+    label: 'Client\n(kubectl)', pos: [L.X.actor, L.Y.ground, L.Z.spine], size: S.actor,
     tone: 'surface', order: 0,
     hover: 'kubectl / CI-CD gửi request tới API Server'
   });
   w.node('authn', {
-    label: 'Authn · Authr', pos: [-19, 0, 0], size: [3.2, 2, 2.4],
+    label: 'Authn · Authr', pos: [L.X.gate1, L.Y.ground, L.Z.spine], size: S.gate,
     tone: 'gate', order: 1,
     hover: 'Xác thực token/cert rồi kiểm tra RBAC'
   });
   w.node('admission', {
-    label: 'Admission\nWebhooks', pos: [-14.6, 0, 0], size: [3.2, 2.4, 2.4],
+    label: 'Admission\nWebhooks', pos: [L.X.gate2, L.Y.ground, L.Z.spine], size: S.gate,
     tone: 'gate', order: 2,
     hover: 'Mutating rồi Validating webhooks'
   });
   w.node('apiserver', {
-    label: 'API Server', pos: [-9, 0, 0], size: [5, 6.5, 4],
+    label: 'API Server', pos: [L.X.core, L.Y.ground, L.Z.spine], size: S.core,
     tone: 'core', order: 3,
     hover: 'Cửa ngõ duy nhất vào etcd — mọi component đều đi qua đây'
   });
 
-  /* ── Storage & controllers (behind, z = -8) ── */
+  /* ── Băng nền (z−): store và controller chạy nền ── */
   w.node('etcd', {
-    label: 'etcd', pos: [-9, 0, -8], size: [4.5, 5.5, 3],
+    label: 'etcd', pos: [L.X.core, L.Y.ground, L.Z.store], size: S.store,
     tone: 'store', order: 4,
     hover: 'Nguồn sự thật duy nhất của cluster state'
   });
   w.node('ctrlmgr', {
-    label: 'Controller\nManager', pos: [-2.5, 0, -8], size: [3.4, 3, 2.4],
+    label: 'Controller\nManager', pos: [L.X.control, L.Y.ground, L.Z.workload], size: S.controller,
     tone: 'system', order: 5,
     hover: 'ReplicaSet controller WATCH số replicas thực tế'
   });
 
   /* ── Pod: MỘT hộp duy nhất cho cả 9 bước ──
-     Xuất hiện ở etcd lúc object được ghi (②), bay vào ActiveQ (③), rồi đáp
-     xuống Worker A khi kubelet nhận việc (⑦). `subject` là tone dành riêng cho
-     nhân vật chính — mắt luôn tìm lại được nó giữa khung hình đông component. */
+     Xuất hiện trên nóc etcd lúc object được ghi (②), bay vào ActiveQ (③), rồi
+     đáp xuống hàng Pod của Worker A khi kubelet nhận việc (⑦). `subject` là
+     tone dành riêng cho nhân vật chính. */
   w.node('pod', {
     label: 'Pod · P=' + MODEL.DEFAULT_CONFIG.pod.priority + '\nnodeName: ""',
-    pos: P.etcdShelf, size: [2.8, 1.3, 2.1],
+    pos: P.etcdShelf, size: S.pod,
     tone: 'subject', order: 5, hidden: true,
     hover: 'Chính Pod đang được schedule — theo nó suốt 9 bước'
   });
 
-  /* ── Scheduler & ActiveQ (front, z = +8) ──
+  /* ── Băng đặt chỗ (z+): scheduler và ActiveQ ──
      Queue là một tấm nền mỏng dựng phía sau, không phải hộp bọc lấy Pod: các
-     Pod xếp hàng *trước mặt* nó nên vẫn đọc được. Caption đặt tay lên đỉnh tấm
-     nền — mặc định "mặt trước" của kit sẽ nằm ngay sau lưng các Pod. */
+     Pod xếp hàng *trước mặt* nó nên vẫn đọc được. */
   w.node('scheduler', {
-    label: 'kube-scheduler', pos: [-9, 0, 8], size: [5, 5, 3.5],
+    label: 'kube-scheduler', pos: [L.X.control, L.Y.ground, L.Z.sched], size: S.scheduler,
     tone: 'system', order: 4,
     hover: 'Filter → Score → Bind, chỉ nói chuyện với API Server'
   });
   w.node('queue', {
-    label: 'ActiveQ', pos: [-4.6, -0.2, 7.2], size: [3.4, 4.0, 0.5],
-    caption: [-4.6, 1.6, 7.6],
+    label: 'ActiveQ', pos: L.queuePlate.pos, size: S.queue,
+    caption: L.queuePlate.caption,
     tone: 'queue', order: 6, hidden: true,
     hover: 'Priority queue — Pod priority cao được pop trước'
   });
   w.node('q-pod-lo', {
     label: MODEL.DEFAULT_CONFIG.queuePeer.name
-         + '\nP=' + MODEL.DEFAULT_CONFIG.queuePeer.priority, pos: P.queue1, size: [2.6, 1.0, 1.8],
+         + '\nP=' + MODEL.DEFAULT_CONFIG.queuePeer.priority, pos: P.queue1, size: S.pod,
     tone: 'peer', order: 7, hidden: true,
     hover: 'Pod thường đang chờ tới lượt — priority thấp hơn nên bị chen'
   });
 
-  /* ── Worker A: Node thắng, mang đủ runtime ── */
+  /* ── Worker A: Node thắng, và là Node duy nhất mở ra cho thấy bên trong ──
+     Hàng agent nằm sau (kubelet · containerd · kube-proxy), hàng Pod nằm trước
+     (Pod đáp xuống · sandbox · container) — đúng thứ tự của luật 4. */
   w.node('node-a', {
-    label: nodeLabel('node-a'), pos: [10, -1.6, 8], size: [13, 0.5, 7],
+    label: nodeLabel('node-a'), pos: [L.X.node, L.Y.slab, A], size: S.node,
     tone: 'surface', order: 6,
     hover: 'Node rộng nhất — sẽ pass Filter và thắng Score'
   });
   w.node('kubelet', {
-    label: 'kubelet', pos: [5.5, -0.6, 9.4], size: [2.8, 1.4, 2],
+    label: 'kubelet', pos: [A_COL[0], L.on(S.agent[1]), A_AGENT], size: S.agent,
     tone: 'gate', order: 7,
     hover: 'WATCH riêng lên API Server theo spec.nodeName'
   });
   w.node('containerd', {
-    label: 'containerd\n(CRI)', pos: [10, -0.6, 9.4], size: [3, 1.4, 2],
+    label: 'containerd\n(CRI)', pos: [A_COL[1], L.on(S.agent[1]), A_AGENT], size: S.agent,
     tone: 'engine', order: 8,
     hover: 'Container runtime: pull image, tạo sandbox, start container'
   });
+  w.node('kubeproxy', {
+    label: 'kube-proxy', pos: [A_COL[2], L.on(S.agent[1]), A_AGENT], size: S.agent,
+    tone: 'system', order: 8,
+    hover: 'WATCH Endpoints → cập nhật iptables/ipvs'
+  });
   w.node('sandbox', {
-    label: 'Pod sandbox', pos: [14.4, -0.55, 9.4], size: [3, 1.6, 2.2],
+    label: 'Pod sandbox', pos: [A_COL[1], L.on(S.sandbox[1]), A_POD], size: S.sandbox,
     tone: 'live', order: 9, hidden: true,
     hover: 'pause container giữ network namespace cho Pod'
   });
   w.node('container', {
-    label: 'Container', pos: [14.4, -0.7, 6.2], size: [2.6, 1.2, 2],
+    label: 'Container', pos: [A_COL[2], L.on(S.proc[1]), A_POD], size: S.proc,
     tone: 'live', order: 10, hidden: true,
     hover: 'Tiến trình ứng dụng thật, bị bao bởi namespaces + cgroups'
   });
-  w.node('kubeproxy', {
-    label: 'kube-proxy', pos: [5.5, -0.7, 6.2], size: [2.8, 1.2, 2],
-    tone: 'system', order: 8,
-    hover: 'WATCH Endpoints → cập nhật iptables/ipvs'
-  });
 
   /* ── Ba Node ứng viên còn lại ──
-     Con số cpu trên label chính là dữ kiện của bước ④ và ⑤ — Node tự nói ra
-     vì sao nó pass hay trượt, không cần chip verdict đứng cạnh. */
+     Cùng kích thước với Worker A vì bước ④ và ⑤ đang so sánh chúng với nhau.
+     Con số cpu trên label chính là dữ kiện của hai bước đó — Node tự nói ra vì
+     sao nó pass hay trượt, không cần chip verdict đứng cạnh. */
   w.node('node-d', {
-    label: nodeLabel('node-d'), pos: [7.5, -1.6, 1], size: [8, 0.5, 4.5],
+    label: nodeLabel('node-d'), pos: [L.X.node, L.Y.slab, LANE[1]], size: S.node,
     tone: 'surface', order: 7,
     hover: 'Vẫn đủ chỗ — nhưng chật hơn A nên điểm LeastAllocated thấp hơn'
   });
   w.node('node-b', {
-    label: nodeLabel('node-b'), pos: [7.5, -1.6, -5], size: [8, 0.5, 4.5],
+    label: nodeLabel('node-b'), pos: [L.X.node, L.Y.slab, LANE[2]], size: S.node,
     tone: 'surface', order: 8,
     hover: 'Gần kín CPU — sẽ trượt NodeResourcesFit'
   });
   w.node('node-c', {
-    label: nodeLabel('node-c', ' · NoSchedule'), pos: [7.5, -1.6, -11], size: [8, 0.5, 4.5],
+    label: nodeLabel('node-c', ' · NoSchedule'), pos: [L.X.node, L.Y.slab, LANE[3]], size: S.node,
     tone: 'surface', order: 9,
     hover: 'Rỗng nhất cluster — nhưng mang taint nên Pod không được vào'
   });
 
   /* ── Region captions ── */
-  w.region('CONTROL PLANE', -16, 0);
-  w.region('WORKER NODES', 10, 0);
+  w.region('CONTROL PLANE', L.X.core, 0);
+  w.region('WORKER NODES', L.X.node, 0);
 
-  w.cam([-6, 1, 2], 34);
+  w.cam([-5, 0, 0], 56);
 };
 })();

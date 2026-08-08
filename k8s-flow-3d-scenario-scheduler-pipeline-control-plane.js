@@ -100,7 +100,6 @@ window.SCHED_STEPS_CONTROL_PLANE = [
   title: 'Bạn gửi Pod — API Server gác 3 cửa',
   pipelineStep: 0,
   focus: ['client', 'authn', 'admission', 'apiserver'],
-  cam: [-16, 1, 0], dist: 26,
   phases: [
     {
       title: 'kubectl dịch YAML thành một HTTP request',
@@ -115,7 +114,7 @@ window.SCHED_STEPS_CONTROL_PLANE = [
       },
       scene(a) {
         KIT.link(a, 'client', 'authn', 'info', {at: 0.35, dur: 0.85, loop: 3.4});
-        KIT.note(a, 'POST /apis/apps/v1/deployments', [-19.4, 4.6, 0], 'sky', 0.1);
+        KIT.note(a, 'POST /apis/apps/v1/deployments', 'client', 'sky', 0.1);
       }
     },
     {
@@ -130,7 +129,7 @@ window.SCHED_STEPS_CONTROL_PLANE = [
         'authn': KIT.mark('core', 'certificate / token ✓', {at: 0.55})
       },
       scene(a) {
-        KIT.note(a, 'ai đang gọi? → username + groups', [-19.4, 4.4, 0], 'sky', 0.2);
+        KIT.note(a, 'ai đang gọi? → username + groups', 'authn', 'sky', 0.2);
       }
     },
     {
@@ -163,7 +162,7 @@ window.SCHED_STEPS_CONTROL_PLANE = [
       },
       scene(a) {
         KIT.link(a, 'admission', 'apiserver', 'pass', {at: 0.85, dur: 0.90, loop: 3.6});
-        KIT.note(a, 'mutating → validating', [-14.2, 4.4, 0], 'mute', 0.2);
+        KIT.note(a, 'mutating → validating', 'admission', 'mute', 0.2);
       }
     }
   ]
@@ -174,7 +173,6 @@ window.SCHED_STEPS_CONTROL_PLANE = [
   title: 'Pod được ghi vào etcd — ra đời ở trạng thái Pending',
   pipelineStep: 1,
   focus: ['apiserver', 'etcd', 'pod'],
-  cam: [-9, 1, -4], dist: 26,
   phases: [
     {
       title: 'Pod object được ghi xuống etcd',
@@ -193,7 +191,7 @@ window.SCHED_STEPS_CONTROL_PLANE = [
       },
       scene(a) {
         KIT.link(a, 'apiserver', 'etcd', 'warn', {loop: 3.8});
-        KIT.note(a, 'PUT /api/v1/pods → Pending', [-5.4, 4.8, -4], 'warn', 0.3);
+        KIT.note(a, 'PUT /api/v1/pods → Pending', 'etcd', 'warn', 0.3);
       }
     },
     {
@@ -207,7 +205,7 @@ window.SCHED_STEPS_CONTROL_PLANE = [
         'etcd': KIT.pulse('warn', 'Raft commit ✓ (quorum)', {at: 0.55})
       },
       scene(a) {
-        KIT.note(a, 'leader → followers → quorum ✓', [-9, 6.0, -6.6], 'warn', 0.2);
+        KIT.note(a, 'leader → followers → quorum ✓', 'etcd', 'warn', 0.2);
       }
     },
     {
@@ -222,7 +220,7 @@ window.SCHED_STEPS_CONTROL_PLANE = [
       },
       scene(a) {
         KIT.link(a, 'apiserver', 'client', 'pass', {loop: 3.8});
-        KIT.note(a, '② Pending ≠ Running', [-9, -2.8, -6], 'mute', 0.4);
+        KIT.note(a, '② Pending ≠ Running', {of: 'etcd', band: true}, 'mute', 0.4);
       }
     }
   ]
@@ -233,7 +231,6 @@ window.SCHED_STEPS_CONTROL_PLANE = [
   title: 'Scheduler thấy Pod chưa có Node — xếp vào hàng đợi',
   pipelineStep: 2,
   focus: ['apiserver', 'scheduler', 'queue', 'pod', 'q-pod-lo'],
-  cam: [-7, 1, 6], dist: 24,
   phases: [
     {
       title: 'Scheduler mở List-Watch — không ai “gọi” nó cả',
@@ -248,7 +245,7 @@ window.SCHED_STEPS_CONTROL_PLANE = [
       },
       scene(a) {
         KIT.link(a, 'apiserver', 'scheduler', 'accent', {loop: 3.8});
-        KIT.note(a, 'WATCH pods?fieldSelector=spec.nodeName=', [-9.6, 5.6, 4.4], 'accent', 0.2);
+        KIT.note(a, 'WATCH pods?fieldSelector=spec.nodeName=', 'scheduler', 'accent', 0.2);
       }
     },
     {
@@ -283,7 +280,7 @@ window.SCHED_STEPS_CONTROL_PLANE = [
       },
       scene(a) {
         KIT.link(a, 'etcd', 'queue', 'accent', {dur: 1.00});
-        KIT.note(a, '③ enqueue theo priority', [-4.6, -3.0, 8], 'mute', 0.3);
+        KIT.note(a, '③ enqueue theo priority', {of: 'queue', band: true}, 'mute', 0.3);
       }
     }
   ]
@@ -297,7 +294,6 @@ window.SCHED_STEPS_CONTROL_PLANE = [
   title: 'Filter — Node nào chạy được Pod này?',
   pipelineStep: 3,
   focus: ['scheduler', 'node-a', 'node-d', 'node-b', 'node-c'],
-  cam: [1, 1, -1], dist: 40,
   phases: KIT.sweep(RUN.filter.evaluated, function(e, i) {
     var tone = e.passed ? 'ok' : 'danger';
     var isLast = i === RUN.filter.evaluated.length - 1;
@@ -317,7 +313,7 @@ window.SCHED_STEPS_CONTROL_PLANE = [
         baseSc(a);
         KIT.note(a, '④ ' + RUN.filter.evaluated.length + ' Node → '
                   + RUN.filter.passed.length + ' Node qua được Filter',
-                 [-6.5, -3.2, 2], 'mute', 1.5);
+                 {of: 'scheduler', band: true}, 'mute', 1.5);
       } : baseSc
     };
   })
@@ -328,7 +324,6 @@ window.SCHED_STEPS_CONTROL_PLANE = [
   title: 'Score — trong số đó, Node nào tốt nhất?',
   pipelineStep: 3,
   focus: ['scheduler', 'node-a', 'node-d'],
-  cam: [3, 1, 5], dist: 32,
   // Khai một lần ở step; phase expander truyền xuống mọi phase. Mỗi phase chỉ
   // cần bật `scoreMode` cho riêng nó (nếu không HUD sẽ chạy lại mỗi nhịp).
   scoreTitle: 'score = Σ(plugin × weight)',
@@ -348,7 +343,7 @@ window.SCHED_STEPS_CONTROL_PLANE = [
       },
       scene(a) {
         KIT.link(a, 'scheduler', 'node-d', 'sky', {loop: 3.8});
-        KIT.note(a, '⑤ Score = Σ(plugin × weight)', [-7, -3.2, 8], 'mute', 0.2);
+        KIT.note(a, '⑤ Score = Σ(plugin × weight)', {of: 'scheduler', band: true}, 'mute', 0.2);
       }
     },
     {
@@ -383,7 +378,7 @@ window.SCHED_STEPS_CONTROL_PLANE = [
         })
       },
       scene(a) {
-        KIT.note(a, '★ Worker A thắng', [4.4, -2.4, 10.8], 'crown', 0.3);
+        KIT.note(a, '★ Worker A thắng', {of: 'node-a', band: true}, 'crown', 0.3);
       }
     }
   ]

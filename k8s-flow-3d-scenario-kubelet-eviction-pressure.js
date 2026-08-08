@@ -39,7 +39,6 @@ window.createKubeletEvictionObserveSteps = function(config, run, reclaim) {
   title: 'Con số kubelet hành động dựa trên — nó không đọc free -m',
   pipelineStep: 0,
   focus: ['cgroups', 'cadvisor', 'kubelet'],
-  cam: [1.5, 0, -2.0], dist: 34,
   phases: [
     {
       title: 'Kernel cgroup — working_set, không phải "used"',
@@ -48,7 +47,6 @@ window.createKubeletEvictionObserveSteps = function(config, run, reclaim) {
         'Kubernetes không đo gì cả ở bước này. <code>working_set = usage − inactive_file</code> = ' + fmtMi(m.workingSetMi + m.inactiveFileMi) + ' − ' + fmtMi(m.inactiveFileMi) + ' = <b>' + fmtMi(m.workingSetMi) + '</b>. Phần page cache còn <i>reclaimable</i> bị trừ ra, vì kernel có thể lấy lại nó bất cứ lúc nào.',
         '<b>Đây là lý do số của bạn không khớp.</b> Nếu bạn ssh vào Node rồi nhìn <code>free -m</code> hay <code>top</code>, bạn đang xem một đại lượng <span class="danger">khác</span> với thứ eviction manager so sánh. Muốn thấy đúng con số kubelet dùng: <code>kubectl get --raw /api/v1/nodes/&lt;node&gt;/proxy/stats/summary</code>.'),
       focus: ['cgroups'],
-      cam: [-2.0, 0, -2.4], dist: 26,
       set: {
         cgroups: KIT.pulse('warn', 'working_set = ' + fmtMi(m.workingSetMi), {at: 0.9, dy: 2.1}),
         'pod-a': podLook(config.pods[0]),
@@ -63,7 +61,7 @@ window.createKubeletEvictionObserveSteps = function(config, run, reclaim) {
         KIT.gauge('inactive', m.inactiveFileMi, m.capacityMi, 'Mi', {tone: 'ok'})
       ],
       scene(a) {
-        KIT.note(a, 'working_set = usage − inactive_file', [-3.3, -3.4, 0.4], 'warn', 0.4);
+        KIT.note(a, 'working_set = usage − inactive_file', {of: 'cgroups', band: true}, 'warn', 0.4);
       }
     },
     {
@@ -73,7 +71,6 @@ window.createKubeletEvictionObserveSteps = function(config, run, reclaim) {
         'Kết quả là một <code>Summary</code> duy nhất chứa cả node-level lẫn per-Pod working set. Đây mới là thứ eviction manager đọc — nó <b>không</b> tự gọi syscall xuống kernel.',
         '<b>Component này thường bị bỏ khỏi sơ đồ, và đó là sai lầm chẩn đoán.</b> Nếu stats pipeline chậm hoặc kẹt, eviction manager làm việc trên <span class="warn">số cũ</span>: Node có thể đã hết RAM thật mà kubelet vẫn thấy “ổn”, hoặc ngược lại evict oan dựa trên mẫu lỗi thời.'),
       focus: ['cgroups', 'cadvisor'],
-      cam: [-1.0, 0, -2.4], dist: 28,
       set: {
         cadvisor: KIT.pulse('info', 'summary aggregated', {at: 1.2, dy: 2.1})
       },
@@ -88,7 +85,6 @@ window.createKubeletEvictionObserveSteps = function(config, run, reclaim) {
         fmtMi(m.capacityMi) + ' − ' + fmtMi(m.workingSetMi) + ' = <b>' + fmtMi(threshold.availableMi) + '</b>. Song song, kubelet đăng ký <b>memcg notification</b> với kernel để được đánh thức ngay khi mức memory chạm ngưỡng, thay vì phải đợi hết chu kỳ poll.',
         '<b>Chu kỳ ' + config.monitoringPeriodSeconds + 's là một khoảng mù thật sự.</b> Một Pod cấp phát bộ nhớ dựng đứng có thể làm kernel OOM killer ra tay <span class="danger">trước khi</span> kubelet kịp poll lần kế. Khi đó bạn thấy <code>OOMKilled</code> chứ không phải <code>Evicted</code> — hai cơ chế khác nhau, và cái nào thắng chỉ là chuyện tốc độ.'),
       focus: ['cadvisor', 'kubelet'], labels: ['cadvisor', 'kubelet', 'cgroups'],
-      cam: [2.5, 0, -2.4], dist: 30,
       set: {
         kubelet: KIT.pulse(tone, 'memory.available = ' + fmtMi(threshold.availableMi), {at: 1.2, dy: 2.5})
       },
@@ -101,7 +97,7 @@ window.createKubeletEvictionObserveSteps = function(config, run, reclaim) {
       ],
       scene(a) {
         KIT.link(a, 'cadvisor', 'kubelet', 'info', {at: 0.3});
-        KIT.note(a, 'poll ' + config.monitoringPeriodSeconds + 's + memcg notification', [4.5, -3.4, 0.4], 'info', 0.8);
+        KIT.note(a, 'poll ' + config.monitoringPeriodSeconds + 's + memcg notification', {of: 'cadvisor', band: true}, 'info', 0.8);
       }
     }
   ]
@@ -112,7 +108,6 @@ window.createKubeletEvictionObserveSteps = function(config, run, reclaim) {
   title: 'So với threshold — và mục tiêu cao hơn threshold',
   pipelineStep: 1,
   focus: ['kubelet'],
-  cam: [3.0, 0, -1.5], dist: 30,
   phases: [
     {
       title: threshold.kind === 'hard' ? 'Hard threshold — không có observation grace' : 'Soft threshold — phải quan sát đủ lâu',
@@ -123,7 +118,6 @@ window.createKubeletEvictionObserveSteps = function(config, run, reclaim) {
           : 'Đã cắt ngưỡng và quan sát được <b>' + threshold.observedForSeconds + '/' + threshold.gracePeriodSeconds + 's</b>. Soft threshold chỉ hành động khi tín hiệu <i>duy trì</i> đủ lâu, và khi đó vẫn honor Pod grace period (bị cap bởi <code>evictionMaxPodGracePeriod</code>).',
         '<b>Hai chiếc đồng hồ hay bị nhầm làm một:</b> <code>eviction-soft-grace-period</code> là <i>“tín hiệu phải xấu bao lâu trước khi tôi ra tay”</i>; <code>terminationGracePeriodSeconds</code> là <i>“Pod có bao lâu để thoát sạch sau khi tôi đã ra tay”</i>. Hard eviction bỏ qua cả hai.'),
       focus: ['kubelet'],
-      cam: [4.5, 0, -2.4], dist: 24,
       set: {
         kubelet: KIT.pulse(tone, threshold.crossed ? 'threshold crossed' : 'within threshold', {at: 0.9, dy: 2.5}),
         node: KIT.mark(threshold.triggered ? 'warn' : 'ok', threshold.triggered ? 'under memory pressure' : 'no pressure', {
@@ -137,7 +131,7 @@ window.createKubeletEvictionObserveSteps = function(config, run, reclaim) {
         KIT.gauge('threshold', threshold.thresholdMi, m.capacityMi, 'Mi', {tone: 'warn'})
       ],
       scene(a) {
-        KIT.note(a, fmtMi(threshold.availableMi) + (threshold.crossed ? ' < ' : ' ≥ ') + fmtMi(threshold.thresholdMi), [4.5, -3.4, 0.4], tone, 0.5);
+        KIT.note(a, fmtMi(threshold.availableMi) + (threshold.crossed ? ' < ' : ' ≥ ') + fmtMi(threshold.thresholdMi), {of: 'kubelet', band: true}, tone, 0.5);
       }
     },
     {
@@ -147,7 +141,6 @@ window.createKubeletEvictionObserveSteps = function(config, run, reclaim) {
         'Mục tiêu thực: <code>' + fmtMi(threshold.thresholdMi) + ' + ' + fmtMi(run.minimumReclaimMi) + ' = <b>' + fmtMi(run.targetMi) + '</b></code>. Đang có ' + fmtMi(threshold.availableMi) + ', nên phải giải phóng ít nhất <b>' + fmtMi(deficitMi) + '</b>.',
         '<b>Không có minimum-reclaim thì Node rơi vào vòng lặp evict.</b> Dọn vừa đủ chạm ngưỡng nghĩa là chỉ cần một lần cấp phát nhỏ là lại vượt ngưỡng, lại evict, mãi mãi. Con số này mua lấy khoảng đệm để Node <i>ổn định</i> chứ không chỉ <i>hết đỏ</i>.'),
       focus: ['kubelet'],
-      cam: [4.5, 0, -2.0], dist: 26,
       set: {
         kubelet: KIT.pulse('warn', 'must reclaim ≥ ' + fmtMi(deficitMi), {at: 0.9, dy: 2.5})
       },
@@ -159,7 +152,7 @@ window.createKubeletEvictionObserveSteps = function(config, run, reclaim) {
         KIT.gauge('target', run.targetMi, m.capacityMi, 'Mi', {tone: 'ok'})
       ],
       scene(a) {
-        KIT.note(a, 'target = threshold + minimum-reclaim', [4.5, -3.4, 0.4], 'ok', 0.5);
+        KIT.note(a, 'target = threshold + minimum-reclaim', {of: 'kubelet', band: true}, 'ok', 0.5);
       }
     }
   ]
@@ -170,7 +163,6 @@ window.createKubeletEvictionObserveSteps = function(config, run, reclaim) {
   title: 'Trước khi đụng tới Pod — kubelet thử dọn tài nguyên node-level',
   pipelineStep: 2,
   focus: ['kubelet', 'runtime'],
-  cam: [6.0, 0, -1.5], dist: 30,
   phases: [
     {
       title: 'Hỏi trước: signal này có reclaim function nào không?',
@@ -179,14 +171,13 @@ window.createKubeletEvictionObserveSteps = function(config, run, reclaim) {
         'Với <code>nodefs.available</code>/<code>imagefs.available</code>, reclaim là thật: xoá dead container rồi xoá unused image qua runtime — và nếu dọn đủ, <span class="ok">không Pod nào bị đụng tới</span>. Với <code>' + reclaim.signal + '</code> thì <b>danh sách reclaim function rỗng</b>.',
         '<b>Vì sao rỗng:</b> RAM không có “rác” cho kubelet dọn. Mọi thứ có thể lấy lại thì kernel đã lấy lại rồi — chính vì vậy <code>inactive_file</code> bị trừ khỏi working set ở bước ①. Cái còn lại là bộ nhớ đang thực sự được tiến trình dùng, và chỉ có một cách lấy lại: <b>kết thúc tiến trình</b>.'),
       focus: ['kubelet', 'runtime'],
-      cam: [6.5, 0, -2.4], dist: 26,
       set: {
         kubelet: KIT.pulse('info', 'try node-level reclaim', {at: 0.4, dy: 2.5}),
         runtime: KIT.pulse(reclaim.attempted ? 'warn' : 'mute', reclaim.attempted ? 'image + container GC' : 'no reclaim for memory', {at: 1.2, dy: 2.1})
       },
       scene(a) {
         KIT.link(a, 'kubelet', 'runtime', reclaim.attempted ? 'warn' : 'mute', {at: 0.4});
-        KIT.note(a, 'disk → GC · memory → nothing to GC', [8.4, -3.4, 0.4], 'mute', 0.9);
+        KIT.note(a, 'disk → GC · memory → nothing to GC', {of: 'runtime', band: true}, 'mute', 0.9);
       }
     },
     {
@@ -196,7 +187,6 @@ window.createKubeletEvictionObserveSteps = function(config, run, reclaim) {
         'Đây là ranh giới trách nhiệm: mọi thứ tới giờ là kubelet <i>đo và dọn dẹp</i>. Từ đây trở đi kubelet <i>chấm dứt workload của người khác</i> — và vì vậy nó cần một thứ tự xếp hạng có thể giải thích được.',
         '<b>Thứ tự này quan trọng khi debug.</b> Node báo <code>DiskPressure</code> nhưng không Pod nào bị evict thường <span class="ok">không phải lỗi</span>: image GC đã dọn đủ. Còn <code>MemoryPressure</code> thì gần như luôn dẫn tới eviction, vì nhánh reclaim ở trên không tồn tại.'),
       focus: ['kubelet', 'pod-a', 'pod-b', 'pod-c', 'pod-static'],
-      cam: [2.5, 0, 0], dist: 34,
       set: {
         kubelet: KIT.pulse('danger', 'Pods are candidates now', {at: 1.2, dy: 2.5})
       },
