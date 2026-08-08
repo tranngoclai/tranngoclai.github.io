@@ -4,6 +4,8 @@ How to build a new scenario deck (e.g. AWS, CI/CD, business flow) on top of
 the flow3d kit and engine, without reading a single `k8s-flow-3d-scenario-*.js`
 file.
 
+Domain-neutral files (`flow3d-*`) live under `/flow3d`. K8s-specific scenario files (`k8s-flow-3d-*`, `k8s-flow-3d.html`) live under `/k8s-flow-3d`. A new domain deck (e.g. `aws-flow-3d`) would get its own top-level folder alongside `/k8s-flow-3d`, reusing `/flow3d`.
+
 ---
 
 ## 1. The five layers
@@ -135,7 +137,7 @@ steps/assembly set.
 
 ### 4b. The HTML shell
 
-Copy `k8s-flow-3d.html`.  The markup is domain-neutral -- every piece of
+Copy `k8s-flow-3d/k8s-flow-3d.html` into a new `<domain>-flow-3d/` folder.  The markup is domain-neutral -- every piece of
 visible text comes from the deck manifest or from scenario code.  The only
 section that changes is the **script band** near the bottom of `<body>`:
 

@@ -9,7 +9,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title></title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
-<link rel="stylesheet" href="flow3d.css"/>
+<link rel="stylesheet" href="../flow3d/flow3d.css"/>
 </head>
 <body>
 
@@ -98,11 +98,11 @@
      The authoring vocabulary every deck is written with — tokens, world
      builder, state marks, panel/HUD helpers, and the shell chrome renderer.
      Nothing here knows about any subject. Identical in every deck. -->
-<script src="flow3d-kit-design-tokens.js"></script>
-<script src="flow3d-kit-world-builder.js"></script>
-<script src="flow3d-kit-state-marks.js"></script>
-<script src="flow3d-kit-panel-and-hud.js"></script>
-<script src="flow3d-deck.js"></script>
+<script src="../flow3d/flow3d-kit-design-tokens.js"></script>
+<script src="../flow3d/flow3d-kit-world-builder.js"></script>
+<script src="../flow3d/flow3d-kit-state-marks.js"></script>
+<script src="../flow3d/flow3d-kit-panel-and-hud.js"></script>
+<script src="../flow3d/flow3d-deck.js"></script>
 
 <!-- ════ DECK · KUBERNETES ═══════════════════════════════════════════════
      THE ONLY BAND THAT CHANGES PER DECK. Manifest first (it defines the
@@ -141,15 +141,15 @@
 <!-- ════ REUSABLE · ENGINE ═══════════════════════════════════════════════
      Flattens step.phases[] into steps, then renders and drives them. Must
      run after every scenario has registered itself. Identical in every deck. -->
-<script src="flow3d-engine-phase-expander.js"></script>
-<script src="flow3d-engine-scene-setup.js"></script>
-<script src="flow3d-engine-animation-helpers.js"></script>
-<script src="flow3d-engine-flow-state.js"></script>
-<script src="flow3d-engine-build-api.js"></script>
-<script src="flow3d-engine-persistent-world.js"></script>
-<script src="flow3d-engine-component-anchors.js"></script>
-<script src="flow3d-engine-hud-controller.js"></script>
-<script src="flow3d-engine-ui-controller.js"></script>
-<script src="flow3d-engine-render-loop.js"></script>
+<script src="../flow3d/flow3d-engine-phase-expander.js"></script>
+<script src="../flow3d/flow3d-engine-scene-setup.js"></script>
+<script src="../flow3d/flow3d-engine-animation-helpers.js"></script>
+<script src="../flow3d/flow3d-engine-flow-state.js"></script>
+<script src="../flow3d/flow3d-engine-build-api.js"></script>
+<script src="../flow3d/flow3d-engine-persistent-world.js"></script>
+<script src="../flow3d/flow3d-engine-component-anchors.js"></script>
+<script src="../flow3d/flow3d-engine-hud-controller.js"></script>
+<script src="../flow3d/flow3d-engine-ui-controller.js"></script>
+<script src="../flow3d/flow3d-engine-render-loop.js"></script>
 </body>
 </html>
