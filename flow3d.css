@@ -139,9 +139,11 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-ser
   font-size:10px;color:#fff;
   text-shadow:0 0 12px rgba(58,127,255,.9), 0 0 24px rgba(58,127,255,.5);
 }
-/* state-change badge — pops on the component at the moment its state flips */
+/* state-change badge — pops on the component at the moment its state flips.
+   Sized and weighted a step above a plain name label: it names something
+   happening *right now*, so it must read first even next to a bright caption. */
 .fl-label.state-badge{
-  font-size:9px;font-weight:600;letter-spacing:.02em;white-space:nowrap;
+  font-size:9.5px;font-weight:700;letter-spacing:.02em;white-space:nowrap;
   padding:3px 9px;border-radius:20px;
   background:rgba(8,13,20,.92);border:1px solid currentColor;
   box-shadow:0 2px 14px rgba(0,0,0,.7);
@@ -482,4 +484,12 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-ser
   .pip-node{min-width:56px;padding:5px 8px;}
   .pip-lbl{font-size:7px;}
   .pip-arrow{width:16px;}
+
+  /* #main is squeezed to ~44vh here, so the same desktop font-size and world-
+     space offsets read as noticeably denser text over a cluster of boxes.
+     Shrinking the three floating-text kinds keeps their footprint (and the
+     collision math in updateLabels) proportional to the smaller canvas. */
+  .fl-label{font-size:8px;}
+  .fl-label.state-badge{font-size:8px;padding:2px 7px;}
+  .fl-label.hero-label{font-size:8.5px;}
 }

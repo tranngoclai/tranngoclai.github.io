@@ -61,6 +61,15 @@ function removeLabels(list) {
   setTimeout(() => old.forEach(l => l.div.remove()), 400);
 }
 
+/* Retires a single label div immediately — used when a fresher badge on the
+   same component replaces it mid-phase, so the two don't sit stacked. */
+function fadeLabel(div) {
+  div.classList.remove('visible');
+  div.style.opacity = '0';
+  labelEls = labelEls.filter(l => l.div !== div);
+  setTimeout(() => div.remove(), 400);
+}
+
 function addLabel(text, x, y, z, color, delay, isHero, cls) {
   const obj = new THREE.Object3D();
   obj.position.set(x, y, z);

@@ -13,6 +13,11 @@
 let flowQueue  = [];   // arrow lines for the current step
 let stateQueue = [];   // scheduled element state changes / reveals
 
+// The badge currently showing on each component, so a second beat in the same
+// phase (e.g. kubelet pulses twice: "status + Event" then "kill <pod>") fades
+// the earlier badge out instead of leaving it stacked beside the new one.
+let activeBadgeByNode = new Map();
+
 const FLOW_TUBULAR = 110;                   // segments along the path
 const FLOW_RADIAL  = 8;                     // segments around the tube
 const FLOW_HEAD    = 12;                    // length of the bright leading pulse
@@ -188,6 +193,12 @@ function scheduleStateChange(n, look) {
         flashCol, at, false, 'state-badge')
     : null;
 
+  if (badgeDiv) {
+    const prev = activeBadgeByNode.get(n);
+    if (prev && prev !== badgeDiv) fadeLabel(prev);
+    activeBadgeByNode.set(n, badgeDiv);
+  }
+
   stateQueue.push({n, look, col, ring, ringMat, badgeDiv, t: -at, dur: 1.15, applied: false});
 }
 
@@ -240,4 +251,5 @@ function clearFlowState() {
   // itself is re-derived from scratch by applyPersistentStep().
   stateQueue.forEach(s => setNodeFlash(s.n, 0, s.col));
   stateQueue = [];
+  activeBadgeByNode = new Map();
 }

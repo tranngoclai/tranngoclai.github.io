@@ -7,9 +7,24 @@ const _v3 = new THREE.Vector3();
 // lands right where a lingering flow-line caption sits. Projection alone has
 // no notion of the other labels on screen, so it stacks them illegibly.
 // This is a cheap decluttering pass: place labels in order, and any label
-// whose box would overlap an already-placed one gets nudged straight down
-// until it clears. O(n²) but n is a handful of labels per scene.
+// whose box would overlap an already-placed one gets nudged clear of it.
+// O(n²) but n is a handful of labels per scene.
 const _placedLabels = [];
+
+// A label the focus system has dimmed (an off-topic component's persistent
+// name caption) is not competing for the viewer's attention this phase — it
+// must not be allowed to shove aside a badge or caption that is. Skipping it
+// from the collision set entirely lets it sit under/behind whatever matters.
+const DIM_OPACITY_THRESHOLD = 0.5;
+function isDimmed(div) {
+  const o = parseFloat(div.style.opacity);
+  return !isNaN(o) && o < DIM_OPACITY_THRESHOLD;
+}
+
+// After this many stacked pushes at one spot, keep alternating sideways
+// instead of marching a column of badges off the bottom of the viewport.
+const STACK_BEFORE_SIDESTEP = 3;
+
 function updateLabels() {
   // #labels overlays the canvas, so project into canvas-local coordinates.
   const W = cvs.clientWidth, H = cvs.clientHeight;
@@ -21,14 +36,23 @@ function updateLabels() {
     let sx = (_v3.x * 0.5 + 0.5) * W;
     let sy = (-_v3.y * 0.5 + 0.5) * H;
 
-    if (visible) {
+    if (visible && !isDimmed(item.div)) {
       const w = item.div.offsetWidth || 90, h = item.div.offsetHeight || 20;
+      let dir = 1, pushes = 0;
       for (let i = 0; i < _placedLabels.length; i++) {
         const p = _placedLabels[i];
         if (Math.abs(sx - p.sx) < (w + p.w) / 2 && Math.abs(sy - p.sy) < (h + p.h) / 2) {
-          sy = p.sy + (h + p.h) / 2 + 2;
+          pushes++;
+          if (pushes > STACK_BEFORE_SIDESTEP) {
+            sx = p.sx + dir * ((w + p.w) / 2 + 3);
+            dir = -dir;
+          } else {
+            sy = p.sy + (h + p.h) / 2 + 2;
+          }
         }
       }
+      sx = Math.max(w / 2, Math.min(W - w / 2, sx));
+      sy = Math.max(h / 2, Math.min(H - h / 2, sy));
       _placedLabels.push({sx, sy, w, h});
     }
 

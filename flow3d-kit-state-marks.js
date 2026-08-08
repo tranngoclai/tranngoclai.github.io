@@ -35,6 +35,18 @@ function extend(base, o) {
   return Object.assign(base, o || {});
 }
 
+/* A badge is a tag naming the change, not the explanation of it — that belongs
+   in the phase's own `desc`. A badge much longer than a short tag widens the
+   pill enough to make it collide with neighbouring labels, so authors get a
+   one-time console nudge instead of discovering the overlap on screen. */
+const BADGE_LEN_WARN = 28;
+const badgeLenWarned = {};
+function warnBadgeLength(badge) {
+  if (!badge || badge.length <= BADGE_LEN_WARN || badgeLenWarned[badge]) return;
+  badgeLenWarned[badge] = true;
+  console.warn('[flow3d] badge is ' + badge.length + ' chars, longer than a tag should be — consider moving detail into desc(): "' + badge + '"');
+}
+
 /* ── mark ── the component entered a new state.
    Recolours it to the tone, bursts in that tone's flash colour, and pops a
    badge naming the change. This is the workhorse: a check failed, a
@@ -43,6 +55,7 @@ function extend(base, o) {
      set: { 'node-a': KIT.mark('danger', 'capacity — fail', {at: 1.25, dy: 3.0}) }
 */
 KIT.mark = function(tone, badge, o) {
+  warnBadgeLength(badge);
   const s = KIT.surface(tone);
   return extend({col: s.col, edge: s.edge, flash: s.flash, badge: badge}, o);
 };
@@ -55,6 +68,7 @@ KIT.mark = function(tone, badge, o) {
      set: { 'scheduler': KIT.pulse('accent', 'decision emitted', {at: 0.55, dy: 3.9}) }
 */
 KIT.pulse = function(ink, badge, o) {
+  warnBadgeLength(badge);
   return extend({flash: KIT.ink(ink), badge: badge}, o);
 };
 
