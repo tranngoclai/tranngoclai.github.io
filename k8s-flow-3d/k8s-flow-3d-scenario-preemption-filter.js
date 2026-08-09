@@ -90,9 +90,9 @@ var PREEMPT_FILTER_HOVER = {
   'node-c': 'Còn thừa chỗ, nhưng trượt vì taint — xoá Pod không sửa được'
 };
 var PREEMPT_FILTER_LINK = {
-  'node-a': {},
-  'node-b': {dur: 0.95},
-  'node-c': {}
+  'node-a': {label: 'NodeResourcesFit fail'},
+  'node-b': {dur: 0.95, label: 'NodeResourcesFit fail'},
+  'node-c': {label: 'TaintToleration fail'}
 };
 var PREEMPT_FILTER_DESCS = {
   'node-a': KIT.desc(

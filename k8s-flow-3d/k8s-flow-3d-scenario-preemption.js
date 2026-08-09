@@ -32,6 +32,7 @@
 const KIT = window.SCENE_KIT;
 
 KIT.scenario({
+  id: 'preemption',
   name: 'Preemption',
   tag: 'PREEMPTION',
   pipeline: [

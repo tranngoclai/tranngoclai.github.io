@@ -18,7 +18,7 @@ let stepGroup  = null;      // arrows / pods / notes for the current step only
 let worldNodes = {};        // key → node record
 let worldHov   = [];        // hover entries for persistent components
 let stepHov    = [];        // hover entries for the current step layer
-let worldScenarioIdx = -1;  // which scenario the current world belongs to
+let worldScenarioId = null; // stable id of the scenario owning this world
 
 function resetPersistentWorld() {
   worldGroup = null;
@@ -26,11 +26,11 @@ function resetPersistentWorld() {
   worldNodes = {};
   worldHov = [];
   stepHov = [];
-  worldScenarioIdx = -1;
+  worldScenarioId = null;
 }
 
 /* ─ Build the world once ─ */
-function buildPersistentWorld(sc, si) {
+function buildPersistentWorld(sc, scenarioId) {
   worldNodes = {};
   worldHov = [];
 
@@ -44,7 +44,7 @@ function buildPersistentWorld(sc, si) {
   sc.world(makeWorldCtx());
   setBuildTarget(null, false);
 
-  worldScenarioIdx = si;
+  worldScenarioId = scenarioId;
 }
 
 function makeWorldCtx() {
@@ -99,7 +99,7 @@ function clearStepLayer() {
   arrowQueue    = arrowQueue.filter(a => a.persistent);
   particleQueue = particleQueue.filter(a => a.persistent);
   clearFlowState();
-  if (stepGroup) stepGroup.clear();
+  if (stepGroup) disposeOwnedGroup(stepGroup);
   clearTransientLabels();
 }
 

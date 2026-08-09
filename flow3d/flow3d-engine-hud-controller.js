@@ -85,6 +85,10 @@ function updatePipelineUI(sc, stepIdx) {
 const scoreHud = document.getElementById('score-hud');
 let scoreTimers = [];   // pending bar/counter timers, dropped when the HUD hides
 
+function forgetScoreTimer(timer) {
+  scoreTimers = scoreTimers.filter(function(item) { return item !== timer; });
+}
+
 function clearScoreTimers() {
   scoreTimers.forEach(clearTimeout);
   scoreTimers.forEach(clearInterval);
@@ -113,7 +117,8 @@ function showScoreHud(list, title) {
   list.forEach(function(entry, i) {
     const bar = document.getElementById('sb-' + i);
     const val = document.getElementById('sv-' + i);
-    scoreTimers.push(setTimeout(function() {
+    const startTimer = setTimeout(function() {
+      forgetScoreTimer(startTimer);
       bar.style.width = entry.v + '%';
       // A measurement is read, not counted — only plain scores tick up.
       if (entry.txt) { val.textContent = entry.txt; return; }
@@ -122,10 +127,14 @@ function showScoreHud(list, title) {
       const timer = setInterval(function() {
         cur = Math.min(cur + inc, entry.v);
         val.textContent = Math.floor(cur);
-        if (cur >= entry.v) clearInterval(timer);
+        if (cur >= entry.v) {
+          clearInterval(timer);
+          forgetScoreTimer(timer);
+        }
       }, 30);
       scoreTimers.push(timer);
-    }, i * 180 + 400));
+    }, i * 180 + 400);
+    scoreTimers.push(startTimer);
   });
 }
 
@@ -142,10 +151,11 @@ function hideScoreHud() {
    the top of every step load) is what cancels it. */
 let scoreShowTimer = null;
 
-function queueScoreHud(step) {
+function queueScoreHud(step, generation) {
   if (!step.scoreMode) return;
   scoreShowTimer = setTimeout(function() {
     scoreShowTimer = null;
+    if (generation !== undefined && !isFlowGenerationCurrent(generation)) return;
     showScoreHud(step.scores, step.scoreTitle);
   }, 600);
 }

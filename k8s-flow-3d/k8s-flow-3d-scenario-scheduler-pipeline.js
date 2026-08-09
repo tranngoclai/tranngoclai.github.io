@@ -44,6 +44,7 @@
 const KIT = window.SCENE_KIT;
 
 KIT.scenario({
+  id: 'scheduler-pipeline',
   name: 'Scheduler Pipeline',
   tag: 'SCHEDULER',
   pipeline: [

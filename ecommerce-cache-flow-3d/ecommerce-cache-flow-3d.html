@@ -65,42 +65,40 @@
 <script src="../flow3d/flow3d-engine-scenario-registry.js"></script>
 <script src="../flow3d/flow3d-deck.js"></script>
 
-<!-- ════ DECK · KUBERNETES ═══════════════════════════════════════════════
-     THE ONLY BAND THAT CHANGES PER DECK. Manifest first (it defines the
-     chrome), then the scenario worlds and steps. -->
-<script src="k8s-flow-3d-deck.js"></script>
-<!-- Shared layout law: column order, role bands and the single size table every
-     scenario world reads from. Must load before any scenario world. -->
-<script src="k8s-flow-3d-layout.js"></script>
-<script src="k8s-flow-3d-scenarios-index.js"></script>
-<script src="k8s-flow-3d-scenario-scheduler-model.js"></script>
-<script src="k8s-flow-3d-scenario-scheduler-world.js"></script>
-<script src="k8s-flow-3d-scenario-scheduler-pipeline-control-plane.js"></script>
-<script src="k8s-flow-3d-scenario-scheduler-pipeline-node.js"></script>
-<script src="k8s-flow-3d-scenario-scheduler-pipeline.js"></script>
-<script src="k8s-flow-3d-scenario-preemption-model.js"></script>
-<script src="k8s-flow-3d-scenario-preemption-world.js"></script>
-<script src="k8s-flow-3d-scenario-preemption-filter.js"></script>
-<script src="k8s-flow-3d-scenario-preemption-evict.js"></script>
-<script src="k8s-flow-3d-scenario-preemption.js"></script>
-<script src="k8s-flow-3d-scenario-kubelet-eviction-model.js"></script>
-<script src="k8s-flow-3d-scenario-kubelet-eviction-policy.js"></script>
-<script src="k8s-flow-3d-scenario-kubelet-eviction-world.js"></script>
-<script src="k8s-flow-3d-scenario-kubelet-eviction-pressure.js"></script>
-<script src="k8s-flow-3d-scenario-kubelet-eviction-ranking.js"></script>
-<script src="k8s-flow-3d-scenario-kubelet-eviction-consequence.js"></script>
-<script src="k8s-flow-3d-scenario-kubelet-eviction.js"></script>
-<script src="k8s-flow-3d-scenario-oom-killer-model.js"></script>
-<script src="k8s-flow-3d-scenario-oom-killer-world.js"></script>
-<script src="k8s-flow-3d-scenario-oom-killer-steps.js"></script>
-<script src="k8s-flow-3d-scenario-oom-killer.js"></script>
-<script src="k8s-flow-3d-scenario-node-wide-oom-world.js"></script>
-<script src="k8s-flow-3d-scenario-node-wide-oom-steps.js"></script>
-<script src="k8s-flow-3d-scenario-node-wide-oom.js"></script>
-<script src="k8s-flow-3d-scenario-pdb-drain-model.js"></script>
-<script src="k8s-flow-3d-scenario-pdb-drain-world.js"></script>
-<script src="k8s-flow-3d-scenario-pdb-drain-steps.js"></script>
-<script src="k8s-flow-3d-scenario-pdb-drain.js"></script>
+<!-- ════ DECK · ECOMMERCE CACHE ══════════════════════════════════════════
+     THE ONLY BAND THAT CHANGES PER DECK. Manifest + shared layout/level
+     tables first, then each scenario's model → world → steps → assembly,
+     in that order (world reads model labels; assembly wires world+steps). -->
+<script src="ecommerce-cache-flow-3d-deck.js"></script>
+<!-- Shared layout law: column order, role bands, single size table. -->
+<script src="ecommerce-cache-flow-3d-layout.js"></script>
+<!-- Shared 9-level cost/TTL table — read path, cold cache and write path all
+     load this before their own model. -->
+<script src="ecommerce-cache-flow-3d-level-costs.js"></script>
+<script src="ecommerce-cache-flow-3d-scenarios-index.js"></script>
+
+<script src="ecommerce-cache-flow-3d-scenario-read-path-model.js"></script>
+<script src="ecommerce-cache-flow-3d-scenario-read-path-world.js"></script>
+<script src="ecommerce-cache-flow-3d-scenario-read-path-edge.js"></script>
+<script src="ecommerce-cache-flow-3d-scenario-read-path-origin.js"></script>
+<script src="ecommerce-cache-flow-3d-scenario-read-path.js"></script>
+
+<script src="ecommerce-cache-flow-3d-scenario-write-path-model.js"></script>
+<script src="ecommerce-cache-flow-3d-scenario-write-path-world.js"></script>
+<script src="ecommerce-cache-flow-3d-scenario-write-path-cascade.js"></script>
+<script src="ecommerce-cache-flow-3d-scenario-write-path-traps.js"></script>
+<script src="ecommerce-cache-flow-3d-scenario-write-path.js"></script>
+
+<!-- Cold cache reuses the read-path model — must load after it. -->
+<script src="ecommerce-cache-flow-3d-scenario-cold-cache-model.js"></script>
+<script src="ecommerce-cache-flow-3d-scenario-cold-cache-world.js"></script>
+<script src="ecommerce-cache-flow-3d-scenario-cold-cache-steps.js"></script>
+<script src="ecommerce-cache-flow-3d-scenario-cold-cache.js"></script>
+
+<script src="ecommerce-cache-flow-3d-scenario-build-cache-model.js"></script>
+<script src="ecommerce-cache-flow-3d-scenario-build-cache-world.js"></script>
+<script src="ecommerce-cache-flow-3d-scenario-build-cache-steps.js"></script>
+<script src="ecommerce-cache-flow-3d-scenario-build-cache.js"></script>
 
 <!-- ════ REUSABLE · ENGINE ═══════════════════════════════════════════════
      Flattens step.phases[] into steps, then renders and drives them. Must

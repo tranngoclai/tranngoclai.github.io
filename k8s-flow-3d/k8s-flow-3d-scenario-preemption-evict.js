@@ -234,7 +234,11 @@ window.PREEMPT_STEPS_EVICT = [
         '<b>Ba cơ chế hay bị gộp làm một, thực ra rất khác nhau:</b> <b>Preemption</b> — do <i>scheduler</i>, xét <i>priority</i>, xảy ra khi <i>không đủ chỗ để schedule</i> · <b>Kubelet eviction</b> — do <i>kubelet</i>, với memory pressure xét <i>usage vượt request → Priority → excess usage</i>, xảy ra khi <i>Node sắp hết RAM thật</i> · <b>OOM Kill</b> — do <i>kernel</i>, xét <i>oom_score_adj</i>, do <i>container cgroup vượt limit</i> hoặc node/global OOM. Chẩn đoán nhầm cơ chế là đi sai đường ngay từ đầu.'),
       // Phase này nói về cách victim bị xoá → đứng ở chặng Evict.
       pipelineStep: 3,
-      focus: ['node-a', 'pod-a3', 'pod-checkout'],
+      focus: ['scheduler', 'node-a', 'pod-a3', 'pod-checkout'],
+      set: {
+        'scheduler': KIT.pulse('warn', 'DELETE bypasses PDB', {at: 0.45, dy: 3.9}),
+        'pod-checkout': KIT.pulse('ok', 'scheduled despite PDB', {at: 1.15, dy: 2.2})
+      },
       scene(a) {
         KIT.note(a, 'DELETE ≠ Eviction API', {of: 'node-a', band: true}, 'warn', 0.4);
       }

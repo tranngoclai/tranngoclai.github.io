@@ -361,4 +361,7 @@ Muốn build/deploy nhanh:
 3. Redis multi-instance: giữ mức mô tả hiện tại ở mục 5 (Pub/Sub invalidate),
    không đào sâu topology — nếu build flow3d deck thật thì bổ sung lúc viết
    model của scenario đó.
-4. Dừng ở markdown, chưa dựng flow3d deck (`ecommerce-cache-flow-3d/`).
+4. Flow3d deck (`ecommerce-cache-flow-3d/ecommerce-cache-flow-3d.html`) built
+   and delivered — 4 scenarios: read path, write path, cold cache, build cache.
+   Latency numbers are illustrative/invented and explicitly labeled as such
+   within the deck (not production benchmarks).

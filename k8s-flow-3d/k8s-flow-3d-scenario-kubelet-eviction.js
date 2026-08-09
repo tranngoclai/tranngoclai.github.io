@@ -41,6 +41,7 @@ const placement = POLICY.evaluateReplacementPlacement({
 const gc = POLICY.evaluatePodGarbageCollection({});
 
 KIT.scenario({
+  id: 'kubelet-eviction',
   name: 'Kubelet Eviction',
   tag: 'EVICTION',
   pipeline: [

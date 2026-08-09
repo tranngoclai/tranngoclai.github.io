@@ -3,6 +3,7 @@
 const KIT = window.SCENE_KIT, M = window.PDB_DRAIN_MODEL;
 const run = M.simulate(M.DEFAULT_CONFIG);
 KIT.scenario({
+  id: 'pdb-drain',
   name: 'PDB & kubectl drain', tag: 'PDB',
   pipeline: [
     KIT.stage('◫', 'Budget', 'ok'), KIT.stage('⊘', 'Cordon', 'warn'),

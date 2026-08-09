@@ -207,13 +207,15 @@ function tick(now) {
 document.getElementById('btn-next').addEventListener('click', next);
 document.getElementById('btn-prev').addEventListener('click', prev);
 window.addEventListener('keydown', function(e) {
-  if (e.key === 'ArrowRight') next();
-  if (e.key === 'ArrowLeft')  prev();
+  if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+  const target = e.target;
+  if (target && (target.isContentEditable || /^(INPUT|SELECT|TEXTAREA|BUTTON|A)$/.test(target.tagName))) return;
+  if (e.key === 'ArrowRight' && next()) e.preventDefault();
+  if (e.key === 'ArrowLeft' && prev()) e.preventDefault();
 });
 
-/* The splash and its dismissal live in flow3d-deck.js — they are chrome around
-   the deck, not part of the render loop. */
-
 /* ── Init ── */
-loadStep(0, 0);
+const firstScenarioId = window.FLOW3D.registry.ids()[0];
+if (!firstScenarioId) throw new Error('[Flow3D] no scenarios registered');
+selectScenario(firstScenarioId);
 requestAnimationFrame(tick);

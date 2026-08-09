@@ -19,10 +19,11 @@
 const KIT = window.SCENE_KIT;
 const fmtMi = window.KUBELET_EVICTION_MODEL.fmtMi;
 
-function podLook(pod) {
+function podLook(pod, at) {
   return KIT.mark('live', '', {
     label: pod.name + '\nP' + pod.priority + ' · r' + fmtMi(pod.requestMi) + '/u' + fmtMi(pod.usageMi),
-    hover: pod.name + ': usage ' + fmtMi(pod.usageMi) + ', request ' + fmtMi(pod.requestMi) + ', Priority ' + pod.priority
+    hover: pod.name + ': usage ' + fmtMi(pod.usageMi) + ', request ' + fmtMi(pod.requestMi) + ', Priority ' + pod.priority,
+    at: at
   });
 }
 
@@ -48,9 +49,9 @@ window.createKubeletEvictionObserveSteps = function(config, run, reclaim) {
         'Nhưng để hành động đúng lúc, kubelet phải biết chính xác con số nào nói lên "Node còn bao nhiêu" — bước tiếp theo sẽ trả lời.'),
       focus: ['pod-a', 'pod-b', 'pod-c'],
       set: {
-        'pod-a': podLook(config.pods[0]),
-        'pod-b': podLook(config.pods[1]),
-        'pod-c': podLook(config.pods[2])
+        'pod-a': podLook(config.pods[0], 0.35),
+        'pod-b': podLook(config.pods[1], 0.75),
+        'pod-c': podLook(config.pods[2], 1.15)
       }
     },
     {

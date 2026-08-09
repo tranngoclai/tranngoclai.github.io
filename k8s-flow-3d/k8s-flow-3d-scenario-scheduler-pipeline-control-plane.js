@@ -301,7 +301,7 @@ window.SCHED_STEPS_CONTROL_PLANE = [
       mark: [tone, e.badge],
       dy: e.key === 'node-a' ? 3.0 : 2.6,
       hover: FILTER_HOVER[e.key],
-      link: {dur: 1.10, loop: 3.8}
+      link: {dur: 1.10, loop: 3.8, label: e.passed ? 'Filter pass' : e.plugin + ' fail'}
     });
     var baseSc = beat.scene;
     return {

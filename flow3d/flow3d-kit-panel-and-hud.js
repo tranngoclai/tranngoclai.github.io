@@ -72,10 +72,14 @@ KIT.gauge = function(name, used, total, unit, o) {
 
 /* ── score(name, value, o) ──
    A rating row: the number ticks up to `value`, because a score is arrived
-   at rather than observed. o: {win, tone} */
+   at rather than observed. `value` must be 0-100 — it drives both the bar
+   width and the count-up. o: {win, tone, txt} — `txt` overrides the readout
+   for a score whose "value" isn't a number a viewer should watch count up
+   (a name, a verdict, a money amount) while still using `value` to size the
+   bar. Same escape hatch gauge() already has. */
 KIT.score = function(name, value, o) {
   o = o || {};
-  return {name: name, v: value, win: o.win, tone: o.tone};
+  return {name: name, v: value, txt: o.txt, win: o.win, tone: o.tone};
 };
 
 /* ── stage(icon, label, tone) ──
@@ -97,13 +101,9 @@ KIT.stage = function(icon, label, tone) {
                   stages and then not showing them is always a mistake.
 
    A scenario overrides either by naming it explicitly. */
-KIT.scenario = function(def) {
-  window.SCENARIOS = window.SCENARIOS || [];
-  window.SCENARIOS.push(Object.assign({
-    focusLabels: true,
-    showPipeline: !!def.pipeline
-  }, def));
-};
+/* Installed by flow3d-engine-scenario-registry.js. Keeping scenario assembly
+   out of this presentation helper ensures authored data is compiled once and
+   addressed by stable id rather than mutable array position. */
 
 /* ── sweep ── map a candidate list to a phase array.
 

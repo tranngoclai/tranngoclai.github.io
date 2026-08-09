@@ -126,6 +126,10 @@ window.SCHED_STEPS_NODE = [
         'Xác định image và <code>imagePullPolicy</code>, giải quyết <code>imagePullSecrets</code>, mount <span class="warn">Volume / PVC</span>, fetch nội dung <span class="warn">Secret · ConfigMap</span> mà container sẽ đọc qua env hoặc file.',
         '<b>Mẹo debug quan trọng nhất pipeline:</b> đến đây scheduling đã <b>thành công</b>. Thiếu Secret, sai tên ConfigMap, PVC chưa bound hay không kéo được image → Pod đứng ở <code>ContainerCreating</code> / <code>ImagePullBackOff</code>, <b>không phải</b> <code>Pending</code>. Vậy: <code>Pending</code> ⇒ lỗi ở scheduler (bước ④), <code>ContainerCreating</code> ⇒ lỗi ở kubelet/Node (bước ⑦–⑧). Nhìn phase là biết tìm ở đâu.'),
       labels: ['kubelet', 'pod'],
+      set: {
+        'kubelet': KIT.pulse('warn', 'prepare dependencies', {at: 0.45, dy: 1.5}),
+        'pod': KIT.mark('warn', 'ContainerCreating', {at: 1.15, dy: 2.0})
+      },
       scene(a) {
         KIT.note(a, '⑦ image · volumes · Secrets · ConfigMaps', {of: 'kubelet', band: true}, 'mute', 0.2);
       }

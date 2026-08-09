@@ -1,0 +1,1 @@
+- [flow3d hidden-node reveal bug](flow3d_hidden_node_reveal_bug.md) — `hidden:false` inside `set[key]` is a silent no-op; only `show:`/`showAt` reveals nodes.

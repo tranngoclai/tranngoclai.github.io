@@ -229,7 +229,7 @@ KIT.note = function(a, text, ref, ink, at) {
    An explicit `at` in the mark options still wins — a phase that
    deliberately marks early or late keeps that power.
 
-   Link options (dur, loop, lift, width) go under `link`:
+   Link options (dur, loop, lift, width, label, labelDy, labelColor) go under `link`:
      KIT.beat('a', 'b', 'ok', {mark:[…], link: {dur:0.95, loop:3.8}})  */
 KIT.beat = function(from, to, ink, o) {
   o = o || {};
@@ -239,6 +239,9 @@ KIT.beat = function(from, to, ink, o) {
   var linkLoop  = linkOpts.loop;
   var linkLift  = linkOpts.lift;
   var linkWidth = linkOpts.width;
+  var linkLabel = linkOpts.label;
+  var linkLabelDy = linkOpts.labelDy;
+  var linkLabelColor = linkOpts.labelColor;
 
   /* arrival = when the line touches the target component */
   var arrival = linkAt + linkDur;
@@ -264,6 +267,9 @@ KIT.beat = function(from, to, ink, o) {
       if (linkLoop  !== undefined) lo.loop  = linkLoop;
       if (linkLift  !== undefined) lo.lift  = linkLift;
       if (linkWidth !== undefined) lo.width = linkWidth;
+      if (linkLabel !== undefined) lo.label = linkLabel;
+      if (linkLabelDy !== undefined) lo.labelDy = linkLabelDy;
+      if (linkLabelColor !== undefined) lo.labelColor = linkLabelColor;
       KIT.link(a, from, to, ink, lo);
     }
   };
