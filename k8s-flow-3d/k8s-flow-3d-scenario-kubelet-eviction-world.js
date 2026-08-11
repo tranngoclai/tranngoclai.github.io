@@ -112,12 +112,12 @@ window.KUBELET_EVICTION_WORLD = function(raw) {
   /* ── Worker A: the pressure domain — Node duy nhất được mổ xẻ ── */
   w.node('node', {
     label: 'Worker A\nReady', pos: [L.X.node, L.Y.slab, A], size: S.nodeDeep,
-    tone: 'surface', order: 2,
+    tone: 'surface', order: 2, shape: 'slab',
     hover: 'Một Node duy nhất chứa stats pipeline, kubelet, runtime và bốn Pod'
   });
   w.node('cgroups', {
     label: 'kernel\ncgroup memory', pos: p.cgroups, size: S.kernel,
-    tone: 'engine', order: 3,
+    tone: 'engine', order: 3, shape: 'hex',
     hover: 'Nguồn sự thật: working_set, inactive_file. Kernel, không phải Kubernetes'
   });
   w.node('cadvisor', {
@@ -138,34 +138,34 @@ window.KUBELET_EVICTION_WORLD = function(raw) {
 
   w.node('pod-a', {
     label: 'Pod A\nP100 · r4/u3Gi', pos: p.pods['pod-a'], size: S.pod,
-    tone: 'live', order: 4,
+    tone: 'live', order: 4, shape: 'seal',
     hover: 'Candidate A: usage 3Gi dưới request 4Gi, Priority 100'
   });
   w.node('pod-b', {
     label: 'Pod B\nP200 · r1/u2Gi', pos: p.pods['pod-b'], size: S.pod,
-    tone: 'live', order: 4,
+    tone: 'live', order: 4, shape: 'seal',
     hover: 'Candidate B: usage 2Gi vượt request 1Gi, Priority 200'
   });
   w.node('pod-c', {
     label: 'Pod C\nP10k · r1/u3Gi', pos: p.pods['pod-c'], size: S.pod,
-    tone: 'live', order: 4,
+    tone: 'live', order: 4, shape: 'seal',
     hover: 'Candidate C: usage 3Gi vượt request 1Gi, Priority 10000'
   });
   w.node('pod-static', {
     label: 'kube-proxy\nstatic · critical', pos: p.pods['pod-static'], size: S.pod,
-    tone: 'peer', order: 4,
+    tone: 'peer', order: 4, shape: 'seal',
     hover: 'Static/critical Pod: kubelet loại khỏi danh sách victim trước khi rank'
   });
 
   /* ── Worker B: where a replacement can actually land ── */
   w.node('worker-b', {
     label: 'Worker B\nReady · no taint', pos: p.workerB, size: S.node,
-    tone: 'surface', order: 4,
+    tone: 'surface', order: 4, shape: 'slab',
     hover: 'Đích khả dụng cho replacement: không bị taint và còn memory trống'
   });
   w.node('replacement', {
     label: 'Replacement\nnew UID · Pending', pos: p.replacementQueue,
-    size: S.pod, tone: 'subject', order: 5, hidden: true,
+    size: S.pod, tone: 'subject', order: 5, hidden: true, shape: 'seal',
     hover: 'Một Pod object mới; không phải Pod victim sống lại'
   });
 

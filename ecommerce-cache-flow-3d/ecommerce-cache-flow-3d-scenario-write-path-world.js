@@ -63,27 +63,27 @@ window.createWritePathWorld = function(run) { return function(raw) {
   const w = KIT.world(raw);
   const lbLv = LV.byKey('lb'), cdnLv = LV.byKey('cdn'), redisLv = LV.byKey('redis'), ormLv = LV.byKey('orm');
 
-  w.node('admin-console', {label: 'Admin Console\nsửa giá ' + run.productId, pos: [X.app, Y.ground, Z.resolve], size: S.actor, tone: 'system', order: 0, hover: 'Nơi lệnh UPDATE giá bắt đầu'});
+  w.node('admin-console', {label: 'Admin Console\nsửa giá ' + run.productId, pos: [X.app, Y.ground, Z.resolve], size: S.actor, tone: 'system', order: 0, hover: 'Nơi lệnh UPDATE giá bắt đầu', shape: 'client'});
 
-  w.node('db-engine', {label: 'DB Engine\nUPDATE products', pos: [X.db, Y.ground, Z.spine], size: S.engine, tone: 'engine', order: 1, hover: 'Nơi lệnh UPDATE thật sự ghi'});
-  w.node('wal', {label: 'WAL\nwrite-ahead log', pos: [X.db, Y.ground, storeLanes[0]], size: S.store, tone: 'store', order: 1, hover: 'Transaction log — DB engine tự ghi, không qua app'});
-  w.node('buffer-pool', {label: 'Buffer Pool\nin-memory page', pos: [X.db, Y.ground, storeLanes[1]], size: S.store, tone: 'store', order: 1, hover: 'Bản copy trong RAM của page vừa sửa'});
+  w.node('db-engine', {label: 'DB Engine\nUPDATE products', pos: [X.db, Y.ground, Z.spine], size: S.engine, tone: 'engine', order: 1, hover: 'Nơi lệnh UPDATE thật sự ghi', shape: 'cylinder'});
+  w.node('wal', {label: 'WAL\nwrite-ahead log', pos: [X.db, Y.ground, storeLanes[0]], size: S.store, tone: 'store', order: 1, hover: 'Transaction log — DB engine tự ghi, không qua app', shape: 'rack'});
+  w.node('buffer-pool', {label: 'Buffer Pool\nin-memory page', pos: [X.db, Y.ground, storeLanes[1]], size: S.store, tone: 'store', order: 1, hover: 'Bản copy trong RAM của page vừa sửa', shape: 'grid'});
 
-  w.node('os-cache', {label: 'OS Page Cache\nkernel', pos: [X.os, Y.ground, Z.spine], size: S.engine, tone: 'engine', order: 2, hover: 'Dirty page — kernel tự flush xuống đĩa'});
+  w.node('os-cache', {label: 'OS Page Cache\nkernel', pos: [X.os, Y.ground, Z.spine], size: S.engine, tone: 'engine', order: 2, hover: 'Dirty page — kernel tự flush xuống đĩa', shape: 'grid'});
 
-  w.node('orm-cache', {label: 'ORM Cache\nTTL ' + LV.fmtTtl(ormLv.ttlSec), pos: [X.orm, Y.ground, Z.spine], size: S.gate, tone: 'gate', order: 3, hover: 'Auto-invalidate qua signal post_save/post_delete'});
+  w.node('orm-cache', {label: 'ORM Cache\nTTL ' + LV.fmtTtl(ormLv.ttlSec), pos: [X.orm, Y.ground, Z.spine], size: S.gate, tone: 'gate', order: 3, hover: 'Auto-invalidate qua signal post_save/post_delete', shape: 'hex'});
 
   w.node('origin-app', {label: 'Origin App\nShopHub SSR', pos: [X.app, Y.ground, Z.spine], size: S.core, tone: 'core', order: 4, hover: 'App code phát lệnh DEL Redis + purge LB/CDN'});
-  w.node('redis', {label: 'Redis\nproduct:' + run.productId.replace('PID-', '') + ' · TTL ' + LV.fmtTtl(redisLv.ttlSec), pos: [X.app, Y.ground, appStoreLanes[0]], size: S.gate, tone: 'gate', order: 4, hover: 'App cache — DEL hoặc chờ TTL'});
-  w.node('pubsub', {label: 'Pub/Sub\nproduct:invalidate', pos: [X.app, Y.ground, appStoreLanes[1]], size: S.queue, tone: 'queue', order: 4, hover: 'Kênh báo các instance khác tự xoá key nội bộ'});
+  w.node('redis', {label: 'Redis\nproduct:' + run.productId.replace('PID-', '') + ' · TTL ' + LV.fmtTtl(redisLv.ttlSec), pos: [X.app, Y.ground, appStoreLanes[0]], size: S.gate, tone: 'gate', order: 4, hover: 'App cache — DEL hoặc chờ TTL', shape: 'redis'});
+  w.node('pubsub', {label: 'Pub/Sub\nproduct:invalidate', pos: [X.app, Y.ground, appStoreLanes[1]], size: S.queue, tone: 'queue', order: 4, hover: 'Kênh báo các instance khác tự xoá key nội bộ', shape: 'rack'});
 
-  w.node('lb-proxy', {label: 'LB / Reverse Proxy\nTTL ' + LV.fmtTtl(lbLv.ttlSec), pos: [X.lb, Y.ground, Z.spine], size: S.gate, tone: 'gate', order: 5, hover: 'Purge theo cache tag'});
-  w.node('cdn-edge', {label: 'CDN Edge\nTTL ' + LV.fmtTtl(cdnLv.ttlSec), pos: [X.cdn, Y.ground, Z.spine], size: S.gate, tone: 'gate', order: 6, hover: 'Purge theo URL/tag qua purge API'});
-  w.node('browser-cache', {label: 'Browser Cache\ngiá no-store', pos: [X.browser, Y.ground, Z.spine], size: S.gate, tone: 'gate', order: 7, hover: 'Không có purge — chỉ hết hạn theo TTL/ETag'});
-  w.node('client', {label: 'Trình duyệt khách\n' + run.productId, pos: [X.client, Y.ground, Z.spine], size: S.actor, tone: 'subject', order: 7, hover: 'Người dùng cuối cùng thấy giá nào'});
+  w.node('lb-proxy', {label: 'LB / Reverse Proxy\nTTL ' + LV.fmtTtl(lbLv.ttlSec), pos: [X.lb, Y.ground, Z.spine], size: S.gate, tone: 'gate', order: 5, hover: 'Purge theo cache tag', shape: 'hex'});
+  w.node('cdn-edge', {label: 'CDN Edge\nTTL ' + LV.fmtTtl(cdnLv.ttlSec), pos: [X.cdn, Y.ground, Z.spine], size: S.gate, tone: 'gate', order: 6, hover: 'Purge theo URL/tag qua purge API', shape: 'hex'});
+  w.node('browser-cache', {label: 'Browser Cache\ngiá no-store', pos: [X.browser, Y.ground, Z.spine], size: S.gate, tone: 'gate', order: 7, hover: 'Không có purge — chỉ hết hạn theo TTL/ETag', shape: 'hex'});
+  w.node('client', {label: 'Trình duyệt khách\n' + run.productId, pos: [X.client, Y.ground, Z.spine], size: S.actor, tone: 'subject', order: 7, hover: 'Người dùng cuối cùng thấy giá nào', shape: 'client'});
 
-  w.node('client-a', {label: 'Trình duyệt A', pos: [X.client, Y.ground, clientLanes[0]], size: S.actor, tone: 'subject', order: 8, hidden: true, hover: 'Client A — gửi request đọc giá ngay trước lúc admin sửa'});
-  w.node('client-b', {label: 'Trình duyệt B', pos: [X.client, Y.ground, clientLanes[1]], size: S.actor, tone: 'peer', order: 8, hidden: true, hover: 'Client B — gửi request đọc giá ngay sau lúc admin sửa'});
+  w.node('client-a', {label: 'Trình duyệt A', pos: [X.client, Y.ground, clientLanes[0]], size: S.actor, tone: 'subject', order: 8, hidden: true, hover: 'Client A — gửi request đọc giá ngay trước lúc admin sửa', shape: 'client'});
+  w.node('client-b', {label: 'Trình duyệt B', pos: [X.client, Y.ground, clientLanes[1]], size: S.actor, tone: 'peer', order: 8, hidden: true, hover: 'Client B — gửi request đọc giá ngay sau lúc admin sửa', shape: 'client'});
 
   w.node('app-worker-a', {label: 'App worker A\nphục vụ request A', pos: [X.app, Y.ground, raceLanes[0]], size: S.core, tone: 'core', order: 8, hidden: true, hover: 'Process phục vụ request A — giữ giá vừa đọc trong biến của riêng nó, không biết worker B tồn tại'});
   w.node('app-worker-b', {label: 'App worker B\nphục vụ request B', pos: [X.app, Y.ground, raceLanes[1]], size: S.core, tone: 'core', order: 8, hidden: true, hover: 'Process phục vụ request B — chạy song song và độc lập với worker A'});

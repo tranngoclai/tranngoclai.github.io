@@ -38,23 +38,23 @@ window.createBuildCacheWorld = function(run) { return function(raw) {
   const w = KIT.world(raw);
   const cdnLv = LV.byKey('cdn'), browserLv = LV.byKey('browser');
 
-  w.node('ci-trigger', {label: 'Git push\ncommit', pos: [CX.trigger, Y.ground, Z.resolve], size: S.actor, tone: 'system', order: 0, hover: 'Không phải request — commit kích hoạt CI pipeline'});
-  w.node('commit', {label: 'Build đang chạy', pos: [CX.trigger, Y.ground + 2.6, Z.spine], size: S.entry, tone: 'subject', order: 1, hover: 'Đối tượng theo dõi ở scenario này là BUILD, không phải request HTTP'});
-  w.node('ci-runner', {label: 'CI Runner\n(surface)', pos: [(CX.install + CX.docker) / 2, Y.ground - 0.4, Z.spine], size: S.surface, tone: 'surface', order: 0, hover: 'Nền của toàn bộ pipeline'});
+  w.node('ci-trigger', {label: 'Git push\ncommit', pos: [CX.trigger, Y.ground, Z.resolve], size: S.actor, tone: 'system', order: 0, hover: 'Không phải request — commit kích hoạt CI pipeline', shape: 'client'});
+  w.node('commit', {label: 'Build đang chạy', pos: [CX.trigger, Y.ground + 2.6, Z.spine], size: S.entry, tone: 'subject', order: 1, hover: 'Đối tượng theo dõi ở scenario này là BUILD, không phải request HTTP', shape: 'seal'});
+  w.node('ci-runner', {label: 'CI Runner\n(surface)', pos: [(CX.install + CX.docker) / 2, Y.ground - 0.4, Z.spine], size: S.surface, tone: 'surface', order: 0, hover: 'Nền của toàn bộ pipeline', shape: 'slab'});
 
-  w.node('lockfile-cache', {label: 'Lockfile Cache\nkey = hash(lockfile)', pos: [CX.lockfile, Y.ground, Z.spine], size: S.gate, tone: 'gate', order: 1, hover: 'All-or-nothing — đổi 1 dòng là mất sạch'});
-  w.node('ci-cache-bucket', {label: 'node_modules\nCI bucket', pos: [CX.lockfile, Y.ground, Z.store], size: S.store, tone: 'store', order: 1, hover: 'Nơi node_modules được lưu lại giữa các lần build'});
+  w.node('lockfile-cache', {label: 'Lockfile Cache\nkey = hash(lockfile)', pos: [CX.lockfile, Y.ground, Z.spine], size: S.gate, tone: 'gate', order: 1, hover: 'All-or-nothing — đổi 1 dòng là mất sạch', shape: 'hex'});
+  w.node('ci-cache-bucket', {label: 'node_modules\nCI bucket', pos: [CX.lockfile, Y.ground, Z.store], size: S.store, tone: 'store', order: 1, hover: 'Nơi node_modules được lưu lại giữa các lần build', shape: 'grid'});
 
   w.node('bundler', {label: 'Bundler\nper-module hash', pos: [CX.compile, Y.ground, Z.spine], size: S.engine, tone: 'engine', order: 2, hover: 'Compile — key theo TỪNG module'});
-  w.node('module-cache', {label: 'Module Cache\npersistent', pos: [CX.compile, Y.ground, Z.store], size: S.store, tone: 'store', order: 2, hover: 'Output compile của từng module, tái sử dụng nếu hash không đổi'});
+  w.node('module-cache', {label: 'Module Cache\npersistent', pos: [CX.compile, Y.ground, Z.store], size: S.store, tone: 'store', order: 2, hover: 'Output compile của từng module, tái sử dụng nếu hash không đổi', shape: 'grid'});
 
   w.node('docker-builder', {label: 'Docker Builder\nlayer chain', pos: [CX.docker, Y.ground, Z.spine], size: S.engine, tone: 'engine', order: 3, hover: 'Prefix invalidation — 1 layer đổi kéo theo mọi layer sau'});
-  w.node('layer-cache', {label: 'Layer Cache\nprefix chain', pos: [CX.docker, Y.ground, Z.store], size: S.store, tone: 'store', order: 3, hover: 'Layer nào rebuild thì mọi layer sau nó cũng rebuild theo'});
+  w.node('layer-cache', {label: 'Layer Cache\nprefix chain', pos: [CX.docker, Y.ground, Z.store], size: S.store, tone: 'store', order: 3, hover: 'Layer nào rebuild thì mọi layer sau nó cũng rebuild theo', shape: 'tiers'});
 
-  w.node('registry', {label: 'Registry\n' + run.bundleNameNew, pos: [CX.registry, Y.ground, Z.spine], size: S.store, tone: 'store', order: 4, hover: 'Image + bundle vừa publish'});
+  w.node('registry', {label: 'Registry\n' + run.bundleNameNew, pos: [CX.registry, Y.ground, Z.spine], size: S.store, tone: 'store', order: 4, hover: 'Image + bundle vừa publish', shape: 'seal'});
 
-  w.node('cdn-edge', {label: 'CDN Edge\nTTL ' + LV.fmtTtl(cdnLv.ttlSec), pos: [X.cdn, Y.ground, Z.spine], size: S.gate, tone: 'gate', order: 5, hidden: true, hover: 'Handoff sang runtime — level 3 của request path'});
-  w.node('browser-cache', {label: 'Browser Cache\n' + run.bundleNameNew, pos: [X.browser, Y.ground, Z.spine], size: S.gate, tone: 'gate', order: 5, hidden: true, hover: 'Handoff sang runtime — level 2 của request path'});
+  w.node('cdn-edge', {label: 'CDN Edge\nTTL ' + LV.fmtTtl(cdnLv.ttlSec), pos: [X.cdn, Y.ground, Z.spine], size: S.gate, tone: 'gate', order: 5, hidden: true, hover: 'Handoff sang runtime — level 3 của request path', shape: 'hex'});
+  w.node('browser-cache', {label: 'Browser Cache\n' + run.bundleNameNew, pos: [X.browser, Y.ground, Z.spine], size: S.gate, tone: 'gate', order: 5, hidden: true, hover: 'Handoff sang runtime — level 2 của request path', shape: 'hex'});
 
   w.region('CI PIPELINE', (CX.trigger + CX.registry) / 2, 0, 8);
   w.region('RUNTIME HANDOFF', (X.cdn + X.browser) / 2, 0, 8);

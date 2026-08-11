@@ -94,7 +94,7 @@ window.PREEMPTION_WORLD = function(raw) {
   });
   w.node('etcd', {
     label: 'etcd', pos: [L.X.core, L.Y.ground, L.Z.store], size: S.store,
-    tone: 'store', order: 1,
+    tone: 'store', order: 1, shape: 'cylinder',
     hover: 'Nguồn sự thật: spec.priority, nominatedNodeName, nodeName'
   });
 
@@ -107,7 +107,7 @@ window.PREEMPTION_WORLD = function(raw) {
   w.node('queue', {
     label: 'ActiveQ', pos: L.queuePlate.pos, size: S.queue,
     caption: L.queuePlate.caption,
-    tone: 'queue', order: 2, hidden: true,
+    tone: 'queue', order: 2, hidden: true, shape: 'rack',
     hover: 'Priority queue — Pod priority cao được pop trước'
   });
 
@@ -117,51 +117,51 @@ window.PREEMPTION_WORLD = function(raw) {
   w.node('pod-checkout', {
     label: POD.name + '\nP=' + POD.priority + ' · ' + MODEL.fmtGi(POD.memGi),
     pos: P.etcdShelf, size: S.pod,
-    tone: 'subject', order: 2, hidden: true,
+    tone: 'subject', order: 2, hidden: true, shape: 'seal',
     hover: 'Pod đang cần chỗ — priority 1000, requests.memory 4Gi'
   });
   w.node('pod-report', {
     label: 'report\nP=200', pos: P.queue1, size: S.pod,
-    tone: 'peer', order: 3, hidden: true,
+    tone: 'peer', order: 3, hidden: true, shape: 'seal',
     hover: 'Pod thường đang chờ tới lượt — priority thấp hơn nên bị chen'
   });
 
   /* ── Worker A: Node duy nhất mà preemption cứu được ── */
   w.node('node-a', {
     label: nodeLabel('node-a'), pos: [L.X.node, L.Y.slab, LANE[0]], size: S.node,
-    tone: 'surface', order: 4,
+    tone: 'surface', order: 4, shape: 'slab',
     hover: 'Còn 1Gi trống — Pod checkout cần 4Gi'
   });
   w.node('pod-a1', {
     label: podLabel('node-a', 'pod-a1'), pos: [COL[0], POD_Y, A_POD], size: S.pod,
-    tone: 'live', order: 5,
+    tone: 'live', order: 5, shape: 'seal',
     hover: 'Priority thấp nhất — victim đầu tiên bị nhắm tới'
   });
   w.node('pod-a2', {
     label: podLabel('node-a', 'pod-a2'), pos: [COL[1], POD_Y, A_POD], size: S.pod,
-    tone: 'live', order: 5,
+    tone: 'live', order: 5, shape: 'seal',
     hover: 'Priority thấp hơn 1000 — victim hợp lệ'
   });
   w.node('pod-a3', {
     label: podLabel('node-a', 'pod-a3'), pos: [COL[2], POD_Y, A_POD], size: S.pod,
-    tone: 'live', order: 5,
+    tone: 'live', order: 5, shape: 'seal',
     hover: 'Cũng thấp hơn 1000 — nhưng không cần xoá nếu đã đủ chỗ'
   });
 
   /* ── Worker B: đầy, nhưng toàn Pod priority CAO hơn ── */
   w.node('node-b', {
     label: nodeLabel('node-b'), pos: [L.X.node, L.Y.slab, LANE[1]], size: S.node,
-    tone: 'surface', order: 5,
+    tone: 'surface', order: 5, shape: 'slab',
     hover: 'Đầy — và mọi Pod ở đây đều priority ≥ 2000'
   });
   w.node('pod-b1', {
     label: podLabel('node-b', 'pod-b1'), pos: [COL[0], POD_Y, B_POD], size: S.pod,
-    tone: 'warn', order: 6,
+    tone: 'warn', order: 6, shape: 'seal',
     hover: 'Priority CAO HƠN Pod đang chờ → không thể là victim'
   });
   w.node('pod-b2', {
     label: podLabel('node-b', 'pod-b2'), pos: [COL[1], POD_Y, B_POD], size: S.pod,
-    tone: 'warn', order: 6,
+    tone: 'warn', order: 6, shape: 'seal',
     hover: 'system-cluster-critical — bất khả xâm phạm'
   });
 
@@ -169,12 +169,12 @@ window.PREEMPTION_WORLD = function(raw) {
   w.node('node-c', {
     label: nodeLabel('node-c', ' · gpu=true:NoSchedule'),
     pos: [L.X.node, L.Y.slab, LANE[2]], size: S.node,
-    tone: 'surface', order: 6,
+    tone: 'surface', order: 6, shape: 'slab',
     hover: 'Còn 10Gi trống — nhưng Pod không có toleration'
   });
   w.node('pod-c1', {
     label: podLabel('node-c', 'pod-c1'), pos: [COL[0], POD_Y, C_POD], size: S.pod,
-    tone: 'live', order: 7,
+    tone: 'live', order: 7, shape: 'seal',
     hover: 'Priority thấp — nhưng xoá nó cũng vô ích, taint vẫn còn'
   });
 

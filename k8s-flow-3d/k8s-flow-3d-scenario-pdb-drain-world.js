@@ -49,12 +49,12 @@ window.createPdbDrainWorld = function(run) { return function(raw) {
   const w = KIT.world(raw), p = window.PDB_DRAIN_POS;
 
   /* ── Đường đi request (băng z = 0) ── */
-  w.node('kubectl', {label: 'kubectl\ndrain', pos: [L.X.actor, L.Y.ground, L.Z.spine], size: S.actor, tone: 'subject', order: 0, hover: 'Client that cordons then calls the Eviction subresource'});
+  w.node('kubectl', {label: 'kubectl\ndrain', pos: [L.X.actor, L.Y.ground, L.Z.spine], size: S.actor, tone: 'subject', order: 0, hover: 'Client that cordons then calls the Eviction subresource', shape: 'client'});
   w.node('apiserver', {label: 'API Server', pos: [L.X.core, L.Y.ground, L.Z.spine], size: S.core, tone: 'core', order: 1, hover: 'Accepts Eviction requests and writes Pod/Node objects'});
 
   /* ── PDB: một policy object được lưu, nên nó ở băng nền ngay sau API Server,
      đúng chỗ etcd đứng trong các kịch bản khác ── */
-  w.node('pdb', {label: 'PDB\nminAvailable ' + run.minAvailable, pos: [L.X.core, L.Y.ground, L.Z.store], size: S.gate, tone: 'gate', order: 2, hover: 'policy/v1 PodDisruptionBudget selected by the Deployment Pod labels'});
+  w.node('pdb', {label: 'PDB\nminAvailable ' + run.minAvailable, pos: [L.X.core, L.Y.ground, L.Z.store], size: S.gate, tone: 'gate', order: 2, hover: 'policy/v1 PodDisruptionBudget selected by the Deployment Pod labels', shape: 'hex'});
 
   /* ── Cột control: ba controller, mỗi cái ở băng vai trò của nó ── */
   w.node('scheduler', {label: 'kube-scheduler', pos: [L.X.control, L.Y.ground, L.Z.sched], size: S.scheduler, tone: 'system', order: 2, hover: 'Binds the replacement only to a schedulable worker'});
@@ -62,9 +62,9 @@ window.createPdbDrainWorld = function(run) { return function(raw) {
   w.node('disruption-controller', {label: 'disruption controller\nkube-controller-manager', pos: [L.X.control, L.Y.ground, L.Z.policy], size: S.controller, tone: 'system', order: 2, hover: 'Maintains PDB status such as currentHealthy and disruptionsAllowed'});
 
   /* ── Ba Worker ngang hàng ── */
-  w.node('worker-a', {label: 'Worker A\nschedulable', pos: [L.X.node, L.Y.slab, A], size: S.node, tone: 'surface', order: 3, hover: 'Drain target; cordon changes spec.unschedulable before evictions'});
-  w.node('worker-b', {label: 'Worker B\nschedulable', pos: [L.X.node, L.Y.slab, B], size: S.node, tone: 'surface', order: 3, hover: 'A remaining healthy replica node'});
-  w.node('worker-c', {label: 'Worker C\nschedulable', pos: [L.X.node, L.Y.slab, C], size: S.node, tone: 'surface', order: 3, hover: 'A remaining node where the replacement can be bound'});
+  w.node('worker-a', {label: 'Worker A\nschedulable', pos: [L.X.node, L.Y.slab, A], size: S.node, tone: 'surface', order: 3, hover: 'Drain target; cordon changes spec.unschedulable before evictions', shape: 'slab'});
+  w.node('worker-b', {label: 'Worker B\nschedulable', pos: [L.X.node, L.Y.slab, B], size: S.node, tone: 'surface', order: 3, hover: 'A remaining healthy replica node', shape: 'slab'});
+  w.node('worker-c', {label: 'Worker C\nschedulable', pos: [L.X.node, L.Y.slab, C], size: S.node, tone: 'surface', order: 3, hover: 'A remaining node where the replacement can be bound', shape: 'slab'});
 
   /* hàng agent của A và C — hai kubelet mà kịch bản thật sự nhắc tới */
   w.node('kubelet-a', {label: 'kubelet A', pos: [COL[2], AGENT_Y, L.row.agent(A)], size: S.agent, tone: 'engine', order: 5, hover: 'Observes the terminating Pod and asks CRI to stop its containers'});
@@ -73,10 +73,10 @@ window.createPdbDrainWorld = function(run) { return function(raw) {
   w.node('runtime-c', {label: 'CRI runtime C', pos: [COL[3], AGENT_Y, L.row.agent(C)], size: S.agent, tone: 'engine', order: 5, hover: 'Creates the replacement containers'});
 
   /* hàng Pod — cả bốn Pod cùng SIZE.pod */
-  w.node('pod-api-0', {label: run.target.name + '\nReady', pos: p.api0, size: S.pod, tone: 'live', order: 4, hover: 'Deployment Pod selected by this PDB; on the drain target'});
-  w.node('pod-api-1', {label: 'api-1\nReady', pos: p.api1, size: S.pod, tone: 'live', order: 4, hover: 'Selected by the same PDB; its eviction is initially refused'});
-  w.node('pod-api-2', {label: 'api-2\nReady', pos: p.api2, size: S.pod, tone: 'live', order: 4, hover: 'Selected by the same PDB; remains available'});
-  w.node('pod-api-3', {label: run.replacement.name + '\nPending', pos: p.replacementPending, size: S.pod, tone: 'peer', order: 4, hidden: true, hover: 'New Pod object with a new UID, created by the ReplicaSet controller'});
+  w.node('pod-api-0', {label: run.target.name + '\nReady', pos: p.api0, size: S.pod, tone: 'live', order: 4, hover: 'Deployment Pod selected by this PDB; on the drain target', shape: 'seal'});
+  w.node('pod-api-1', {label: 'api-1\nReady', pos: p.api1, size: S.pod, tone: 'live', order: 4, hover: 'Selected by the same PDB; its eviction is initially refused', shape: 'seal'});
+  w.node('pod-api-2', {label: 'api-2\nReady', pos: p.api2, size: S.pod, tone: 'live', order: 4, hover: 'Selected by the same PDB; remains available', shape: 'seal'});
+  w.node('pod-api-3', {label: run.replacement.name + '\nPending', pos: p.replacementPending, size: S.pod, tone: 'peer', order: 4, hidden: true, hover: 'New Pod object with a new UID, created by the ReplicaSet controller', shape: 'seal'});
 
   w.region('CONTROL PLANE', L.X.core, 0, 10);
   w.region('WORKER NODES', L.X.node, 0, 10);

@@ -80,17 +80,17 @@ window.SCHEDULER_WORLD = function(raw) {
   /* ── Đường đi request (băng z = 0) ── */
   w.node('client', {
     label: 'Client\n(kubectl)', pos: [L.X.actor, L.Y.ground, L.Z.spine], size: S.actor,
-    tone: 'surface', order: 0,
+    tone: 'surface', order: 0, shape: 'client',
     hover: 'kubectl / CI-CD gửi request tới API Server'
   });
   w.node('authn', {
     label: 'Authn · Authr', pos: [L.X.gate1, L.Y.ground, L.Z.spine], size: S.gate,
-    tone: 'gate', order: 1,
+    tone: 'gate', order: 1, shape: 'hex',
     hover: 'Xác thực token/cert rồi kiểm tra RBAC'
   });
   w.node('admission', {
     label: 'Admission\nWebhooks', pos: [L.X.gate2, L.Y.ground, L.Z.spine], size: S.gate,
-    tone: 'gate', order: 2,
+    tone: 'gate', order: 2, shape: 'hex',
     hover: 'Mutating rồi Validating webhooks'
   });
   w.node('apiserver', {
@@ -102,7 +102,7 @@ window.SCHEDULER_WORLD = function(raw) {
   /* ── Băng nền (z−): store và controller chạy nền ── */
   w.node('etcd', {
     label: 'etcd', pos: [L.X.core, L.Y.ground, L.Z.store], size: S.store,
-    tone: 'store', order: 4,
+    tone: 'store', order: 4, shape: 'cylinder',
     hover: 'Nguồn sự thật duy nhất của cluster state'
   });
   w.node('ctrlmgr', {
@@ -118,7 +118,7 @@ window.SCHEDULER_WORLD = function(raw) {
   w.node('pod', {
     label: 'Pod · P=' + MODEL.DEFAULT_CONFIG.pod.priority + '\nnodeName: ""',
     pos: P.etcdShelf, size: S.pod,
-    tone: 'subject', order: 5, hidden: true,
+    tone: 'subject', order: 5, hidden: true, shape: 'seal',
     hover: 'Chính Pod đang được schedule — theo nó suốt 9 bước'
   });
 
@@ -133,13 +133,13 @@ window.SCHEDULER_WORLD = function(raw) {
   w.node('queue', {
     label: 'ActiveQ', pos: L.queuePlate.pos, size: S.queue,
     caption: L.queuePlate.caption,
-    tone: 'queue', order: 6, hidden: true,
+    tone: 'queue', order: 6, hidden: true, shape: 'rack',
     hover: 'Priority queue — Pod priority cao được pop trước'
   });
   w.node('q-pod-lo', {
     label: MODEL.DEFAULT_CONFIG.queuePeer.name
          + '\nP=' + MODEL.DEFAULT_CONFIG.queuePeer.priority, pos: P.queue1, size: S.pod,
-    tone: 'peer', order: 7, hidden: true,
+    tone: 'peer', order: 7, hidden: true, shape: 'seal',
     hover: 'Pod thường đang chờ tới lượt — priority thấp hơn nên bị chen'
   });
 
@@ -148,7 +148,7 @@ window.SCHEDULER_WORLD = function(raw) {
      (Pod đáp xuống · sandbox · container) — đúng thứ tự của luật 4. */
   w.node('node-a', {
     label: nodeLabel('node-a'), pos: [L.X.node, L.Y.slab, A], size: S.node,
-    tone: 'surface', order: 6,
+    tone: 'surface', order: 6, shape: 'slab',
     hover: 'Node rộng nhất — sẽ pass Filter và thắng Score'
   });
   w.node('kubelet', {
@@ -168,12 +168,12 @@ window.SCHEDULER_WORLD = function(raw) {
   });
   w.node('sandbox', {
     label: 'Pod sandbox', pos: [A_COL[1], L.on(S.sandbox[1]), A_POD], size: S.sandbox,
-    tone: 'live', order: 9, hidden: true,
+    tone: 'live', order: 9, hidden: true, shape: 'client',
     hover: 'pause container giữ network namespace cho Pod'
   });
   w.node('container', {
     label: 'Container', pos: [A_COL[2], L.on(S.proc[1]), A_POD], size: S.proc,
-    tone: 'live', order: 10, hidden: true,
+    tone: 'live', order: 10, hidden: true, shape: 'client',
     hover: 'Tiến trình ứng dụng thật, bị bao bởi namespaces + cgroups'
   });
 
@@ -183,17 +183,17 @@ window.SCHEDULER_WORLD = function(raw) {
      sao nó pass hay trượt, không cần chip verdict đứng cạnh. */
   w.node('node-d', {
     label: nodeLabel('node-d'), pos: [L.X.node, L.Y.slab, LANE[1]], size: S.node,
-    tone: 'surface', order: 7,
+    tone: 'surface', order: 7, shape: 'slab',
     hover: 'Vẫn đủ chỗ — nhưng chật hơn A nên điểm LeastAllocated thấp hơn'
   });
   w.node('node-b', {
     label: nodeLabel('node-b'), pos: [L.X.node, L.Y.slab, LANE[2]], size: S.node,
-    tone: 'surface', order: 8,
+    tone: 'surface', order: 8, shape: 'slab',
     hover: 'Gần kín CPU — sẽ trượt NodeResourcesFit'
   });
   w.node('node-c', {
     label: nodeLabel('node-c', ' · NoSchedule'), pos: [L.X.node, L.Y.slab, LANE[3]], size: S.node,
-    tone: 'surface', order: 9,
+    tone: 'surface', order: 9, shape: 'slab',
     hover: 'Rỗng nhất cluster — nhưng mang taint nên Pod không được vào'
   });
 

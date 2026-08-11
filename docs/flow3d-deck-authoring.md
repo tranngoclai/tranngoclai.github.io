@@ -250,8 +250,9 @@ every world written before this vocabulary existed.
 | `hex` | checkpoint / policy | admission control, IAM evaluation |
 | `rack` | buffer / queue | a queue, a stack of pending items |
 | `grid` | aggregate | a fixed-cardinality cluster or matrix |
-| `capsule` | actor / device | a client, a worker, a physical device |
+| `client` | client device (monitor) | a client, a worker, a physical device |
 | `seal` | immutable commit | a ledger entry, a signed/committed record |
+| `tiers` | layered store | a cache with multiple tiers, a layered store (e.g. Redis-like) |
 
 A shape's silhouette never encodes a live number. `grid` always renders a
 fixed 3x3 matrix regardless of how many real items it represents, and never

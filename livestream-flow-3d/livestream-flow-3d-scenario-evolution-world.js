@@ -31,6 +31,7 @@ window.createEvolutionWorld = function(run) { return function(raw) {
   w.node('streamer', {
     label: 'Streamer\ncamera · mic · encoder ' + M.fmtMbps(c.sourceBitrateMbps),
     pos: [X.streamer, Y.ground, Z.spine], size: S.actor, tone: 'system', order: 0,
+    shape: 'client',
     hover: 'Nguồn phát: camera/mic và encoder là chi tiết bên trong actor này, không phải component riêng'
   });
 
@@ -43,6 +44,7 @@ window.createEvolutionWorld = function(run) { return function(raw) {
   w.node('viewer', {
     label: 'Viewer\n1 người xem',
     pos: [X.viewer, Y.ground, Z.spine], size: S.actor, tone: 'subject', order: 2,
+    shape: 'client',
     hover: 'Người xem — subject của deck: 1 người ở Stage 0, 2,1 triệu ở Stage 3'
   });
 
