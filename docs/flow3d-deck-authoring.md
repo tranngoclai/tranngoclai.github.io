@@ -17,8 +17,8 @@ above it but never about the layers below.
  layer          what it does                              knows about
  ─────────────  ─────────────────────────────────────────  ──────────────────
  deck manifest  shell copy: splash, brand, sidebar title  SCENARIOS[].name
- model          pure arithmetic; the source of every       nothing (pure fn)
-                number the scenario shows
+ model          deterministic domain simulation; the       nothing (pure fn)
+                source of every domain value shown
  world          components, positions, tones; reads        model (labels)
                 labels from the model
  steps          phases: copy + choreography; reads         model (verdicts,
@@ -35,25 +35,37 @@ and the intro splash.  The scenario chips on the splash are rendered from
 
 **Model**
 A plain-JS module that exports pure functions and a frozen `DEFAULT_CONFIG`.
-It owns every number the panel copy and the 3D states reference, so those two
-surfaces cannot disagree.  No Three.js, no DOM -- runnable under plain `node`
-for regression assertions.
+It owns every domain value the panel copy and the 3D states reference, including
+topology, policy, workload, verdicts and derived metrics.  Presentation values
+such as coordinates, camera distance and animation timing stay in world/steps.
+No Three.js, no DOM -- runnable under plain `node` for regression assertions.
 
 **World**
 A function receiving the raw engine context (`w.node`, `w.txt`, `w.cam`) and
 declaring every component via `KIT.world(w).node(key, {...})`.  The world is
 built once and never torn down.
 
+Every conceptual component also has a lifecycle, even when the renderer keeps
+its mesh allocated:
+
+- `inactive` -- declared by the world but not yet part of the current design.
+- `active` -- participates in the current causal state.
+- `retired` -- no longer participates; it may fade or move aside.
+- `historical` -- retained only to explain an earlier state or comparison.
+
+`hidden` is a presentation flag, not a lifecycle.  A retired component must not
+silently become active again outside an explicit replay/reset transition.
+
 **Steps**
 An array of step objects, each optionally subdivided into `phases`.  A step
-groups phases under one title; a phase is one action + one explanation + one
-beat of choreography.  The phase expander (`flow3d-engine-phase-expander.js`)
+groups phases under one title; a phase is one causal claim + one explanation +
+one beat of choreography.  The phase expander (`flow3d-engine-phase-expander.js`)
 flattens phases into ordinary steps before the engine runs, so the rendering
 layer never knows about them.
 
 **Assembly**
-Runs the model with its default config, computes derived results, and calls
-`KIT.scenario({name, tag, pipeline, world, steps})`.
+Runs the deterministic model with its default config, computes derived results,
+and calls `KIT.scenario({name, tag, pipeline, world, steps})`.
 
 ---
 
@@ -65,9 +77,15 @@ cited.  They are not guidelines -- the kit API makes it hard to violate them.
 ### Rule 1 -- one thing = one component
 `flow3d-kit-world-builder.js:9`
 
-The persistent world is built once.  A thing that moves must be the **same box**
-moving (via `KIT.move()`), not a new box at the destination.  A thing's verdict
-belongs **on** the thing (tone + badge), never on a separate chip beside it.
+The persistent world is built once.  The same entity stays the **same box** when
+it moves (via `KIT.move()`), rather than being replaced at the destination.  A
+thing's verdict belongs **on** the thing (tone + badge), never on a separate chip
+beside it.
+
+Replication is different from movement.  A cache fill, fan-out or retry must
+create an explicit copy/token and preserve the source; never teleport one box to
+several destinations.  Aggregate crowds may be one component only when their
+cardinality and aggregation semantics are stated.
 
 ### Rule 2 -- captions on the front face
 `flow3d-kit-world-builder.js:21`
@@ -84,13 +102,25 @@ boxes too thin to print on.
 change only when the configuration they state actually changes.  Verdicts are
 expressed through tone and badge; explanation belongs in the panel text.
 
-### Rule 4 -- a phase holds exactly one action
+### Rule 4 -- a phase states exactly one causal claim
 `flow3d-engine-phase-expander.js:2`
 
-One Next click = one phase = one action.  The viewer reads the explanation for a
-single beat, and only that beat's flows and state changes play.  Timing offsets
-within a phase stay in the 0-1.5 s range, with short `loop` values so the
-action replays gently while the viewer reads.
+One Next click = one phase = one causal claim. The viewer reads one explanation
+for one claim, and only effects supporting that claim play. A distributed-system
+claim may contain parallel `fork`, `join` or `copy` effects when simultaneity is
+the point.
+
+When a single claim needs an ordered trace -- for example request, retry,
+deduplicate, then commit -- the phase may expose labelled `beats`. Beats are not
+extra claims or navigation phases; each one must be necessary evidence for the
+same claim. Beats must not be used to avoid splitting unrelated causes or
+independently useful decisions into separate phases. A sequence longer than 600 ms provides Play/Pause, Previous/Next
+beat, Replay and Skip. Unrelated causes still belong in separate phases.
+
+Short effects keep timing offsets within 0-1.5 s and run once. Replay is always
+user-triggered; causal motion does not auto-loop while the viewer reads. Long
+traces do not hide their order in timing offsets; they use an explicit
+timeline/scrubber and deterministic end state.
 
 ---
 
@@ -101,21 +131,108 @@ Generalised from `k8s-flow-3d-scenario-kubelet-eviction-model.js` and
 
 A model module:
 
-1. **Exports pure functions** -- given the same input, the same output, every
-   time.  No side effects, no globals read.
+1. **Exports pure deterministic functions** -- given the same input, the same
+   output every time.  The simulation may describe topology, state transitions,
+   policies, flows and arithmetic.  No side effects, no globals read.
 2. **Exports a frozen `DEFAULT_CONFIG`** -- the exact configuration the
    scenario teaches.  The assembly clones it and feeds it to `simulate()`.
 3. **Exposes `simulate(config)`** returning a result object that contains
-   everything downstream (world labels, step verdicts, HUD numbers).
+   everything downstream (entities and lifecycle, typed relations, world labels,
+   step verdicts, HUD values and causal invariants).
 4. **Validates inputs** -- throws `TypeError` / `RangeError` on non-finite or
    negative values, so bad arithmetic surfaces at load time rather than as a
    wrong badge three steps later.
 5. **Exposes formatters** (e.g. `fmtMi()`, `fmtCpu()`) so the panel copy, the
    world label, and the HUD all format the same number the same way.
 
-The model is the **only** place a number is stated.  If the panel copy says
-`768Mi < 1024Mi`, both `768` and `1024` come from the model result, never from
-a literal in the step file.
+For a system with independent planes or capability axes, the model uses a
+structured architecture state rather than one scalar generation ID. For example,
+media delivery, interaction, financial correctness and fleet policy evolve
+independently and remain cumulative. A scalar generation ID is valid only
+when every architecture really forms one total order.
+
+Every phase result also declares a causal contract:
+
+```js
+{
+  primaryClaim,
+  changedInput,
+  heldConstantInputs,
+  affectedPlane,
+  capacityBoundary,
+  latencyTarget,
+  consistencyRequirement,
+  failureAssumptions,
+  invariantIds
+}
+```
+
+The result carries a verdict per plane: `pass`, `fail` or `untested`. A healthy
+media path must not silently make an untested interaction or money path appear
+healthy. Overall readiness is never stronger than the plane verdicts support.
+
+The model is the **only** place a domain value is stated.  If the panel copy says
+`768Mi < 1024Mi`, both `768` and `1024` come from the model result, never from a
+literal in the step file.  Domain values include workload, capacity, thresholds,
+rates, policy and derived results.  Coordinates, camera distance and animation
+timing are presentation values and remain in world/steps.
+
+### 3a. Typed flows and provenance
+
+Every relation in the domain result declares what it carries and how it changes
+identity.  Use a small vocabulary such as:
+
+- `kind`: `media`, `control`, `metadata`, `money`. `interaction` may name a
+  domain plane, but comment/like relations still use `metadata` as their kind.
+- `mode`: `move`, `copy`, `fork`, `join`, `aggregate`, `commit`, `no-op`.
+
+The current renderer may draw these relations with the same `KIT.link()` or
+`KIT.flow()` primitive, but the phase copy, hover/focus text or legend must keep
+their meanings distinguishable.  A visual arrow without semantic type is not a
+complete authoring artifact.
+
+Claims and planning inputs carry two independent provenance dimensions alongside
+their value: `evidenceClass` says how well the input is supported, while
+`derivationClass` says whether it is an input or computed result.
+
+```js
+{
+  value: 2,
+  unit: 'Mbps',
+  evidenceClass: 'illustrative',
+  // 'observed' | 'unverified-source-note' | 'estimated' | 'illustrative'
+  derivationClass: 'input', // 'input' | 'derived'
+  sourceRef: '...',         // required for observed facts and external rates
+  asOf: 'YYYY-MM-DD',
+  confidence: 'medium',
+  assumption: 'average delivered bitrate per viewer'
+}
+```
+
+Every derived record also lists `formula` and `inputProvenanceIds`. Never turn an
+illustrative or unverified case-study value into a claim about a production
+system. Step prose formats the model value and preserves both classifications.
+
+### 3b. Visual grammar
+
+Decks reuse the same meaning before introducing domain decoration:
+
+| Meaning | Required visual behavior |
+|---|---|
+| Media | Continuous ribbon; source remains when a copy/fan-out occurs |
+| Control | One-shot hollow pulse |
+| Metadata | Dot bundle with explicit `xN`; distinct shapes for different event semantics |
+| Money command | Token carrying operation ID/fingerprint; retry keeps the ID and adds attempt number |
+| Ledger commit | One immutable seal; presentation effects never replace it |
+| Capacity | Container boundary with demand/capacity gauge on its edge |
+| Aggregate | Many tokens converge into a labelled bundle with ratio |
+| Before/after | Ghost overlay with the same camera, workload and units |
+| Assumption | Text badge plus provenance; never colour alone |
+
+The default HUD has three rows: `Changed`, `Boundary`, `Result`. Calculations,
+provenance and secondary metrics live in an accessible disclosure/table. A
+pressure phase reads visually as `input delta -> boundary fills -> verdict`;
+its fix reads `mechanism -> same-workload replay -> invariant result`.
 
 ---
 
@@ -127,7 +244,7 @@ a literal in the step file.
 |------|---------|
 | `<domain>-flow-3d-deck.js` | Calls `FLOW3D.deck({...})` with the new deck's chrome |
 | `<domain>-flow-3d-scenarios-index.js` | `window.SCENARIOS = [];` -- one line |
-| `<domain>-flow-3d-scenario-<name>-model.js` | Pure arithmetic for the scenario |
+| `<domain>-flow-3d-scenario-<name>-model.js` | Deterministic domain simulation for the scenario |
 | `<domain>-flow-3d-scenario-<name>-world.js` | Component layout via `KIT.world()` |
 | `<domain>-flow-3d-scenario-<name>-<steps>.js` | Step/phase arrays (one or more files) |
 | `<domain>-flow-3d-scenario-<name>.js` | Assembly: runs model, calls `KIT.scenario()` |
@@ -177,13 +294,48 @@ section that changes is the **script band** near the bottom of `<body>`:
 - Phase expander before engine (expander flattens phases).
 - Engine last (reads `SCENARIOS` at init).
 
-### 4c. Smoke test
+### 4c. Causal, content, and smoke validation
 
 Open the HTML, walk every scenario end to end with the Next button, and confirm:
 
 - Numbers in the panel prose, the 3D labels, and the HUD rows agree.
 - No step throws in the browser console.
 - The phase expander correctly splits steps that declare `phases`.
+- Each phase explains one causal claim; parallel effects share that cause rather
+  than hiding unrelated actions in one beat.
+- Ordered beats inside one phase all prove the same primary claim and expose
+  playback controls when the trace exceeds 600 ms.
+- Movement, copy/fan-out, aggregation and lifecycle transitions preserve entity
+  identity and satisfy the model's invariants.
+- Every flow remains identifiable as media, control, metadata or money in text,
+  hover/focus copy or a legend -- not by colour alone.
+- Every observed fact, external rate and estimate retains provenance and its
+  `observed` / `estimated` / `illustrative` classification.
+- Every snapshot exposes the changed input, held constants, affected plane,
+  capacity boundary, latency/consistency contract, failure assumptions and
+  plane-level verdicts. Untested planes never inherit `pass` from the active one.
+
+Also verify the always-present semantic surface. With WebGL unavailable, reduced
+motion enabled or animation skipped, HTML/SVG/text must still convey component
+identity, causal order, domain values, flow type and verdict. A blank canvas,
+colour-only state or static screenshot without explanation is not acceptable.
+
+The semantic surface is always mounted, not only after WebGL failure. It owns
+chapter/phase navigation, the focused heading, ordered trace, changed input,
+plane verdicts and before/after table. Canvas is a synchronized enhancement.
+Next/Back updates a deep-linkable phase hash and browser history; the active
+chapter/phase uses `aria-current="step"`. Component details open by focus/click;
+hover is optional enhancement. `aria-live="polite"` announces only the concise
+Changed/Boundary/Result summary. Forced-colors and reduced-motion paths preserve
+shape, path label, focus visibility, ordered trace and deterministic end state.
+
+The shell provides a skip link, one `<main>`, and a chapter `<nav>`. Next/Back
+moves programmatic focus to the new phase heading without stealing focus during
+an active form interaction. Predict/recap uses `<fieldset>` + `<legend>` and all
+controls have visible `:focus-visible` treatment. If canvas is purely decorative
+relative to the synchronized DOM, mark it `aria-hidden="true"`; if it exposes a
+real interactive control, give that control an accessible name and state instead
+of duplicating the whole semantic tree on the canvas.
 
 ---
 
@@ -200,7 +352,7 @@ Everything prefixed `flow3d-` knows nothing about any subject domain:
 | `flow3d-kit-state-marks.js` | `KIT.mark()`, `KIT.pulse()`, `KIT.move()`, `KIT.link()`, `KIT.flow()`, `KIT.note()`, `KIT.beat()` |
 | `flow3d-kit-panel-and-hud.js` | `KIT.desc()`, `KIT.gauge()`, `KIT.score()`, `KIT.stage()`, `KIT.scenario()`, `KIT.sweep()` |
 | `flow3d-deck.js` | `FLOW3D.deck()` -- shell chrome |
-| `flow3d.css` | All layout, pipeline strip, panel, HUD, splash |
+| `flow3d.css` | All layout, chapter/capability rails, legacy pipeline, panel, HUD, splash |
 | `flow3d-engine-*.js` | Scene setup, animation, persistent world, phase expansion, rendering |
 
 ### Domain-specific (`<domain>-flow-3d-*`)
@@ -211,7 +363,7 @@ Everything prefixed with the domain name:
 |------|------|
 | `<domain>-flow-3d-deck.js` | Chrome: splash copy, brand, language |
 | `<domain>-flow-3d-scenarios-index.js` | Empty `SCENARIOS` array |
-| `<domain>-flow-3d-scenario-*-model.js` | Pure arithmetic |
+| `<domain>-flow-3d-scenario-*-model.js` | Deterministic domain simulation |
 | `<domain>-flow-3d-scenario-*-world.js` | Component layout |
 | `<domain>-flow-3d-scenario-*-<steps>.js` | Step/phase definitions |
 | `<domain>-flow-3d-scenario-*.js` | Assembly |
@@ -290,6 +442,12 @@ KIT.scenario({name, tag, pipeline, world, steps, focusLabels, showPipeline})
 KIT.sweep(items, fn)                           // map candidates to phases
 ```
 
+The current kit exposes `pipeline` for a true total order. Before implementing a
+multi-axis deck, extend and test the contract with `chapters`, `capabilityAxes`
+and `showCapabilityMap`; do not serialize independent capabilities just to fit
+the legacy field. This guide specifies that required extension but does not
+claim the current engine already implements it.
+
 ### Deck manifest (`flow3d-deck.js`)
 
 ```js
@@ -320,7 +478,10 @@ FLOW3D.deck({
     labels,        // [keys] -- components that keep their caption
     cam,           // [x, y, z] camera centre
     dist,          // camera distance
-    pipelineStep,  // index into pipeline[]
+    pipelineStep,  // legacy: only for a true total-order pipeline
+    activeChapter, // required extension: stable chapter key/camera preset
+    capabilityState, // required extension: structured state for all axes
+    causalBeats,   // required extension: ordered evidence for one primary claim
     set,           // {key: KIT.mark(...) | KIT.pulse(...) | KIT.move(...)}
     show,          // [keys] to reveal
     hide,          // [keys] to remove
@@ -334,8 +495,9 @@ FLOW3D.deck({
 }
 ```
 
-Fields `focus`, `cam`, `dist`, and `pipelineStep` fall through from the parent
-step when the phase does not override them.
+Fields `focus`, `cam`, `dist`, `pipelineStep`, `activeChapter` and
+`capabilityState` fall through from the parent step when the phase does not
+override them. The last two require the multi-axis engine extension above.
 
 ---
 
@@ -344,9 +506,10 @@ step when the phase does not override them.
 ```
 TIME.lead  = 0.30   when a flow starts after the phase lands
 TIME.draw  = 1.05   how long a flow takes to travel
-TIME.loop  = 3.70   full replay cycle
+TIME.loop  = 3.70   legacy automatic replay cycle
 TIME.land  = 1.20   when a state change commits (after its flow arrives)
 ```
 
-These are the defaults used by `KIT.link`, `KIT.flow`, and `KIT.beat`.  Override
-per call with `{at, dur, loop}`.
+These are the defaults used by `KIT.link`, `KIT.flow`, and `KIT.beat`. Override
+per call with `{at, dur, loop}`. New causal decks disable the legacy automatic
+loop and run one-shot; the explicit Replay control invokes the sequence again.

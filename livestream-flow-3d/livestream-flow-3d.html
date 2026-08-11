@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<!-- Shared direct-open visualizer shell. Page metadata comes from the deck;
+     scenario content and selector options come from the stable-id registry. -->
+<html>
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title></title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="../flow3d/flow3d.css"/>
+</head>
+<body>
+<main id="layout">
+  <div id="main">
+    <div id="progress-bar"></div>
+    <div id="scene-wrap">
+      <!-- aria-label comes from the manifest: it names the subject being
+           simulated, so only the deck can write it. -->
+      <canvas id="canvas" role="img"></canvas>
+      <div id="labels"></div>
+      <div id="fade-overlay"></div>
+      <div id="dir-flash"></div>
+      <!-- Metric HUD — Changed / Boundary / Result, rendered from step.scores -->
+      <div id="score-hud" aria-live="polite" aria-label="Scenario metrics"></div>
+    </div>
+    <!-- Stage strip — the deck's nine stages, rendered from scenario.pipeline -->
+    <div id="pipeline-ui" aria-label="Scenario pipeline"></div>
+  </div>
+  <aside id="flow-panel" aria-label="Điều khiển kịch bản">
+    <label id="scenario-select-label" for="scenario-select">Kịch bản</label>
+    <select id="scenario-select" name="scenario" autocomplete="off" aria-describedby="scenario-status"></select>
+    <div class="panel-heading">
+      <div><div id="panel-scenario-name">—</div><div id="panel-scenario-tag">—</div></div>
+      <button id="explain-toggle" type="button" aria-expanded="false" aria-controls="explain-body">Chi tiết</button>
+    </div>
+    <div id="panel-position">Step 1/1</div>
+    <div id="panel-parent"></div>
+    <h1 id="panel-title">—</h1>
+    <div id="explain-body" hidden>
+      <div class="explain-slot visible" id="slot-a"><div class="e-desc" id="e-desc">—</div></div>
+      <div class="explain-slot hidden" id="slot-b"><div class="e-desc" id="e-desc-b">—</div></div>
+    </div>
+    <div id="explain-nav">
+      <button class="btn" id="btn-prev" type="button">← Prev</button>
+      <div class="dots" id="dots" aria-hidden="true"></div>
+      <button class="btn primary" id="btn-next" type="button">Next →</button>
+    </div>
+    <div id="scenario-status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+  </aside>
+</main>
+<div id="popup"></div>
+
+<!-- Three.js UMD build -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.134.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/controls/OrbitControls.js"></script>
+
+<!-- ════ REUSABLE · SCENE KIT ════════════════════════════════════════════
+     The authoring vocabulary every deck is written with — tokens, world
+     builder, state marks, panel/HUD helpers, and the shell chrome renderer.
+     Nothing here knows about any subject. Identical in every deck. -->
+<script src="../flow3d/flow3d-kit-design-tokens.js"></script>
+<script src="../flow3d/flow3d-kit-world-builder.js"></script>
+<script src="../flow3d/flow3d-kit-state-marks.js"></script>
+<script src="../flow3d/flow3d-kit-panel-and-hud.js"></script>
+<script src="../flow3d/flow3d-engine-scenario-registry.js"></script>
+<script src="../flow3d/flow3d-deck.js"></script>
+
+<!-- ════ DECK · LIVESTREAM ═══════════════════════════════════════════════
+     THE ONLY BAND THAT CHANGES PER DECK. Manifest + shared layout law first,
+     then the single `evolution` scenario: model → world → HUD helper → steps
+     → assembly (world and steps read domain values from the model). -->
+<script src="livestream-flow-3d-deck.js"></script>
+<script src="livestream-flow-3d-layout.js"></script>
+<script src="livestream-flow-3d-scenarios-index.js"></script>
+
+<script src="livestream-flow-3d-scenario-evolution-model.js"></script>
+<script src="livestream-flow-3d-scenario-evolution-world.js"></script>
+<script src="livestream-flow-3d-phase-hud.js"></script>
+<script src="livestream-flow-3d-scenario-evolution-steps-media.js"></script>
+<script src="livestream-flow-3d-scenario-evolution.js"></script>
+
+<!-- ════ REUSABLE · ENGINE ═══════════════════════════════════════════════
+     Flattens step.phases[] into steps, then renders and drives them. Must
+     run after every scenario has registered itself. Identical in every deck. -->
+<script src="../flow3d/flow3d-engine-phase-expander.js"></script>
+<script src="../flow3d/flow3d-engine-scene-setup.js"></script>
+<script src="../flow3d/flow3d-engine-animation-helpers.js"></script>
+<script src="../flow3d/flow3d-engine-flow-state.js"></script>
+<script src="../flow3d/flow3d-engine-build-api.js"></script>
+<script src="../flow3d/flow3d-engine-persistent-world.js"></script>
+<script src="../flow3d/flow3d-engine-component-anchors.js"></script>
+<script src="../flow3d/flow3d-engine-hud-controller.js"></script>
+<script src="../flow3d/flow3d-engine-ui-controller.js"></script>
+<script src="../flow3d/flow3d-engine-render-loop.js"></script>
+</body>
+</html>
