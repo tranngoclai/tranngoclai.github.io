@@ -5,9 +5,9 @@ let heroRingObj = null;
 
 /* Creates a box and its entrance animation, returning a node record that can be
    mutated later (used by the persistent-world scenarios). */
-function addBox(label, x, y, z, w, h, d, col, edge, order) {
+function addBox(label, x, y, z, w, h, d, col, edge, order, shape) {
   const delay = (order || 0) * 0.09;
-  const {g, mesh, mat, edgeMat, stripMat, h: bh} = makeBox(w, h, d, col, edge);
+  const {g, mesh, mat, edgeMat, stripMat, h: bh, anchorY, kind, stateOverlay} = makeSolid(shape || 'box', w, h, d, col, edge);
   g.position.set(x, y, z);
   buildAdd(g);
 
@@ -18,6 +18,7 @@ function addBox(label, x, y, z, w, h, d, col, edge, order) {
   const node = {
     g, mesh, mat, edgeMat, stripMat,
     x, y: y + bh/2, z, h: bh, baseY: y,
+    anchorY, kind, stateOverlay,
     label: label || '', labelDiv: null,
     managed: false,   // true once a persistent world takes over its opacity
     entrance: 0,      // 0→1 while the box grows in
@@ -49,8 +50,8 @@ function makeCtx() {
     _hov: hovList,
     _heroIdx: () => heroIdx,
     _boxMeshes: () => boxMeshes,
-    box(label, x, y, z, w, h, d, col, edge, order) {
-      const node = addBox(label, x, y, z, w, h, d, col, edge, order);
+    box(label, x, y, z, w, h, d, col, edge, order, shape) {
+      const node = addBox(label, x, y, z, w, h, d, col, edge, order, shape);
       hovList.push({mesh: node.mesh, text: label || ''});
       boxMeshes.push(node);
       return node.mesh;

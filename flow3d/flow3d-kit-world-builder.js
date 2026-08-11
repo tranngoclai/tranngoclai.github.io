@@ -64,6 +64,12 @@ KIT.ink = function(ink) {
      hidden,         built but not revealed until a step shows it
      hover,          hover text; defaults to the label
      caption         'face' (default) · 'top' · [x,y,z] for a manual spot
+     shape,          a SCENE_KIT.SHAPE id — what kind of thing this is,
+                     orthogonal to tone/size (see flow3d-kit-shape-library.js).
+                     Omit for the default 'box' — zero-change for old worlds.
+     fill, count,    shape state at build time — see §3d of the shape
+     open            registry proposal. Only the param the shape declares
+                     support for (`SHAPE[shape].state`) has any effect.
    })
 */
 KIT.world = function(w) {
@@ -71,13 +77,18 @@ KIT.world = function(w) {
     node(key, o) {
       const s = surface(o.tone);
       const [x, y, z] = o.pos;
-      const [, , d] = o.size;
+      const [wid, hei, d] = o.size;
+      const shapeDef = (KIT.SHAPE && KIT.SHAPE[o.shape]) || (KIT.SHAPE && KIT.SHAPE.box);
 
-      // Front-face caption, centred both ways, derived from the box itself
-      // so it stays correct when the box is resized or moved.
+      // Front-face caption, centred both ways, derived from the shape's own
+      // geometry so it stays correct when the box is resized, moved, or is
+      // not a box at all.
       let labelPos = null;
       if (Array.isArray(o.caption)) labelPos = o.caption;
-      else if (o.caption !== 'top')  labelPos = [x, y, z + d / 2 + KIT.FACE_GAP];
+      else if (o.caption !== 'top') {
+        const faceOff = shapeDef && shapeDef.face ? shapeDef.face(wid, hei, d) : d / 2;
+        labelPos = [x, y, z + faceOff + KIT.FACE_GAP];
+      }
 
       return w.node(key, {
         label: o.label || '',
@@ -88,7 +99,9 @@ KIT.world = function(w) {
         edge: o.edge || s.edge,
         order: o.order || 0,
         hidden: !!o.hidden,
-        hover: o.hover || o.label || ''
+        hover: o.hover || o.label || '',
+        shape: o.shape,
+        fill: o.fill, count: o.count, open: o.open
       });
     },
 

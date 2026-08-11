@@ -104,25 +104,108 @@ function addFlowLabel(text, x, y, z, color) {
   return div;
 }
 
-/* ─ Box helper ─ */
-function makeBox(w, h, d, colStr, edgeStr) {
-  const geo = new THREE.BoxGeometry(w, h, d);
+/* ─ Solid helper ─
+   Builds any shape from `SCENE_KIT.SHAPE` as one mesh + one edge overlay +
+   an optional top strip + an optional state overlay (fill/count/open — see
+   the shape registry proposal, §3d). Geometry is cached per shape+size so
+   repeated nodes of the same silhouette share triangles.
+
+   `makeBox` stays as a thin wrapper so `ctx.box()` (build-api.js) and every
+   existing scenario file that never declares a `shape` keep working
+   unchanged — the default shape is `'box'`, which is exactly the geometry
+   this helper used to build inline. */
+const solidGeoCache = {};
+
+function getShapeDef(shapeId) {
+  return (window.SCENE_KIT && SCENE_KIT.SHAPE && SCENE_KIT.SHAPE[shapeId]) || SCENE_KIT.SHAPE.box;
+}
+
+function getSolidGeometry(shapeId, w, h, d, def) {
+  const key = shapeId + '|' + w + '|' + h + '|' + d;
+  let entry = solidGeoCache[key];
+  if (!entry) {
+    const parts = def.geo(w, h, d);
+    const geo = parts.length > 1 ? SCENE_KIT.mergeGeometries(parts) : parts[0];
+    entry = {geo, edgeGeo: new THREE.EdgesGeometry(geo, def.edgeAngle || 1)};
+    solidGeoCache[key] = entry;
+  }
+  return entry;
+}
+
+/* A rising column overlay for `fill`/`count` state, or a hinged bar for
+   `open` state — see setNodeLook()'s fill/count/open handling in
+   flow3d-engine-persistent-world.js. Built once at the node's max state and
+   scaled/rotated afterwards; never rebuilt, so it stays replay-safe. */
+function buildStateOverlay(shapeId, def, w, h, d) {
+  if (!def.state) return null;
+  const mat = new THREE.MeshBasicMaterial({color: 0xffffff, transparent: true, opacity: 0});
+
+  if (def.state === 'open') {
+    const barW = Math.min(w, d) * 0.7;
+    const geo = boxGeoForOverlay(barW, h * 0.14, 0.05);
+    geo.translate(barW / 2, 0, 0); // hinge at local origin, bar extends outward
+    const bar = new THREE.Mesh(geo, mat);
+    const hinge = new THREE.Group();
+    hinge.position.set(-barW / 2, 0, d / 2 * 0.5);
+    hinge.add(bar);
+    return {kind: 'open', mat, group: hinge};
+  }
+
+  // fill (0..1) or count (0..stateMax): a column that grows from the base.
+  const max = def.state === 'count' ? (def.stateMax || 1) : 1;
+  const levelH = h * 0.82;
+  const levelGeo = shapeId === 'cylinder'
+    ? new THREE.CylinderGeometry(Math.min(w, d) * 0.22, Math.min(w, d) * 0.22, levelH, 14)
+    : boxGeoForOverlay(w * 0.34, levelH, d * 0.34);
+  levelGeo.translate(0, levelH / 2, 0); // pivot at its own base
+  const level = new THREE.Mesh(levelGeo, mat);
+  const group = new THREE.Group();
+  group.position.y = -h / 2;
+  group.scale.y = 0.001;
+  group.add(level);
+  return {kind: def.state, mat, group, max};
+}
+function boxGeoForOverlay(w, h, d) { return new THREE.BoxGeometry(w, h, d); }
+
+function makeSolid(shapeId, w, h, d, colStr, edgeStr) {
+  const def = getShapeDef(shapeId || 'box');
+  const {geo, edgeGeo} = getSolidGeometry(shapeId || 'box', w, h, d, def);
+
   const mat = new THREE.MeshStandardMaterial({color: new THREE.Color(colStr), roughness: 0.65, metalness: 0.15, transparent: true, opacity: 0});
   const mesh = new THREE.Mesh(geo, mat);
   mesh.castShadow = true; mesh.receiveShadow = true;
-  const edgeGeo = new THREE.EdgesGeometry(geo);
   const edgeMat = new THREE.LineBasicMaterial({color: new THREE.Color(edgeStr), transparent: true, opacity: 0});
   const edges = new THREE.LineSegments(edgeGeo, edgeMat);
-  // top highlight strip
-  const strip = new THREE.Mesh(
-    new THREE.PlaneGeometry(w * 0.88, 0.04),
-    new THREE.MeshBasicMaterial({color: new THREE.Color(edgeStr), transparent: true, opacity: 0})
-  );
-  strip.rotation.x = -Math.PI/2;
-  strip.position.y = h/2 + 0.001;
+
   const g = new THREE.Group();
-  g.add(mesh, edges, strip);
-  return {g, mesh, mat, edgeMat, stripMat: strip.material, h};
+  g.add(mesh, edges);
+
+  let stripMat = null;
+  const stripW = def.strip ? def.strip(w, h, d) : null;
+  if (stripW) {
+    const strip = new THREE.Mesh(
+      new THREE.PlaneGeometry(stripW, 0.04),
+      new THREE.MeshBasicMaterial({color: new THREE.Color(edgeStr), transparent: true, opacity: 0})
+    );
+    strip.rotation.x = -Math.PI / 2;
+    strip.position.y = (def.top ? def.top(w, h, d) : h / 2) + 0.001;
+    g.add(strip);
+    stripMat = strip.material;
+  }
+
+  const stateOverlay = buildStateOverlay(shapeId || 'box', def, w, h, d);
+  if (stateOverlay) g.add(stateOverlay.group);
+
+  return {
+    g, mesh, mat, edgeMat, stripMat, h,
+    anchorY: def.top ? def.top(w, h, d) : h / 2,
+    kind: def.kind || '',
+    stateOverlay
+  };
+}
+
+function makeBox(w, h, d, colStr, edgeStr) {
+  return makeSolid('box', w, h, d, colStr, edgeStr);
 }
 
 /* ─ Arrow helper ─ */

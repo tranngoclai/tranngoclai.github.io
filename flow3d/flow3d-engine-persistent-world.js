@@ -57,7 +57,7 @@ function makeWorldCtx() {
       const [w, h, d] = o.size;
       // `labelPos` moves the caption off the box — used for the wide node
       // platforms whose components would otherwise sit on top of their label.
-      const n = addBox(o.labelPos ? '' : (o.label || ''), x, y, z, w, h, d, o.col, o.edge, o.order || 0);
+      const n = addBox(o.labelPos ? '' : (o.label || ''), x, y, z, w, h, d, o.col, o.edge, o.order || 0, o.shape);
       if (o.labelPos) {
         n.labelDiv = addLabel(o.label || '', o.labelPos[0], o.labelPos[1], o.labelPos[2],
           'rgba(192,208,232,.7)', (o.order || 0) * 0.09 + 0.3);
@@ -77,6 +77,14 @@ function makeWorldCtx() {
         : null;
       n.baseLabel = o.label || '';
       n.baseHover = o.hover || o.label || '';
+      // Shape state — see setNodeLook()'s fill/count/open handling below.
+      // Absolute values only (never a delta): applyPersistentStep() resets
+      // every node to these before replaying steps 0..stepIdx, so a value
+      // that depended on "current" would read differently tuning forward
+      // vs. rewinding.
+      n.baseFill = o.fill;
+      n.baseCount = o.count;
+      n.baseOpen = o.open;
       n.hiddenByDefault = !!o.hidden;
       n.visible = !o.hidden;
       n.cur = o.hidden ? 0 : 1;
@@ -128,7 +136,8 @@ function applyPersistentStep(sc, stepIdx) {
     n.visible = !n.hiddenByDefault;
     n.flash = 0;
     setNodePos(n, n.basePos, false);
-    setNodeLook(n, {label: n.baseLabel, col: n.baseCol, edge: n.baseEdge, hover: n.baseHover});
+    setNodeLook(n, {label: n.baseLabel, col: n.baseCol, edge: n.baseEdge, hover: n.baseHover,
+      fill: n.baseFill, count: n.baseCount, open: n.baseOpen});
   });
 
   for (let i = 0; i < stepIdx; i++) applyStepLook(sc.steps[i]);
@@ -262,11 +271,34 @@ function setNodeLook(n, look, animate) {
   if (look.col)  n.mat.color.set(look.col);
   if (look.edge) {
     n.edgeMat.color.set(look.edge);
-    n.stripMat.color.set(look.edge);
+    if (n.stripMat) n.stripMat.color.set(look.edge);
   }
   if (look.hover !== undefined) {
     const hov = worldHov.find(h => h.mesh === n.mesh);
     if (hov) hov.text = look.hover;
+  }
+  if (look.fill !== undefined || look.count !== undefined || look.open !== undefined) {
+    applyShapeState(n, look);
+  }
+}
+
+/* Mutates the shape's state overlay (built once at max state in
+   makeSolid/buildStateOverlay — flow3d-engine-animation-helpers.js) rather
+   than touching `geometry`, so geometry caching and hover stay untouched.
+   Only the param the shape actually declared (`SHAPE[shape].state`) does
+   anything — a `fill` on a shape with no fill overlay is silently ignored. */
+function applyShapeState(n, look) {
+  const ov = n.stateOverlay;
+  if (!ov) return;
+  if (ov.kind === 'fill' && look.fill !== undefined) {
+    n.fill = look.fill;
+    ov.group.scale.y = Math.max(0.001, Math.min(1, look.fill));
+  } else if (ov.kind === 'count' && look.count !== undefined) {
+    n.count = look.count;
+    ov.group.scale.y = Math.max(0.001, Math.min(1, look.count / ov.max));
+  } else if (ov.kind === 'open' && look.open !== undefined) {
+    n.open = look.open;
+    ov.group.rotation.y = look.open ? -Math.PI / 2 : 0;
   }
 }
 
@@ -365,6 +397,7 @@ function updateWorldNodes(dt) {
     const f = n.flash || 0;
     n.mat.opacity = Math.min(1, o + f * 0.45);
     n.edgeMat.opacity = Math.min(1, o * (n === heroMesh ? 1 : 0.75) + f);
-    n.stripMat.opacity = Math.min(1, o * 0.75 + f);
+    if (n.stripMat) n.stripMat.opacity = Math.min(1, o * 0.75 + f);
+    if (n.stateOverlay) n.stateOverlay.mat.opacity = o * 0.85;
   });
 }

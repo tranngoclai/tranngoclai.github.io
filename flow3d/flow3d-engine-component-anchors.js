@@ -16,8 +16,10 @@
      **An arrow leaves and arrives dead-centre on a component's top face.**
 
    `componentAnchor(key, t)` derives that point from the component's own
-   geometry: its x/z centre, its top face (`pos.y + height/2`), plus a hair of
-   clearance so the tube rests ON the surface instead of sinking into it. No
+   geometry: its x/z centre, its top point (`pos.y + n.anchorY`, which the
+   node's shape defines — `h/2` for every shape in the library today), plus a
+   hair of clearance so the tube rests ON the surface instead of sinking into
+   it. No
    scenario ever types an endpoint again, and a box that is resized or moved
    drags its arrows along with it.
 
@@ -93,7 +95,10 @@ function componentAnchor(ref, t) {
   }
 
   const pos = resolveComponentPos(ref, t === undefined ? 0 : t);
-  return [pos[0], pos[1] + n.h / 2 + ANCHOR_CLEARANCE, pos[2]];
+  // anchorY is the shape's own top point (SHAPE[shape].top(w,h,d)) — h/2 for
+  // every shape today, but a future asymmetric shape can differ.
+  const anchorY = n.anchorY === undefined ? n.h / 2 : n.anchorY;
+  return [pos[0], pos[1] + anchorY + ANCHOR_CLEARANCE, pos[2]];
 }
 
 /* Control point that turns two anchors into a thrown arc rather than a chord

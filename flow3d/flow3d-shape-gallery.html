@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<!-- Dev tool, not part of any deck. Renders every SCENE_KIT.SHAPE next to a
+     couple of TONEs, with a caption and a flow-anchor marker, so an author
+     can pick a shape without reading code and geometry regressions (caption
+     sunk into a curved face, a floating anchor, an edge tessellation gone to
+     a wire ball) show up here before they reach a deck. See §6 of
+     plans/reports/proposal-260811-1618-flow3d-shape-registry.md -->
+<html>
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>flow3d shape gallery</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #05080e; color: #c0d0e8; font-family: -apple-system, 'IBM Plex Sans', sans-serif; }
+  #canvas { position: fixed; inset: 0; display: block; }
+  #labels { position: fixed; inset: 0; pointer-events: none; z-index: 2; }
+  .fl-label { position: absolute; transform: translate(-50%, -100%); font-size: 12px; line-height: 1.35; white-space: pre; text-align: center; text-shadow: 0 1px 3px #000; }
+  .fl-label.kind { color: rgba(140,164,196,.85); font-size: 11px; }
+  .fl-label.id { color: #e8eefc; font-weight: 600; font-size: 13px; }
+  #panel { position: fixed; top: 12px; left: 12px; z-index: 3; background: rgba(8,12,20,.85); border: 1px solid #1e3050; border-radius: 8px; padding: 12px 14px; max-width: 300px; }
+  #panel h1 { font-size: 14px; margin: 0 0 6px; color: #e8eefc; }
+  #panel p { font-size: 12px; color: #8ca0c0; margin: 0 0 10px; }
+  .state-row { display: flex; align-items: center; gap: 6px; font-size: 11px; margin: 4px 0; }
+  .state-row label { width: 92px; flex: none; }
+  .state-row input { flex: 1; }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<div id="labels"></div>
+<div id="panel">
+  <h1>flow3d shape gallery</h1>
+  <p>Top row TONE.system, bottom row TONE.store. White marker = flow anchor (SHAPE.top). Drag to orbit.</p>
+  <div id="state-controls"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.134.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/controls/OrbitControls.js"></script>
+<script src="flow3d-kit-design-tokens.js"></script>
+<script src="flow3d-kit-shape-library.js"></script>
+<script>
+(function() {
+  const KIT = window.SCENE_KIT;
+  const cvs = document.getElementById('canvas');
+  const labelsDiv = document.getElementById('labels');
+
+  const renderer = new THREE.WebGLRenderer({canvas: cvs, antialias: true, alpha: false});
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color('#05080e');
+  scene.fog = new THREE.Fog('#05080e', 20, 60);
+
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 200);
+  camera.position.set(4, 10, 22);
+  const controls = new THREE.OrbitControls(camera, cvs);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+
+  scene.add(new THREE.AmbientLight(0x8fa8d0, 0.55));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+  sun.position.set(6, 14, 8);
+  scene.add(sun);
+  const grid = new THREE.GridHelper(80, 40, 0x1a2c48, 0x101a2c);
+  scene.add(grid);
+
+  function resize() {
+    const w = window.innerWidth, h = window.innerHeight;
+    renderer.setSize(w, h);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  const ids = Object.keys(KIT.SHAPE);
+  const GAP = 4;
+  const originX = -((ids.length - 1) * GAP) / 2;
+  const SIZE = {w: 2.2, h: 1.8, d: 2.2};
+  const SLAB_SIZE = {w: 3.4, h: 0.5, d: 2.4};
+
+  const labelEls = [];
+  function addLabel(text, cls, obj3d, dy) {
+    const div = document.createElement('div');
+    div.className = 'fl-label ' + cls;
+    div.textContent = text;
+    labelsDiv.appendChild(div);
+    labelEls.push({div, obj3d, dy: dy || 0});
+  }
+
+  const stateNodes = []; // {id, group's overlay-driving fn}
+  const stateControls = document.getElementById('state-controls');
+
+  function buildShape(id, x, z, tone, showControls) {
+    const def = KIT.SHAPE[id];
+    const dims = id === 'slab' ? SLAB_SIZE : SIZE;
+    const {w, h, d} = dims;
+    const parts = def.geo(w, h, d);
+    const geo = parts.length > 1 ? KIT.mergeGeometries(parts) : parts[0];
+    const edgeGeo = new THREE.EdgesGeometry(geo, def.edgeAngle || 1);
+
+    const mat = new THREE.MeshStandardMaterial({color: new THREE.Color(tone.col), roughness: 0.65, metalness: 0.15, transparent: true, opacity: 0.92});
+    const mesh = new THREE.Mesh(geo, mat);
+    const edges = new THREE.LineSegments(edgeGeo, new THREE.LineBasicMaterial({color: new THREE.Color(tone.edge)}));
+
+    const group = new THREE.Group();
+    group.position.set(x, h / 2, z);
+    group.add(mesh, edges);
+    scene.add(group);
+
+    if (def.strip) {
+      const stripW = def.strip(w, h, d);
+      const strip = new THREE.Mesh(
+        new THREE.PlaneGeometry(stripW, 0.04),
+        new THREE.MeshBasicMaterial({color: new THREE.Color(tone.edge)})
+      );
+      strip.rotation.x = -Math.PI / 2;
+      strip.position.y = (def.top ? def.top(w, h, d) : h / 2) + 0.001;
+      group.add(strip);
+    }
+
+    // flow anchor marker — a small white cone sitting exactly on SHAPE.top()
+    const anchorY = def.top ? def.top(w, h, d) : h / 2;
+    const marker = new THREE.Mesh(
+      new THREE.ConeGeometry(0.09, 0.22, 10),
+      new THREE.MeshBasicMaterial({color: 0xffffff})
+    );
+    marker.position.set(0, anchorY + 0.14, 0);
+    marker.rotation.x = Math.PI;
+    group.add(marker);
+
+    // caption on the front face, via SHAPE.face()
+    const faceOff = def.face ? def.face(w, h, d) : d / 2;
+    const anchorObj = new THREE.Object3D();
+    anchorObj.position.set(0, 0, faceOff + KIT.FACE_GAP);
+    group.add(anchorObj);
+    addLabel(id, 'id', anchorObj, -6);
+    addLabel(def.kind, 'kind', anchorObj, 10);
+
+    if (showControls && def.state) {
+      const overlayGroup = buildOverlayForGallery(id, def, w, h, d, group);
+      addStateControl(id, def, overlayGroup);
+    }
+  }
+
+  // Mirrors buildStateOverlay() in flow3d-engine-animation-helpers.js closely
+  // enough to exercise the same geometry, without pulling in the whole engine.
+  function buildOverlayForGallery(id, def, w, h, d, group) {
+    const mat = new THREE.MeshBasicMaterial({color: 0xffffff, transparent: true, opacity: 0.85});
+    if (def.state === 'open') {
+      const barW = Math.min(w, d) * 0.7;
+      const geo = new THREE.BoxGeometry(barW, h * 0.14, 0.05);
+      geo.translate(barW / 2, 0, 0);
+      const bar = new THREE.Mesh(geo, mat);
+      const hinge = new THREE.Group();
+      hinge.position.set(-barW / 2, 0, d / 2 * 0.5);
+      hinge.add(bar);
+      group.add(hinge);
+      return {kind: 'open', ref: hinge};
+    }
+    const max = def.state === 'count' ? (def.stateMax || 1) : 1;
+    const levelH = h * 0.82;
+    const levelGeo = id === 'cylinder'
+      ? new THREE.CylinderGeometry(Math.min(w, d) * 0.22, Math.min(w, d) * 0.22, levelH, 14)
+      : new THREE.BoxGeometry(w * 0.34, levelH, d * 0.34);
+    levelGeo.translate(0, levelH / 2, 0);
+    const level = new THREE.Mesh(levelGeo, mat);
+    const lgroup = new THREE.Group();
+    lgroup.position.y = -h / 2;
+    lgroup.scale.y = 1;
+    lgroup.add(level);
+    group.add(lgroup);
+    return {kind: def.state, ref: lgroup, max};
+  }
+
+  function addStateControl(id, def, overlay) {
+    const row = document.createElement('div');
+    row.className = 'state-row';
+    const label = document.createElement('label');
+    label.textContent = id + ' · ' + def.state;
+    row.appendChild(label);
+    const input = document.createElement('input');
+    input.type = 'range';
+    if (overlay.kind === 'open') {
+      input.min = 0; input.max = 1; input.step = 1; input.value = 1;
+      input.addEventListener('input', () => {
+        overlay.ref.rotation.y = input.value === '1' ? -Math.PI / 2 : 0;
+      });
+    } else {
+      const max = overlay.max || 1;
+      input.min = 0; input.max = max; input.step = def.state === 'count' ? 1 : 0.01;
+      input.value = max;
+      input.addEventListener('input', () => {
+        overlay.ref.scale.y = Math.max(0.001, Math.min(1, input.value / max));
+      });
+    }
+    row.appendChild(input);
+    stateControls.appendChild(row);
+  }
+
+  ids.forEach((id, i) => {
+    const x = originX + i * GAP;
+    buildShape(id, x, -2, KIT.TONE.system, true);
+    buildShape(id, x, 2.6, KIT.TONE.store, false);
+  });
+
+  const v = new THREE.Vector3();
+  function updateLabels() {
+    labelEls.forEach(l => {
+      l.obj3d.getWorldPosition(v);
+      v.project(camera);
+      const x = (v.x * 0.5 + 0.5) * window.innerWidth;
+      const y = (-v.y * 0.5 + 0.5) * window.innerHeight + l.dy;
+      l.div.style.left = x + 'px';
+      l.div.style.top = y + 'px';
+      l.div.style.display = v.z > 1 ? 'none' : 'block';
+    });
+  }
+
+  function tick() {
+    controls.update();
+    updateLabels();
+    renderer.render(scene, camera);
+    requestAnimationFrame(tick);
+  }
+  tick();
+})();
+</script>
+</body>
+</html>

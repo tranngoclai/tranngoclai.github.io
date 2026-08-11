@@ -21,7 +21,11 @@ const controls = new THREE.OrbitControls(camera, cvs);
 controls.enableDamping = true;
 controls.dampingFactor = 0.06;
 controls.minDistance = 8;
-controls.maxDistance = 70;
+// Wide worlds ask for wide shots: a deck whose components span the full x map
+// (livestream Stage 0 runs source → audience in one frame, and the e-commerce
+// build-cache world asks for 96) needs headroom above the old 70 ceiling, which
+// silently clamped those requests and cropped the outer components.
+controls.maxDistance = 110;
 controls.maxPolarAngle = Math.PI * 0.70;
 controls.target.set(0, 1, 0);
 

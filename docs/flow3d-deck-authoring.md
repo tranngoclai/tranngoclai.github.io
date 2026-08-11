@@ -234,6 +234,45 @@ provenance and secondary metrics live in an accessible disclosure/table. A
 pressure phase reads visually as `input delta -> boundary fills -> verdict`;
 its fix reads `mechanism -> same-workload replay -> invariant result`.
 
+### 3c. Shape vocabulary
+
+SHAPE is a third vocabulary, orthogonal to TONE (role) and SIZE (a deck's own
+`*-layout.js`). It answers "what kind of thing is this", via
+`flow3d-kit-shape-library.js`'s `KIT.SHAPE` registry and `KIT.world().node()`'s
+`shape` param. Omit `shape` and a node stays a plain `box` -- zero-change for
+every world written before this vocabulary existed.
+
+| shape | kind | typical use |
+|---|---|---|
+| `box` | service | a stateless process or request handler |
+| `slab` | platform / scenery | ground, a Node, inert backdrop |
+| `cylinder` | durable store | a database, disk-backed store |
+| `hex` | checkpoint / policy | admission control, IAM evaluation |
+| `rack` | buffer / queue | a queue, a stack of pending items |
+| `grid` | aggregate | a fixed-cardinality cluster or matrix |
+| `capsule` | actor / device | a client, a worker, a physical device |
+| `seal` | immutable commit | a ledger entry, a signed/committed record |
+
+A shape's silhouette never encodes a live number. `grid` always renders a
+fixed 3x3 matrix regardless of how many real items it represents, and never
+rotates to face a flow's direction -- every shape always stands vertical. The
+real count is redundant text in the label, never the silhouette's only
+source: a component's kind and state must stay identifiable from text alone,
+matching the visual-grammar rule above that colour is never the only signal.
+
+Some shapes carry state orthogonal to TONE (look) and lifecycle (identity):
+`fill` (0..1, e.g. `cylinder`), `count` (0..max, e.g. `rack`, `grid`), `open`
+(bool, e.g. `hex`). Only the param a shape's `SHAPE[id].state` declares
+support for has any effect; state changes are absolute values (never deltas)
+so `applyPersistentStep`'s replay-from-step-0 stays deterministic.
+
+A deck-specific shape is allowed only via `KIT.defineShape(id, def)`, and
+must still declare a neutral `kind` -- no raw THREE.js in a scenario file,
+ever. Preview every shape (including any custom ones) via
+`flow3d/flow3d-shape-gallery.html`, a standalone dev tool that renders the
+whole registry with captions and flow-anchor markers and doubles as a
+geometry-regression check.
+
 ---
 
 ## 4. Checklist for a new deck
@@ -265,6 +304,7 @@ section that changes is the **script band** near the bottom of `<body>`:
 
  ── keep: kit (domain-neutral) ──────────────────────────────────
  <script src="flow3d-kit-design-tokens.js">
+ <script src="flow3d-kit-shape-library.js">
  <script src="flow3d-kit-world-builder.js">
  <script src="flow3d-kit-state-marks.js">
  <script src="flow3d-kit-panel-and-hud.js">
@@ -309,6 +349,9 @@ Open the HTML, walk every scenario end to end with the Next button, and confirm:
   identity and satisfy the model's invariants.
 - Every flow remains identifiable as media, control, metadata or money in text,
   hover/focus copy or a legend -- not by colour alone.
+- Every component's kind (`box`, `cylinder`, `hex`, ...) and any shape state
+  (`fill`, `count`, `open`) stay identifiable from its label/hover text --
+  never from silhouette or overlay alone.
 - Every observed fact, external rate and estimate retains provenance and its
   `observed` / `estimated` / `illustrative` classification.
 - Every snapshot exposes the changed input, held constants, affected plane,
@@ -349,6 +392,7 @@ Everything prefixed `flow3d-` knows nothing about any subject domain:
 |------|------|
 | `flow3d-kit-design-tokens.js` | `TONE`, `INK`, `TIME`, `FACE_GAP` |
 | `flow3d-kit-world-builder.js` | `KIT.world()`, `KIT.stack()`, `region()` |
+| `flow3d-kit-shape-library.js` | `KIT.SHAPE` registry, `KIT.defineShape()` |
 | `flow3d-kit-state-marks.js` | `KIT.mark()`, `KIT.pulse()`, `KIT.move()`, `KIT.link()`, `KIT.flow()`, `KIT.note()`, `KIT.beat()` |
 | `flow3d-kit-panel-and-hud.js` | `KIT.desc()`, `KIT.gauge()`, `KIT.score()`, `KIT.stage()`, `KIT.scenario()`, `KIT.sweep()` |
 | `flow3d-deck.js` | `FLOW3D.deck()` -- shell chrome |
@@ -411,7 +455,11 @@ w.node(key, {
   order,           // build/entrance-animation order
   hidden,          // built but not shown until a step reveals it
   hover,           // hover text
-  caption          // 'face' (default) | 'top' | [x,y,z]
+  caption,         // 'face' (default) | 'top' | [x,y,z]
+  shape,           // a KIT.SHAPE id -- what kind of thing this is,
+                   // orthogonal to tone/size. Omit for 'box' (zero-change).
+  fill, count, open // shape state at build time -- only the param the
+                   // shape declares support for (SHAPE[id].state) has effect
 });
 
 w.region(text, x, z, order);       // floating area label
