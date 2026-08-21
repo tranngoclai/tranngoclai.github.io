@@ -212,7 +212,14 @@ function updateStates(dt) {
       s.applied = true;
       if (s.look.reveal)  revealNode(s.n);
       if (s.look.conceal) concealNode(s.n);
-      setNodeLook(s.n, s.look, true);
+      if (s.look.label !== undefined && s.look.label !== s.n.label) {
+        const withoutLabel = Object.assign({}, s.look);
+        delete withoutLabel.label;
+        setNodeLook(s.n, withoutLabel, true);
+        animateLabelTransition(s.n, s.look.label);
+      } else {
+        setNodeLook(s.n, s.look, true);
+      }
     }
 
     const p = Math.min(s.t / s.dur, 1);
@@ -229,6 +236,29 @@ function updateStates(dt) {
       stateQueue.splice(i, 1);
     }
   }
+}
+
+/* State replay snaps labels directly; only the active timed change gets a
+   before/after ghost. This keeps rapid Prev/Next free of stale DOM. */
+function animateLabelTransition(n, newLabel) {
+  if (prefersReducedMotion || !n.labelDiv) {
+    setNodeLook(n, {label: newLabel}, false);
+    return;
+  }
+  const ghost = n.labelDiv.cloneNode(true);
+  ghost.classList.remove('hero-label');
+  ghost.classList.add('state-ghost');
+  ghost.style.opacity = '';
+  n.labelDiv.parentElement.appendChild(ghost);
+  labelEls.push({div: ghost, obj: n.labelObj, persistent: false});
+  n.labelDiv.innerHTML = captionHtml(newLabel);
+  n.label = newLabel;
+  n.labelDiv.classList.add('state-enter');
+  scheduleTransition(function() { ghost.classList.add('ghost-exit'); }, 280, transitionGeneration);
+  scheduleTransition(function() {
+    fadeLabel(ghost);
+    n.labelDiv.classList.remove('state-enter');
+  }, 680, transitionGeneration);
 }
 
 function setNodeFlash(n, f, col) {

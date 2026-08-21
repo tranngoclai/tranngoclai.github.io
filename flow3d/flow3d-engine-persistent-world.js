@@ -59,7 +59,7 @@ function makeWorldCtx() {
       // platforms whose components would otherwise sit on top of their label.
       const n = addBox(o.labelPos ? '' : (o.label || ''), x, y, z, w, h, d, o.col, o.edge, o.order || 0, o.shape);
       if (o.labelPos) {
-        n.labelDiv = addLabel(o.label || '', o.labelPos[0], o.labelPos[1], o.labelPos[2],
+        n.labelDiv = addLabel(captionHtml(o.label), o.labelPos[0], o.labelPos[1], o.labelPos[2],
           'rgba(192,208,232,.7)', (o.order || 0) * 0.09 + 0.3);
         n.labelObj = n.labelDiv._anchor;
       }
@@ -77,6 +77,9 @@ function makeWorldCtx() {
         : null;
       n.baseLabel = o.label || '';
       n.baseHover = o.hover || o.label || '';
+      // Status khởi điểm của component (nếu có) — xem flow3d-engine-node-status-label.js.
+      n.baseStatus = o.status || '';
+      createNodeStatus(n, n.baseStatus);
       // Shape state — see setNodeLook()'s fill/count/open handling below.
       // Absolute values only (never a delta): applyPersistentStep() resets
       // every node to these before replaying steps 0..stepIdx, so a value
@@ -137,7 +140,7 @@ function applyPersistentStep(sc, stepIdx) {
     n.flash = 0;
     setNodePos(n, n.basePos, false);
     setNodeLook(n, {label: n.baseLabel, col: n.baseCol, edge: n.baseEdge, hover: n.baseHover,
-      fill: n.baseFill, count: n.baseCount, open: n.baseOpen});
+      status: n.baseStatus, fill: n.baseFill, count: n.baseCount, open: n.baseOpen});
   });
 
   for (let i = 0; i < stepIdx; i++) applyStepLook(sc.steps[i]);
@@ -165,8 +168,10 @@ function applyPersistentStep(sc, stepIdx) {
    A component that this step is about to move is framed at its DESTINATION —
    the viewer should be looking at where the action lands, not where it left. */
 function frameFocus(step) {
-  const keys = step.focus || [];
-  const set = step.set || {};
+  frameNodeKeys(step.focus || [], step.set || {});
+}
+
+function frameNodeKeys(keys, set) {
   let lo = null, hi = null;
 
   keys.forEach(function(k) {
@@ -185,7 +190,14 @@ function frameFocus(step) {
   // Enough distance to hold the focused span plus room for its captions and
   // the arrows arcing above it, clamped so no shot goes claustrophobic or
   // zooms out past the point where labels are readable.
-  const span = Math.max(hi[0] - lo[0], hi[2] - lo[2]);
+  //
+  // Height counts as much as footprint. A single tall component (etcd is a
+  // cylinder several units high) has almost no horizontal span, so a
+  // width-only measure pushes the shot to the bottom of the clamp and the
+  // silhouette then overflows the viewport — the viewer sees a wall, not a
+  // shape. Weighted below the ground span because the frame is wider than
+  // it is tall.
+  const span = Math.max(hi[0] - lo[0], hi[2] - lo[2], (hi[1] - lo[1]) * 1.9);
   const dist = Math.max(24, Math.min(58, span * 1.55 + 14));
   startCamTween([(lo[0] + hi[0]) / 2, 0, (lo[2] + hi[2]) / 2], dist);
 }
@@ -239,6 +251,7 @@ function setNodePos(n, pos, animate) {
     if (n.labelObj && n.labelOff) {
       n.labelObj.position.set(x + n.labelOff[0], y + n.labelOff[1], z + n.labelOff[2]);
     }
+    moveNodeStatus(n, x, y, z);
   };
   if (!animate || prefersReducedMotion) { apply(pos[0], pos[1], pos[2]); return; }
   moveTweens.push({n, from, to: pos.slice(), t: 0, dur: 0.9, apply});
@@ -265,9 +278,12 @@ function updateMoveTweens(dt) {
 function setNodeLook(n, look, animate) {
   if (look.pos) setNodePos(n, look.pos, !!animate);
   if (look.label !== undefined && n.labelDiv) {
-    n.labelDiv.innerHTML = look.label;
+    // Chi tiết (dòng 2 trở đi) bọc trong <span class="detail"> để CSS giấu đi
+    // ở shot rộng — xem flow3d-engine-label-zoom-detail.js.
+    n.labelDiv.innerHTML = captionHtml(look.label);
     n.label = look.label;
   }
+  if (look.status !== undefined) setNodeStatus(n, look.status);
   if (look.col)  n.mat.color.set(look.col);
   if (look.edge) {
     n.edgeMat.color.set(look.edge);
@@ -350,6 +366,10 @@ function applyNodeFocus(n) {
     n.labelDiv.style.opacity = showLabel ? String(Math.max(n.cur, 0.18)) : '0';
     n.labelDiv.classList.toggle('hero-label', showLabel && activeFocus[0] === n.key);
   }
+  /* Status không bị `focusLabels` cắt như caption: nó là một hạt thông tin
+     rất ngắn và người xem cần đọc được trạng thái của cả cụm cùng lúc — chỉ
+     mờ theo box chứ không biến mất. */
+  if (n.statusDiv) n.statusDiv.style.opacity = n.visible ? String(Math.max(n.cur, 0.3)) : '0';
 }
 
 /* Components whose reveal is timed to a flow arrival appear mid-step. */

@@ -43,6 +43,20 @@ KIT.scenario({
     KIT.stage('🔗', 'Bind'),
     KIT.stage('🟢', 'Running')
   ],
+  pipelineIntro: {
+    title: 'Cluster kín chỗ — Pod P=1000 vẫn phải có chỗ',
+    desc: '',
+    nodes: ['apiserver', 'scheduler', 'queue', 'node-a', 'node-b', 'node-c'],
+    bubbles: [
+      {key: 'apiserver', text: 'API Server', at: 0.5, dur: 0.6, tone: 'core'},
+      {key: 'scheduler', text: 'kube-scheduler', at: 1.3, dur: 0.6, tone: 'accent'},
+      {key: 'queue',     text: 'ActiveQ',        at: 2.1, dur: 0.6, tone: 'queue'},
+      {key: 'node-a',    text: 'Worker A',       at: 2.9, dur: 0.6, tone: 'ok'},
+      {key: 'node-b',    text: 'Worker B',       at: 3.7, dur: 0.6, tone: 'warn'},
+      {key: 'node-c',    text: 'Worker C',       at: 4.5, dur: 0.6, tone: 'warn'}
+    ],
+    overviewAfter: 0.9
+  },
   world: window.PREEMPTION_WORLD,
   steps: window.PREEMPT_STEPS_FILTER.concat(window.PREEMPT_STEPS_EVICT)
 });

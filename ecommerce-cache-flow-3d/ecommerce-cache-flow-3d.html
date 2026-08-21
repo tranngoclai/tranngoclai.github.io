@@ -20,6 +20,10 @@
       <div id="labels"></div>
       <div id="fade-overlay"></div>
       <div id="dir-flash"></div>
+      <div id="step-intro" class="step-intro" aria-hidden="true">
+        <h2 id="intro-title"></h2><p id="intro-desc"></p>
+        <button id="intro-skip" type="button">Next →</button>
+      </div>
       <!-- Metric HUD — rows rendered from step.scores (scores or capacities) -->
       <div id="score-hud" aria-live="polite" aria-label="Scenario metrics"></div>
     </div>
@@ -40,6 +44,7 @@
       <div class="explain-slot visible" id="slot-a"><div class="e-desc" id="e-desc">—</div></div>
       <div class="explain-slot hidden" id="slot-b"><div class="e-desc" id="e-desc-b">—</div></div>
     </div>
+    <div id="nav-progress" aria-hidden="true"></div>
     <div id="explain-nav">
       <button class="btn" id="btn-prev" type="button">← Prev</button>
       <div class="dots" id="dots" aria-hidden="true"></div>
@@ -53,6 +58,16 @@
 <!-- Three.js UMD build -->
 <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/controls/OrbitControls.js"></script>
+<!-- Post-processing (bloom). Tuỳ chọn: nếu CDN không tới được, engine tự khoá
+     chất lượng ở mức THẤP và render thẳng. Thứ tự bắt buộc — ShaderPass và
+     UnrealBloomPass kế thừa THREE.Pass do EffectComposer.js định nghĩa. -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/shaders/CopyShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/postprocessing/ShaderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/postprocessing/MaskPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
 
 <!-- ════ REUSABLE · SCENE KIT ════════════════════════════════════════════
      The authoring vocabulary every deck is written with — tokens, world
@@ -106,13 +121,19 @@
      run after every scenario has registered itself. Identical in every deck. -->
 <script src="../flow3d/flow3d-engine-phase-expander.js"></script>
 <script src="../flow3d/flow3d-engine-scene-setup.js"></script>
+<script src="../flow3d/flow3d-engine-environment.js"></script>
 <script src="../flow3d/flow3d-engine-animation-helpers.js"></script>
 <script src="../flow3d/flow3d-engine-flow-state.js"></script>
 <script src="../flow3d/flow3d-engine-build-api.js"></script>
+<script src="../flow3d/flow3d-engine-label-zoom-detail.js"></script>
+<script src="../flow3d/flow3d-engine-node-status-label.js"></script>
 <script src="../flow3d/flow3d-engine-persistent-world.js"></script>
 <script src="../flow3d/flow3d-engine-component-anchors.js"></script>
 <script src="../flow3d/flow3d-engine-hud-controller.js"></script>
+<script src="../flow3d/flow3d-engine-explain-beats.js"></script>
 <script src="../flow3d/flow3d-engine-ui-controller.js"></script>
+<script src="../flow3d/flow3d-engine-postprocessing.js"></script>
+<script src="../flow3d/flow3d-engine-chrome-controls.js"></script>
 <script src="../flow3d/flow3d-engine-render-loop.js"></script>
 </body>
 </html>

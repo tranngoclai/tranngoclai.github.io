@@ -104,6 +104,32 @@ function addFlowLabel(text, x, y, z, color) {
   return div;
 }
 
+/* Bubble anchors reuse the live caption object, so orbiting the camera and
+   moving a component keep the explanation attached to its actor. */
+function addBubble(text, anchorKey, opts) {
+  opts = opts || {};
+  const n = worldNodes[anchorKey];
+  if (!n || !n.labelObj) return null;
+  const div = document.createElement('div');
+  div.className = 'fl-label fl-bubble';
+  div.textContent = text;
+  div.style.setProperty('--bubble-ink', window.SCENE_KIT.ink(opts.tone || 'accent'));
+  labelsDiv.appendChild(div);
+  const at = opts.at || 0;
+  const dur = opts.dur === undefined ? 3 : opts.dur;
+  labelEls.push({
+    div: div, obj: n.labelObj, persistent: false,
+    offset: [opts.dx || 0, opts.dy === undefined ? 2.4 : opts.dy, opts.dz || 0]
+  });
+  if (prefersReducedMotion) {
+    div.classList.add('visible');
+    return div;
+  }
+  scheduleTransition(function() { div.classList.add('visible'); }, at * 1000 + 120, transitionGeneration);
+  scheduleTransition(function() { fadeLabel(div); }, (at + dur) * 1000 + 120, transitionGeneration);
+  return div;
+}
+
 /* ─ Solid helper ─
    Builds any shape from `SCENE_KIT.SHAPE` as one mesh + one edge overlay +
    an optional top strip + an optional state overlay (fill/count/open — see
@@ -171,7 +197,15 @@ function makeSolid(shapeId, w, h, d, colStr, edgeStr) {
   const def = getShapeDef(shapeId || 'box');
   const {geo, edgeGeo} = getSolidGeometry(shapeId || 'box', w, h, d, def);
 
-  const mat = new THREE.MeshStandardMaterial({color: new THREE.Color(colStr), roughness: 0.65, metalness: 0.15, transparent: true, opacity: 0});
+  /* `envMapIntensity` thấp là có chủ ý: `scene.environment` (bầu trời) cho mặt
+     hộp một lớp sheen theo hướng — thứ làm khối có thể tích — nhưng để mức 1.0
+     thì bầu trời dìm luôn `col` của token và mọi hộp trôi về cùng một màu xanh
+     pastel. 0.35 giữ nguyên ngôn ngữ "fill tối · viền mang màu vai trò". */
+  const mat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(colStr),
+    roughness: 0.58, metalness: 0.22, envMapIntensity: 0.35,
+    transparent: true, opacity: 0
+  });
   const mesh = new THREE.Mesh(geo, mat);
   mesh.castShadow = true; mesh.receiveShadow = true;
   const edgeMat = new THREE.LineBasicMaterial({color: new THREE.Color(edgeStr), transparent: true, opacity: 0});
@@ -212,9 +246,14 @@ function makeBox(w, h, d, colStr, edgeStr) {
 function makeArrow(x1,y1,z1, x2,y2,z2, color, dashed) {
   const pts = [new THREE.Vector3(x1,y1,z1), new THREE.Vector3(x2,y2,z2)];
   const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  /* Cộng sáng cho đường liền: một flow là năng lượng đang chạy giữa hai
+     component, nên nó phải CỘNG vào nền chứ không phủ lên nền. Kèm bloom, đây
+     là thứ biến nét 1px thành một sợi sáng có quầng. Đường đứt nét thì không —
+     nó nói "quan hệ", không nói "có gì đang chạy", và additive làm nó nhoè mất
+     nhịp đứt. */
   const mat = dashed
     ? new THREE.LineDashedMaterial({color: new THREE.Color(color), dashSize:0.35, gapSize:0.2, transparent:true, opacity:0.55})
-    : new THREE.LineBasicMaterial({color: new THREE.Color(color), transparent:true, opacity:0});
+    : new THREE.LineBasicMaterial({color: new THREE.Color(color), transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false});
   const line = new THREE.Line(geo, mat);
   if (dashed) line.computeLineDistances();
   const dir = new THREE.Vector3(x2-x1, y2-y1, z2-z1).normalize();
@@ -230,11 +269,36 @@ function makeArrow(x1,y1,z1, x2,y2,z2, color, dashed) {
   return [line, cone];
 }
 
-/* ─ Particle along arrow ─ */
+/* ─ Particle along arrow ─
+   Trước đây là một quả cầu 0.08 tô màu phẳng: đúng vị trí, đúng màu, nhưng đọc
+   như hạt nhựa trôi chứ không như năng lượng đang chạy. Sprite radial-gradient
+   cộng sáng thì có lõi trắng và quầng tắt dần — cùng số hạt, nhưng thành dòng
+   sáng. Texture dựng một lần rồi dùng chung cho mọi hạt. */
+let _glowTex = null;
+function glowTexture() {
+  if (_glowTex) return _glowTex;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 64;
+  const g = cv.getContext('2d');
+  const rg = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  rg.addColorStop(0.00, 'rgba(255,255,255,1)');
+  rg.addColorStop(0.28, 'rgba(255,255,255,.55)');
+  rg.addColorStop(1.00, 'rgba(255,255,255,0)');
+  g.fillStyle = rg;
+  g.fillRect(0, 0, 64, 64);
+  _glowTex = new THREE.CanvasTexture(cv);
+  _glowTex.userData.shared = true;   // wipeScene không được dispose nó
+  return _glowTex;
+}
+
 function makeParticle(p1, p2, color, delay) {
-  const geo = new THREE.SphereGeometry(0.08, 6, 6);
-  const mat = new THREE.MeshBasicMaterial({color: new THREE.Color(color), transparent:true, opacity:0});
-  const mesh = new THREE.Mesh(geo, mat);
+  const mat = new THREE.SpriteMaterial({
+    map: glowTexture(), color: new THREE.Color(color),
+    transparent: true, opacity: 0, depthWrite: false,
+    blending: THREE.AdditiveBlending, fog: false
+  });
+  const mesh = new THREE.Sprite(mat);
+  mesh.scale.set(0.44, 0.44, 1);
   buildAdd(mesh);
   particleQueue.push({mesh, mat, p1: p1.clone(), p2: p2.clone(), t: -delay, delay, duration: 1.2, loop: true, persistent: buildPersistent});
 }
@@ -256,4 +320,3 @@ function makeHeroRing(mesh) {
   buildAdd(ring);
   return {ring, mat, phase: 0};
 }
-

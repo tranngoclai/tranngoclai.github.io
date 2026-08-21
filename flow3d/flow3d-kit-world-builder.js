@@ -31,6 +31,15 @@
    label changes only when the configuration it states actually changes.
    Verdicts are colour and badge; explanation belongs in the panel text.
    A 3D scene that has to be *read* has stopped being a diagram.
+
+   ── Rule 4 · STATUS KHÔNG NẰM TRONG CAPTION ──
+   Caption in trên mặt trước là danh tính (tên + cấu hình) và phải đứng yên.
+   Trạng thái — Pending, Running, Evicted — đi vào `status`, một chip riêng
+   bay trên đầu component: `node('pod', {label:'Pod · P=0', status:'pending'})`
+   và về sau `set: {'pod': KIT.mark('live','bound', {status:'running'})}`.
+   Giá trị là *token* trong bảng NODE_STATUS (flow3d-engine-node-status-label.js),
+   không phải chuỗi tự chế: một ký hiệu có màu + đúng một từ, để cùng một
+   trạng thái luôn hiện cùng một hình ở mọi kịch bản.
 ══════════════════════════════════════════════ */
 
 (function() {
@@ -63,6 +72,8 @@ KIT.ink = function(ink) {
      order,          build order; also staggers the entrance animation
      hidden,         built but not revealed until a step shows it
      hover,          hover text; defaults to the label
+     status,         trạng thái ban đầu — một token của NODE_STATUS, hiện
+                     thành chip ký hiệu + một từ trên đầu component (rule 4)
      caption         'face' (default) · 'top' · [x,y,z] for a manual spot
      shape,          a SCENE_KIT.SHAPE id — what kind of thing this is,
                      orthogonal to tone/size (see flow3d-kit-shape-library.js).
@@ -101,6 +112,7 @@ KIT.world = function(w) {
         hidden: !!o.hidden,
         hover: o.hover || o.label || '',
         shape: o.shape,
+        status: o.status,
         fill: o.fill, count: o.count, open: o.open
       });
     },
@@ -108,7 +120,7 @@ KIT.world = function(w) {
     /* Caption for a whole area of the world — floats above the components,
        not attached to any one of them. */
     region(text, x, z, order) {
-      w.txt(text, x, 8, z || 0, 'rgba(106,138,176,.5)', order === undefined ? 12 : order);
+      w.txt(text, x, 8, z || 0, 'rgba(140,168,204,.8)', order === undefined ? 12 : order);
     },
 
     /* Opening camera for the scenario. */

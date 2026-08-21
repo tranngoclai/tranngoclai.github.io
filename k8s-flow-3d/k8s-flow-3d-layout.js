@@ -67,7 +67,15 @@ L.X = {
 L.Z = {
   sched:      9,   // băng đặt chỗ: kube-scheduler, ActiveQ
   spine:      0,   // đường đi request: client → gate → API Server
-  workload:   3,   // controller sinh/huỷ workload: ReplicaSet, Deployment
+  workload:   3,   // controller TRỰC TIẾP sinh/huỷ Pod: ReplicaSet controller
+
+  /* Controller chỉ sở hữu template và chỉnh replica count của controller khác —
+     Deployment, StatefulSet, Job. Nó KHÔNG bao giờ chạm vào Pod, nên đứng lùi
+     ra sau `workload`: chiều sâu ở đây đọc là "khoảng cách tới Pod".
+     Cách `policy` (-3) đúng 1.5 — hai băng này loại trừ nhau, một kịch bản
+     không dùng đồng thời Deployment controller và disruption controller. */
+  workloadOwner: -1.5,
+
   store:     -9,   // etcd, và các policy object được lưu (PDB)
   policy:    -3,   // controller canh policy: disruption controller
   lifecycle: -9,   // node lifecycle controller

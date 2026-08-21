@@ -26,8 +26,16 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-ser
 }
 #dir-flash.show{opacity:1;}
 
+/* Vignette — bốn góc tối lại nên mắt rơi vào giữa khung. Làm bằng CSS thay vì
+   một post-processing pass: không tốn frame, không cần EffectComposer, và tự
+   tắt theo kích thước cửa sổ. Phải nằm DƯỚI #labels để không làm mờ chữ. */
+#scene-wrap::after{
+  content:'';position:absolute;inset:0;pointer-events:none;z-index:2;
+  background:radial-gradient(ellipse 78% 78% at 50% 46%,transparent 42%,rgba(3,6,12,.30) 78%,rgba(2,4,9,.62) 100%);
+}
+
 /* floating labels */
-#labels{position:absolute;inset:0;pointer-events:none;}
+#labels{position:absolute;inset:0;pointer-events:none;z-index:4;}
 .fl-label{
   position:absolute;
   transform:translate(-50%,-50%);
@@ -51,6 +59,7 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-ser
    Sized and weighted a step above a plain name label: it names something
    happening *right now*, so it must read first even next to a bright caption. */
 .fl-label.state-badge{
+  z-index:7;
   font-size:9.5px;font-weight:700;letter-spacing:.02em;white-space:nowrap;
   padding:3px 9px;border-radius:20px;
   background:rgba(8,13,20,.92);border:1px solid currentColor;
@@ -58,6 +67,63 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-ser
   text-shadow:none;
 }
 .fl-label.state-badge.visible{animation:badge-pop .5s cubic-bezier(.2,1.4,.4,1);}
+/* node status — chip trạng thái đứng trên đầu component, tồn tại suốt kịch bản
+   (khác state-badge chỉ chớp lên lúc đổi). Ký hiệu to, một từ nhỏ bên cạnh:
+   nhìn màu + hình là biết ngay, còn chữ để khỏi phải đoán. Muốn chỉ còn ký
+   hiệu: đặt `.fl-label.node-status .w{display:none}` — từ vẫn nằm ở tooltip. */
+.fl-label.node-status{
+  z-index:5;
+  display:flex;align-items:center;gap:4px;white-space:nowrap;
+  padding:2px 7px;border-radius:20px;
+  background:rgba(8,13,20,.78);border:1px solid currentColor;
+  text-shadow:none;
+}
+/* Level-of-detail: ở shot rộng caption chỉ còn tên và chip chỉ còn ký hiệu.
+   Class `lod-far` do updateLabelDetail() bật/tắt theo khoảng cách camera
+   (flow3d-engine-label-zoom-detail.js) — chữ vẫn nằm nguyên trong DOM và
+   trong tooltip, chỉ thôi chiếm chỗ trên màn hình. */
+#labels.lod-far .fl-label .detail{display:none;}
+#labels.lod-far .fl-label.node-status .w{display:none;}
+#labels.lod-far .fl-label.node-status{padding:2px 5px;}
+.fl-label.node-status .g{font-size:11px;line-height:1;}
+.fl-label.node-status .w{font-size:8px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;opacity:.9;}
+/* Bubble luôn nằm trên cùng: nó là lời đang được đọc, không có nhãn nào đáng
+   che nó. Thứ tự chồng lớp: bubble > badge > status chip > caption. */
+.fl-label.fl-bubble{
+  z-index:9;
+  max-width:190px;padding:6px 10px;border:1px solid var(--bubble-ink);border-radius:10px;
+  background:rgba(12,18,32,.92);color:rgba(220,232,250,.96);font-size:11px;white-space:pre-wrap;
+  box-shadow:0 6px 22px rgba(0,0,0,.42);text-shadow:none;
+}
+/* Bubble của một nhịp giải thích: nó là cả một câu, không phải một nhãn — rộng
+   hơn, canh trái, cỡ chữ đọc được thành đoạn. Chi tiết ở đây KHÔNG bị cắt theo
+   zoom: nhịp nào cũng đã tự kéo camera tới đúng cự ly của nó. */
+.fl-label.fl-bubble.beat-bubble{
+  max-width:300px;white-space:normal;text-align:left;font-size:11.5px;line-height:1.5;
+  padding:9px 12px;
+}
+.fl-label.fl-bubble.beat-bubble code{font-size:10.5px;}
+.fl-label.fl-bubble::after{content:'';position:absolute;left:50%;bottom:-7px;transform:translateX(-50%);border:7px solid transparent;border-bottom:0;border-top-color:var(--bubble-ink);}
+.fl-label.state-ghost{opacity:.5!important;color:rgba(255,132,112,.9)!important;text-decoration:line-through;z-index:2;}
+.fl-label.state-ghost.ghost-exit{transform:translate(-50%,-50%) translateY(-14px);opacity:0!important;}
+.fl-label.state-enter{animation:label-slide-up .35s ease-out;}
+@keyframes label-slide-up{from{transform:translate(-50%,-50%) translateY(10px);opacity:0}to{transform:translate(-50%,-50%) translateY(0);opacity:1}}
+.step-intro{position:absolute;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;background:radial-gradient(ellipse at center,rgba(8,13,20,.94),rgba(8,13,20,.66));opacity:0;pointer-events:none;transition:opacity .35s ease;text-align:center;}
+/* `.exit` phải tắt luôn opacity của cả lớp phủ, không chỉ của chữ: khi hết
+   350ms engine gỡ cùng lúc `show` + `exit`, nếu container vẫn opacity:1 thì
+   việc gỡ `exit` sẽ trả background và chữ về trạng thái hiện đầy đủ trong một
+   frame trước khi fade — đúng cái nháy "hiện lại lần nữa". */
+.step-intro.show{opacity:1;pointer-events:auto;}.step-intro.exit{opacity:0;background:transparent;pointer-events:none;}
+#intro-title{max-width:760px;color:rgba(225,235,250,.97);font-size:clamp(23px,3vw,32px);font-weight:600;}.step-intro.exit #intro-title{transform:scale(.82) translateY(-18px);opacity:0;transition:transform .35s ease,opacity .35s ease;}
+#intro-desc{max-width:580px;margin-top:12px;color:rgba(180,199,225,.82);font-size:15px;line-height:1.5;}.step-intro.exit #intro-desc{opacity:0;transition:opacity .3s ease;}
+/* Pipeline-open flythrough: the scene itself (wide shot → sequential badges →
+   zoom into step ①) is the explanation, so the scrim only needs to keep the
+   short title legible — it must not hide the camera move behind it. */
+.step-intro.pipeline-mode{justify-content:flex-start;padding-top:34px;background:linear-gradient(to bottom,rgba(8,13,20,.8) 0%,rgba(8,13,20,.32) 40%,transparent 68%);}
+.step-intro.pipeline-mode #intro-title{font-size:clamp(16px,2vw,20px);font-weight:600;}
+.step-intro.pipeline-mode #intro-desc{display:none;}
+.step-intro.pipeline-mode #intro-skip{margin-top:14px;}
+#intro-skip{margin-top:22px;padding:8px 12px;border:1px solid rgba(160,190,230,.5);border-radius:5px;background:rgba(10,16,28,.85);color:#dce8fa;font:600 11px 'IBM Plex Mono',monospace;cursor:pointer;}#intro-skip:not(.show){display:none;}
 @keyframes badge-pop{
   0%  {transform:translate(-50%,-50%) scale(.55);}
   60% {transform:translate(-50%,-50%) scale(1.1);}
@@ -66,7 +132,9 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-ser
 
 /* ─── SCORE COUNTER HUD ─── */
 #score-hud{
-  position:absolute;top:18px;right:24px;
+  /* Panel nằm bên phải, nên HUD phải sang trái — hai khối cùng bám mép phải sẽ
+     chồng lên nhau ở màn hình hẹp. */
+  position:absolute;top:18px;left:24px;
   display:none;flex-direction:column;gap:6px;
   z-index:12;
 }
@@ -150,9 +218,16 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-ser
 }
 @keyframes popIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}
 
-/* progress bar */
+/* progress bar
+   2px không track trên một cảnh tối gần như vô hình, và quan trọng hơn: không
+   có track thì thanh chỉ nói "đã đi bao xa" chứ không nói "còn bao nhiêu".
+   Track mờ chạy hết chiều ngang trả lại vế thứ hai. */
+#main::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:3px;
+  background:rgba(122,143,176,.14);z-index:19;pointer-events:none;
+}
 #progress-bar{
-  position:absolute;top:0;left:0;height:2px;
+  position:absolute;top:0;left:0;height:3px;
   background:linear-gradient(90deg,var(--blue),#6aaaf8);
   width:0%;transition:width .6s cubic-bezier(.4,0,.2,1);
   box-shadow:0 0 8px rgba(58,127,255,.5);
@@ -189,7 +264,9 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-ser
   background:rgba(24,168,85,.05);
 }
 .pip-icon{font-size:14px;line-height:1;}
-.pip-lbl{font-family:'IBM Plex Mono',monospace;font-size:7.5px;letter-spacing:.06em;text-transform:uppercase;color:rgba(122,143,176,.5);}
+/* 7.5px ở alpha .5 cho ~2.3:1 trên nền panel — dưới ngưỡng đọc được của chữ
+   nhỏ (cần ≥4.5:1). Cùng hue, nâng độ sáng + alpha để đạt ngưỡng. */
+.pip-lbl{font-family:'IBM Plex Mono',monospace;font-size:7.5px;letter-spacing:.06em;text-transform:uppercase;color:rgba(150,172,204,.85);}
 .pip-node.active .pip-lbl{color:var(--blue);}
 .pip-node.done .pip-lbl{color:var(--green);}
 .pip-arrow{
@@ -236,12 +313,18 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-ser
 
 #flow-panel{
   position:absolute;z-index:40;top:12px;top:max(12px,env(safe-area-inset-top));
-  left:12px;left:max(12px,env(safe-area-inset-left));
+  right:12px;right:max(12px,env(safe-area-inset-right));
   width:min(320px,calc(100vw - 24px - env(safe-area-inset-left) - env(safe-area-inset-right)));
   max-height:calc(100vh - 96px);max-height:calc(100dvh - 96px - env(safe-area-inset-bottom));
   display:flex;flex-direction:column;gap:8px;padding:12px;
-  border:1px solid rgba(122,143,176,.24);border-radius:10px;
-  background:rgba(8,13,20,.88);box-shadow:0 12px 34px rgba(0,0,0,.34);
+  /* Viền gradient xanh→tím thay viền xám phẳng: cùng hai màu mà cảnh dùng cho
+     `core` và `subject`, nên panel đọc như thuộc về cảnh chứ không phải một
+     hộp thoại dán đè lên. */
+  border:1px solid transparent;border-radius:10px;
+  background:
+    linear-gradient(rgba(8,13,20,.88),rgba(8,13,20,.88)) padding-box,
+    linear-gradient(150deg,rgba(58,127,255,.42),rgba(139,108,255,.34) 60%,rgba(122,143,176,.18)) border-box;
+  box-shadow:0 12px 34px rgba(0,0,0,.34);
   backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
 }
 #scenario-select-label,#panel-position,#panel-scenario-tag{
@@ -275,19 +358,58 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-ser
 #explain-body .explain-slot{position:static;inset:auto;overflow:visible;padding:0;transition:none;}
 #explain-body .explain-slot.hidden{display:none;}
 #explain-body .explain-slot.visible{display:block;}
+/* Chỉ báo tiến trình: panel chữ đang ẩn nên đây là thứ duy nhất trả lời "còn
+   bao nhiêu cú Next nữa". Nó đếm cả nhịp giải thích, không chỉ phase. */
+#nav-progress{
+  font:600 9px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;
+  color:rgba(122,143,176,.8);text-align:center;
+}
+#nav-progress:empty{display:none;}
 #explain-nav{display:grid;grid-template-columns:minmax(76px,1fr) auto minmax(76px,1fr);align-items:center;gap:8px;}
 #explain-nav .btn{min-height:44px;padding:6px 12px;}
 .dots{min-width:24px;max-width:72px;overflow:hidden;}
 
+/* TẠM THỜI — panel rút gọn: tên kịch bản, vị trí step/phase và description bị
+   ẩn bằng CSS; các node vẫn tồn tại trong DOM nên engine vẫn ghi nội dung bình
+   thường và chỉ cần xoá block này để hiện lại.
+   `#panel-title` KHÔNG nằm trong danh sách ẩn nữa: không có nó thì panel chỉ
+   còn select + nav và trông như một màn hình chưa làm xong — người xem không
+   có chỗ nào đọc được bước hiện tại đang nói về cái gì. */
+.panel-heading,#panel-position,#panel-parent,#explain-body{display:none !important;}
+
+/* ─── CHÚ GIẢI MÀU + CHẤT LƯỢNG HIỆU ỨNG (dựng bởi engine-chrome-controls) ─── */
+#panel-tools{display:flex;gap:8px;}
+#panel-tools button{
+  flex:1;min-height:32px;padding:0 8px;
+  border:1px solid var(--border);border-radius:6px;
+  background:rgba(255,255,255,.025);color:rgba(192,208,232,.82);
+  font:600 9px 'IBM Plex Mono',monospace;letter-spacing:.06em;text-transform:uppercase;
+  cursor:pointer;
+}
+#panel-tools button:hover:not(:disabled){border-color:rgba(58,127,255,.5);color:var(--bright);}
+#panel-tools button:disabled{opacity:.45;cursor:not-allowed;}
+#legend-toggle[aria-expanded="true"]{border-color:rgba(58,127,255,.5);color:var(--bright);}
+#quality-toggle[aria-pressed="true"]{border-color:rgba(139,108,255,.5);color:var(--bright);}
+#legend-popover{
+  display:flex;flex-direction:column;gap:5px;
+  padding:9px 4px 4px 0;border-top:1px solid rgba(122,143,176,.13);
+  max-height:min(34vh,260px);overflow-y:auto;overscroll-behavior:contain;
+}
+#legend-popover[hidden]{display:none;}
+.legend-row{display:grid;grid-template-columns:12px 62px 1fr;align-items:center;gap:7px;}
+.legend-swatch{width:12px;height:12px;border-radius:3px;border:1px solid;}
+.legend-name{font:600 9px 'IBM Plex Mono',monospace;color:rgba(192,208,232,.9);}
+.legend-desc{font-size:10px;line-height:1.35;color:rgba(150,172,204,.88);}
+
 button:focus-visible,select:focus-visible,a:focus-visible{
   outline:2px solid #77a7ff;outline-offset:2px;
 }
-#score-hud{top:18px;right:18px;}
+#score-hud{top:18px;left:18px;}
 #pipeline-ui{left:0;right:0;bottom:18px;padding:0 12px;}
 
 @media (max-width:900px){
   #flow-panel{width:min(304px,calc(100vw - 24px));}
-  #score-hud{top:auto;right:12px;bottom:88px;}
+  #score-hud{top:auto;left:12px;bottom:88px;}
   .score-row{padding:5px 8px;gap:6px;}
 }
 
@@ -295,7 +417,7 @@ button:focus-visible,select:focus-visible,a:focus-visible{
   #layout{display:block;overflow:hidden;}
   #main,#scene-wrap{inset:0;min-height:0;}
   #flow-panel{
-    top:8px;top:max(8px,env(safe-area-inset-top));left:8px;left:max(8px,env(safe-area-inset-left));
+    top:8px;top:max(8px,env(safe-area-inset-top));right:8px;right:max(8px,env(safe-area-inset-right));
     width:min(320px,calc(100vw - 24px - env(safe-area-inset-left) - env(safe-area-inset-right)));
     max-height:62vh;max-height:62dvh;
     padding:10px;gap:6px;

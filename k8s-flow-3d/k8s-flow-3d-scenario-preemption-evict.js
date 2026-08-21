@@ -35,6 +35,13 @@ const AFTER = RUN.afterEviction;
 const FREED = MODEL.memFree(AFTER);
 const P = window.PREEMPT_POS;
 
+/* Nominate là một hành trình 2 hop đi thẳng tới đích (scheduler → apiserver →
+   pod-checkout), không quay đầu — đúng khuôn KIT.chain. `set` (viết trước,
+   ngoài scene) và `scene` cùng đọc một lịch trình duy nhất, nên retiming
+   không bao giờ làm badge lệch khỏi mũi tên. */
+const NOMINATE_PACE = {at: 0.25, dur: 0.75};
+const NOMINATE_HOP = KIT.chainTimes(2, NOMINATE_PACE);
+
 window.PREEMPT_STEPS_EVICT = [
 
 /* ── STEP ④: Nominate & xoá victim ── */
@@ -54,15 +61,22 @@ window.PREEMPT_STEPS_EVICT = [
       focus: ['scheduler', 'apiserver', 'etcd', 'pod-checkout', 'queue'],
       // Chỉ Pod đang được ghi nominatedNodeName mới cần đọc cấu hình.
       labels: ['scheduler', 'apiserver', 'etcd', 'pod-checkout'],
+      explain: [
+        {of: 'apiserver', tone: 'warn', text: 'Scheduler <code>PATCH status</code> trước khi xoá gì — đặt gạch <code>nominatedNodeName</code> lên Pod.'},
+        {of: 'pod-checkout', tone: 'mute', text: 'Không đặt gạch, scheduler xử lý Pod khác sẽ thấy Worker A sắp trống và phát nhầm chỗ đó.'}
+      ],
       set: {
+        // `at` đọc từ hop cuối của chain — cùng lịch trình với scene() bên
+        // dưới nên badge luôn đáp đúng lúc mũi tên cập bến.
         'pod-checkout': KIT.mark('warn', 'nominatedNodeName ← worker-a', {
-          at: 1.35, dy: 2.2,
-          hover: 'Đã đặt gạch trên Worker A — nhưng vẫn chưa bind'
+          at: NOMINATE_HOP[1].arrive, dy: 2.2,
+          hover: 'Đã đặt gạch trên Worker A — nhưng vẫn chưa bind',
+          status: 'pending'
         })
       },
       scene(a) {
-        KIT.link(a, 'scheduler', 'apiserver', 'info', {at: 0.25, dur: 0.75, label: 'PATCH status'});
-        KIT.link(a, 'apiserver', 'pod-checkout', 'warn', {at: 1.05, dur: 1.00, label: 'deliver nomination'});
+        KIT.chain(a, ['scheduler', 'apiserver', 'pod-checkout'], 'info',
+          Object.assign({labels: ['PATCH status', 'deliver nomination'], inks: ['info', 'warn']}, NOMINATE_PACE));
         KIT.note(a, 'status.nominatedNodeName', 'apiserver', 'warn', 0.3);
       }
     },
@@ -72,11 +86,19 @@ window.PREEMPT_STEPS_EVICT = [
         'Scheduler gọi <code>DELETE</code> lên hai victim. Đây là <b>xoá bình thường</b>, đúng quy trình graceful shutdown, không giết ngay.',
         'Pod chuyển sang <span class="warn">Terminating</span>, bị gỡ khỏi Service endpoints, kubelet chạy <code>preStop</code> hook rồi gửi <b>SIGTERM</b>. Tiến trình chưa thoát trong <code>terminationGracePeriodSeconds</code> (mặc định <b>30s</b>) thì kubelet mới gửi <b>SIGKILL</b>.',
         '<b>Ứng dụng của bạn tự bảo vệ được ở đây</b> — bắt SIGTERM, ngừng nhận request mới, flush việc dở rồi thoát sạch. Ngược lại, <code>terminationGracePeriodSeconds</code> quá dài trên Pod priority thấp sẽ <b>kéo dài thời gian Pod priority cao phải chờ</b>. Preemption không nhanh hơn grace period dài nhất trong tập victim.'),
+      // `30s` ở đây và trong desc/note là hằng số mặc định của Kubernetes
+      // (terminationGracePeriodSeconds), không phải kết quả model — giữ làm
+      // prose theo §6d.
+      labels: ['node-a', 'pod-a1', 'pod-a2'],
+      explain: [
+        {of: ['pod-a1', 'pod-a2'], tone: 'danger', text: 'DELETE là graceful shutdown — Pod chuyển <span class="warn">Terminating</span>, không bị giết ngay.'},
+        {of: 'pod-a3', tone: 'mute', text: '<code>payments</code> không bị đụng tới — nó không nằm trong tập victim.'}
+      ],
       hide: ['pod-a1', 'pod-a2'],
       hideAt: { 'pod-a1': 1.05, 'pod-a2': 1.55 },
       set: {
-        'pod-a1': KIT.pulse('danger', 'Terminating · SIGTERM', {dy: 2.2}),
-        'pod-a2': KIT.pulse('danger', 'Terminating · SIGTERM', {dy: 2.2})
+        'pod-a1': KIT.pulse('danger', 'Terminating · SIGTERM', {dy: 2.2, status: 'terminating'}),
+        'pod-a2': KIT.pulse('danger', 'Terminating · SIGTERM', {dy: 2.2, status: 'terminating'})
       },
       focus: ['node-a', 'pod-a1', 'pod-a2', 'pod-a3'],
       scene(a) {
@@ -94,8 +116,13 @@ window.PREEMPT_STEPS_EVICT = [
       // Thanh pipeline chạy ngược về Queue — vì Pod thật sự quay lại hàng đợi.
       pipelineStep: 0,
       focus: ['scheduler', 'queue', 'pod-checkout', 'pod-report'],
+      labels: ['scheduler', 'queue', 'pod-checkout'],
+      explain: [
+        {of: 'pod-checkout', tone: 'accent', text: 'Cycle này <b>thất bại</b> — Pod quay lại queue, mang theo <code>nominatedNodeName</code>.'},
+        {of: 'queue', tone: 'mute', text: 'Chỉ thực sự trống chỗ khi victim biến mất hẳn khỏi etcd — phụ thuộc grace period của chúng.'}
+      ],
       set: {
-        'pod-checkout': KIT.pulse('accent', 'requeue · Pending', {at: 0.75, dy: 2.2})
+        'pod-checkout': KIT.pulse('accent', 'requeue · Pending', {at: 0.75, dy: 2.2, status: 'queued'})
       },
       scene(a) {
         KIT.link(a, 'scheduler', 'queue', 'accent', {at: 0.25, dur: 0.90, loop: 3.4, label: 'requeue'});
@@ -119,6 +146,11 @@ window.PREEMPT_STEPS_EVICT = [
         + MODEL.fmtGi(AFTER.memUsed) + ' trên tổng ' + MODEL.fmtGi(AFTER.memTotal) + ' <code>allocatable</code> → <span class="ok">còn trống '
         + MODEL.fmtGi(FREED) + '</span>. Scheduler cập nhật snapshot in-memory qua watch event.',
         '<b>Cùng lúc, ReplicaSet của <code>batch-job</code> và <code>log-agent</code> đã tạo Pod thay thế.</b> Chúng vừa vào queue và phải tự tìm chỗ — hệ quả này quay lại ở bước ⑥.'),
+      labels: ['node-a', 'pod-a3'],
+      explain: [
+        {of: 'node-a', tone: 'ok', text: 'Hai victim đã thoát khỏi etcd — Worker A giờ còn ' + MODEL.fmtGi(FREED) + ' trống, đủ cho Pod cần ' + MODEL.fmtGi(NEED) + '.'},
+        {of: 'pod-a3', tone: 'mute', text: '<code>batch-job</code> và <code>log-agent</code> đã được ReplicaSet tạo lại — chúng vừa vào queue, hệ quả này quay lại ở bước ⑥.'}
+      ],
       // Con số cấu hình trên label thật sự đổi → đây là một trong số ít chỗ
       // label được phép thay, và nó thay vì Node bớt chật thật.
       set: {
@@ -149,7 +181,7 @@ window.PREEMPT_STEPS_EVICT = [
     {
       title: 'Filter chạy lại từ đầu — nominatedNodeName chỉ là gợi ý',
       desc: KIT.desc(
-        'Pod <code>checkout</code> được pop lại. Scheduler <b>không</b> tin mù quáng vào <code>nominatedNodeName</code> — nó chạy lại <b>toàn bộ</b> Filter + Score như Pod mới hoàn toàn.',
+        'Pod <code>checkout</code> được pop lại — Scheduler <b>không</b> tin mù quáng vào <code>nominatedNodeName</code>, mà chạy lại toàn bộ Filter.',
         'Lần này Worker A pass. B và C vẫn trượt như cũ. Chỉ còn một ứng viên nên Score gần như không phải làm gì.',
         '<b>Field đó là gợi ý, không phải chỗ đã đặt cọc.</b> Trong lúc chờ, một Pod priority còn cao hơn có thể chen vào chiếm mất Worker A. Khi đó <code>checkout</code> lại rơi vào Filter fail → PostFilter → <b>preempt tiếp lần nữa</b>, những Pod vừa hy sinh coi như chết vô ích. Vì vậy <b>đừng phát priority cao tràn lan</b>: càng nhiều Pod "rất quan trọng", cluster càng dễ đuổi lẫn nhau vòng quanh.'),
       // Chạy lại Filter thật — thanh pipeline lùi về đúng chặng đó.
@@ -158,13 +190,19 @@ window.PREEMPT_STEPS_EVICT = [
       // Filter chạy lại cho chính Pod này — cần thấy lại yêu cầu 4Gi của nó
       // bên cạnh con số mới của Worker A.
       labels: ['scheduler', 'node-a', 'node-b', 'node-c', 'pod-checkout'],
-      // Score vẫn chạy, chỉ là không còn gì để so — HUD nói ra điều đó thay vì
-      // để người xem tưởng scheduler bỏ qua pha Score khi có preemption.
+      explain: [
+        {of: 'node-a', tone: 'ok', text: 'Filter chạy lại <b>toàn bộ</b> — không tin mù quáng vào <code>nominatedNodeName</code>. Lần này Worker A pass.'},
+        {of: ['node-b', 'node-c'], tone: 'mute', text: 'B và C vẫn trượt như cũ — không gì đổi trên hai Node này.'}
+      ],
+      // Không có scorer trong model preemption — HUD đọc thẳng số ứng viên
+      // khả thi / đã xét từ RUN.postFilter thay vì một điểm số bịa ra.
       scoreMode: true,
-      scoreTitle: 'score — chỉ còn 1 ứng viên',
-      scores: [KIT.score('Worker A', 88, {win: true})],
+      scoreTitle: 'ứng viên khả thi / đã xét',
+      scores: [KIT.gauge('Worker A', RUN.postFilter.feasible.length, RUN.postFilter.simulated.length, '',
+        {txt: RUN.postFilter.feasible.length + '/' + RUN.postFilter.simulated.length + ' — không còn gì để so', win: true})],
       set: {
-        'scheduler': KIT.pulse('ok', 'Filter · 1/3 khả thi', {at: 0.65, dy: 3.9})
+        'scheduler': KIT.pulse('ok', 'Filter · 1/3 khả thi', {at: 0.65, dy: 3.9}),
+        'node-a': KIT.mark('ok', 'Filter pass', {at: 1.25, dy: 3.0, status: 'winner'})
       },
       scene(a) {
         KIT.link(a, 'scheduler', 'node-a', 'ok', {at: 0.25, dur: 1.00, label: 'Filter pass'});
@@ -176,12 +214,18 @@ window.PREEMPT_STEPS_EVICT = [
         'Scheduler gọi <code>POST /api/v1/.../pods/checkout/binding</code>, API Server ghi <code>spec.nodeName: "worker-a"</code> xuống etcd, <code>nominatedNodeName</code> bị xoá.',
         'kubelet trên Worker A thấy event <code>MODIFIED</code>, kéo image, dựng sandbox, chạy container. Pod chuyển <span class="ok">Running</span> — <b>chính cái hộp đã đi từ etcd qua ActiveQ giờ đáp xuống Node</b>.',
         '<b>Nhìn lại toàn cảnh:</b> để đuổi hai Pod và xếp chỗ cho một Pod, kube-scheduler chỉ làm đúng ba lời gọi API — <code>PATCH status</code> (nominate), <code>DELETE</code> (victim), <code>POST binding</code>. Nó <span class="danger">không</span> giết tiến trình nào, <span class="danger">không</span> nói chuyện trực tiếp với Node nào — mọi việc nặng đều do kubelet tự làm khi thấy trạng thái trong etcd đổi.'),
+      labels: ['node-a', 'pod-checkout'],
+      explain: [
+        {of: 'pod-checkout', tone: 'ok', text: 'Scheduler chỉ ghi <code>spec.nodeName</code> — kubelet trên Worker A tự kéo image, dựng sandbox, chạy container.'},
+        {of: 'pod-checkout', tone: 'mute', text: 'Ba lời gọi API duy nhất cho cả hành trình: <code>PATCH status</code>, <code>DELETE</code>, <code>POST binding</code>.'}
+      ],
       // Cùng hộp Pod: rời ActiveQ, hạ cánh xuống Worker A — và tone đổi sang
       // `live` vì đến đây nó đã là một Pod đang chạy như những Pod cùng Node.
       set: {
         'pod-checkout': KIT.move(P.nodeA, {
           tone: 'live', badge: 'nodeName=worker-a', at: 1.05, dy: 2.2,
-          hover: 'Đã bind và đang chạy trên Worker A'
+          hover: 'Đã bind và đang chạy trên Worker A',
+          status: 'running'
         })
       },
       // Bind rồi Running — chặng cuối của hành trình Pod checkout.
@@ -210,6 +254,11 @@ window.PREEMPT_STEPS_EVICT = [
       // Vòng lặp khép lại: hai victim quay về đúng chặng Queue đã mở màn ①.
       pipelineStep: 0,
       focus: ['queue', 'pod-report', 'pod-a1', 'pod-a2', 'scheduler'],
+      labels: ['queue', 'pod-a1', 'pod-a2'],
+      explain: [
+        {of: ['pod-a1', 'pod-a2'], tone: 'danger', text: 'ReplicaSet thấy 2 ≠ 3 và lập tức tạo Pod thay thế — <b>preemption dời vấn đề, không xoá nó</b>.'},
+        {of: 'queue', tone: 'mute', text: 'Cluster vẫn kín chỗ như cũ, nên chúng nằm <code>Pending</code> tới khi có Node rảnh.'}
+      ],
       // Chính hai hộp victim quay về queue — vòng đời khép kín, không hộp mới.
       // Chúng đổi tone sang `peer` (Pod đang chờ) nhưng vẫn chớp đỏ, vì thứ
       // vừa xảy ra với chúng là một lần bị đuổi.
@@ -218,9 +267,9 @@ window.PREEMPT_STEPS_EVICT = [
       set: {
         'pod-report': KIT.move(P.queue0, {ink: 'peer', badge: 'lên đầu queue', at: 0.55, dy: 2.2}),
         'pod-a2': KIT.move(P.queue1, {tone: 'peer', badge: 'ReplicaSet · Pending',
-                                      flash: KIT.ink('danger'), at: 1.05, dy: 1.75}),
+                                      flash: KIT.ink('danger'), at: 1.05, dy: 1.75, status: 'pending'}),
         'pod-a1': KIT.move(P.queue2, {tone: 'peer', badge: 'ReplicaSet · Pending',
-                                      flash: KIT.ink('danger'), at: 1.55, dy: 1.75})
+                                      flash: KIT.ink('danger'), at: 1.55, dy: 1.75, status: 'pending'})
       },
       scene(a) {
         KIT.note(a, '⑥ Pending lại', {of: 'queue', band: true}, 'danger', 1.8);
@@ -235,6 +284,11 @@ window.PREEMPT_STEPS_EVICT = [
       // Phase này nói về cách victim bị xoá → đứng ở chặng Evict.
       pipelineStep: 3,
       focus: ['scheduler', 'node-a', 'pod-a3', 'pod-checkout'],
+      labels: ['scheduler', 'pod-checkout'],
+      explain: [
+        {of: 'scheduler', tone: 'warn', text: 'Preemption gọi thẳng <code>DELETE</code> — PDB chỉ là một tiêu chí chấm điểm, không phải rào chắn thật.'},
+        {of: 'pod-checkout', tone: 'mute', text: '<code>kubectl drain</code> đi qua Eviction API và bị PDB chặn thật — hai đường xử lý victim rất khác nhau.'}
+      ],
       set: {
         'scheduler': KIT.pulse('warn', 'DELETE bypasses PDB', {at: 0.45, dy: 3.9}),
         'pod-checkout': KIT.pulse('ok', 'scheduled despite PDB', {at: 1.15, dy: 2.2})
@@ -255,6 +309,11 @@ window.PREEMPT_STEPS_EVICT = [
       // Bốn cái nút đều vặn vào PostFilter — nơi quyết định có preempt hay không.
       pipelineStep: 2,
       focus: ['scheduler', 'node-a', 'node-b', 'node-c'],
+      labels: ['scheduler'],
+      explain: [
+        {of: 'scheduler', tone: 'accent', text: 'Bốn nút — <code>preemptionPolicy: Never</code>, bậc PriorityClass, priority âm, <code>ResourceQuota</code> theo scope — đều vặn vào PostFilter.'},
+        {of: ['node-c'], tone: 'mute', text: 'Câu hỏi kiểm tra: Pod kẹt vì taint, preemption cứu được không? Không — nó chỉ gỡ được thất bại do tài nguyên.'}
+      ],
       set: {
         'scheduler': KIT.pulse('accent', 'policy · PriorityClass', {at: 0.55, dy: 3.9})
       },

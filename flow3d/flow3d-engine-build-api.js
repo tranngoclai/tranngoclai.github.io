@@ -35,7 +35,7 @@ function addBox(label, x, y, z, w, h, d, col, edge, order, shape) {
   });
 
   if (label) {
-    node.labelDiv = addLabel(label, x, y + bh/2 + 0.45, z, 'rgba(192,208,232,.7)', delay + 0.3);
+    node.labelDiv = addLabel(captionHtml(label), x, y + bh/2 + 0.45, z, 'rgba(192,208,232,.7)', delay + 0.3);
     node.labelObj = node.labelDiv._anchor;
   }
   return node;

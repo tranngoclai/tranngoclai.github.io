@@ -44,6 +44,20 @@ KIT.scenario({
   id: 'kubelet-eviction',
   name: 'Kubelet Eviction',
   tag: 'EVICTION',
+  pipelineIntro: {
+    title: 'Worker A sắp hết RAM — ai quyết định Pod nào chết?',
+    desc: '',
+    nodes: ['cgroups', 'cadvisor', 'kubelet', 'runtime', 'node', 'nodelife', 'podgc'],
+    bubbles: [
+      {key: 'cgroups',  text: 'kernel cgroup',    at: 0.5, dur: 0.6, tone: 'warn'},
+      {key: 'cadvisor', text: 'stats pipeline',   at: 1.3, dur: 0.6, tone: 'info'},
+      {key: 'kubelet',  text: 'eviction manager', at: 2.1, dur: 0.6, tone: 'danger'},
+      {key: 'runtime',  text: 'CRI + image GC',   at: 2.9, dur: 0.6, tone: 'system'},
+      {key: 'nodelife', text: 'node lifecycle',   at: 3.7, dur: 0.6, tone: 'accent'},
+      {key: 'podgc',    text: 'pod GC',           at: 4.5, dur: 0.6, tone: 'mute'}
+    ],
+    overviewAfter: 0.9
+  },
   pipeline: [
     KIT.stage('📊', 'Observe'),
     KIT.stage('⚖️', 'Evaluate', 'warn'),

@@ -15,11 +15,26 @@
    ⑤.1 before ⑤.2 is not cosmetic: kubelet records the eviction first so the
    reason survives even if the node dies mid-kill. Teaching it the other way
    round makes `reason=Evicted` look like a post-mortem guess.
+
+   WHY NOT KIT.sweep HERE — ④.2/④.3 walk `run.ranking` inside `.reduce`, not
+   `KIT.sweep`. Rule 4's sweep is for a phase generated PER candidate ("Pod A
+   passed, Pod B failed" — four separate decisions). Here the three ORDERED
+   criteria are what the phases split on, and every Pod is marked together
+   within one phase because the claim of each phase is "this criterion splits
+   the field this way", not "Pod A is judged" — a claim about one criterion
+   applied to the whole field, not about one candidate. Forcing `KIT.sweep`
+   would turn one claim into four and break the ordering that is the entire
+   lesson (Pod C wastes more and still survives Pod B).
 ══════════════════════════════════════════════ */
 (function() {
 const KIT = window.SCENE_KIT;
 const fmtMi = window.KUBELET_EVICTION_MODEL.fmtMi;
 const P = window.KUBELET_EVICTION_POS;
+
+/* Nhịp của chuỗi giết ở ⑤.2: kubelet → runtime → victim. `set` và `scene`
+   cùng đọc một nguồn nên retiming không bao giờ lệch badge khỏi mũi tên. */
+const KILL_PACE = {at: 0.30, dur: 0.85};
+const KILL_HOP = KIT.chainTimes(2, KILL_PACE);
 
 window.createKubeletEvictionRankingSteps = function(config, run) {
   const victim = run.victim;
@@ -60,13 +75,22 @@ window.createKubeletEvictionRankingSteps = function(config, run) {
       title: 'Loại trước: static Pod và critical Pod không vào danh sách',
       desc: KIT.desc(
         'Trước khi so sánh gì cả, kubelet <b>gạch bỏ</b> những Pod nó không được phép chọn.',
-        'Static Pod, mirror Pod, và Pod có priority ≥ <code>system-cluster-critical</code> (2000000000) bị loại. Ở đây <b>' + (run.excluded[0] ? run.excluded[0].name : 'kube-proxy') + '</b> rời danh sách, không tham gia xếp hạng.',
+        // system-cluster-critical's numeric priority comes straight from the
+        // excluded Pod's own record — not a hand-typed constant — so it can
+        // never drift from what the model actually excluded it for.
+        'Static Pod, mirror Pod, và Pod có priority ≥ <code>system-cluster-critical</code> (' + (run.excluded[0] ? run.excluded[0].priority : '') + ') bị loại. Ở đây <b>' + (run.excluded[0] ? run.excluded[0].name : 'kube-proxy') + '</b> rời danh sách, không tham gia xếp hạng.',
         '<b>Thuộc DaemonSet <span class="danger">không</span> phải lá chắn.</b> Nhiều người tin Pod của DaemonSet miễn nhiễm — không hề. Thứ bảo vệ một Pod là <i>static/mirror</i> hoặc <i>priority đủ cao</i>. Muốn log agent sống sót qua memory pressure, hãy cho nó <code>PriorityClass</code> cao, đừng trông cậy vào việc nó là DaemonSet.'),
       focus: ['kubelet', 'pod-static'],
+      labels: ['kubelet', 'pod-static'],
+      explain: [
+        {of: 'pod-static', tone: 'mute', text: (run.excluded[0] ? run.excluded[0].name : 'kube-proxy') + ' bị gạch trước khi so sánh gì cả — static/critical Pod không bao giờ vào danh sách ứng viên.'},
+        {of: 'pod-static', tone: 'warn', text: 'DaemonSet ownership không phải lá chắn — cái bảo vệ Pod này là nó là static/mirror Pod, hoặc priority đủ cao, chứ không phải việc nó thuộc DaemonSet.'}
+      ],
       set: {
         kubelet: KIT.pulse('info', 'filter candidates', {at: 0.4, dy: 2.5}),
         'pod-static': KIT.mark('peer', 'excluded · not a candidate', {
           at: 1.2, dy: 2.1,
+          status: 'ready',
           hover: 'Static/critical Pod: kubelet không chọn làm victim node-pressure'
         })
       },
@@ -82,10 +106,15 @@ window.createKubeletEvictionRankingSteps = function(config, run) {
         run.ranking.filter(function(p) { return p.exceedsRequest; }).map(function(p) { return p.name; }).join(' và ') + ' vượt request nên vào <span class="warn">nhóm bị xét trước</span>. Pod A dùng ' + fmtMi(config.pods[0].usageMi) + ' nhưng đã xin ' + fmtMi(config.pods[0].requestMi) + ' — <b>trong phần đã đăng ký</b>, nên tụt xuống nhóm sau.',
         '<b>Đây là chỗ request cứu bạn.</b> Pod A dùng nhiều RAM hơn Pod B nhưng vẫn an toàn hơn, vì khai báo trung thực. Pod không đặt <code>requests.memory</code> có request = 0, nên <span class="danger">mọi byte nó dùng đều là “vượt request”</span>, gần như luôn đứng đầu danh sách bị giết. Đặt requests sát thực tế là cách phòng thủ rẻ nhất trước node-pressure eviction.'),
       focus: ['kubelet', 'pod-a', 'pod-b', 'pod-c'],
+      labels: ['kubelet', 'pod-a', 'pod-b', 'pod-c'],
+      explain: [
+        {of: ['pod-a', 'pod-b', 'pod-c'], tone: 'warn', text: 'Tiêu chí đầu tiên không phải "ai dùng nhiều nhất" — nó là usage có vượt request hay không. Đây là bước tách nhóm đầu tiên, chưa phải xếp hạng cuối.'}
+      ],
+      // `running` — chưa ai bị quyết định ở tiêu chí này, chỉ tách nhóm.
       set: run.ranking.reduce(function(set, pod) {
         set[pod.key] = KIT.mark(pod.exceedsRequest ? 'warn' : 'ok',
           pod.exceedsRequest ? 'vượt request +' + fmtMi(pod.excessMi) : 'trong request',
-          {at: 0.9, dy: 2.1});
+          {at: 0.9, dy: 2.1, status: 'running'});
         return set;
       }, {}),
       scoreMode: true,
@@ -106,10 +135,17 @@ window.createKubeletEvictionRankingSteps = function(config, run) {
           : 'Mức vượt request chỉ là tiêu chí <b>thứ ba</b>, dùng khi Priority bằng nhau.',
         '<b>Đảo thứ tự hai tiêu chí này là hiểu sai cơ chế.</b> “Pod phá nhiều nhất chết trước” nghe hợp lý nhưng sai: Pod rò rỉ bộ nhớ khủng khiếp với PriorityClass cao vẫn tồn tại, trong khi Pod hơi vượt request với priority mặc định lại bị dọn. Priority là cái van bạn thật sự điều khiển được.'),
       focus: ['kubelet', 'pod-a', 'pod-b', 'pod-c'],
+      labels: ['kubelet', 'pod-a', 'pod-b', 'pod-c'],
+      explain: [
+        {of: ['pod-a', 'pod-b', 'pod-c'], tone: 'danger', text: run.shouldEvict ? 'Trong nhóm vượt request, Priority quyết trước — thấp hơn thua. Victim là ' + victim.name + '.' : 'Comparator vẫn xếp hạng, nhưng chu kỳ này không sinh victim.'},
+        {of: ['pod-a', 'pod-b', 'pod-c'], tone: 'mute', text: survivor ? survivor.name + ' vượt request nhiều hơn ' + victim.name + ' nhưng Priority cao hơn nên sống sót — mức vượt chỉ là tiêu chí thứ ba.' : 'Mức vượt request chỉ là tiêu chí thứ ba, dùng khi Priority bằng nhau.'}
+      ],
+      // `terminating` cho victim (kết luận sống hết kịch bản), `running` cho
+      // các Pod còn lại — chưa ai bị đụng tới container, chỉ victim bị đánh dấu.
       set: run.ranking.reduce(function(set, pod) {
         set[pod.key] = KIT.mark(isVictim(pod) ? 'doomed' : (pod.exceedsRequest ? 'warn' : 'ok'),
           (isVictim(pod) ? 'victim · ' : '') + 'rank #' + pod.rank,
-          {at: 0.6 + (pod.rank - 1) * 0.25, dy: 2.1});
+          {at: 0.6 + (pod.rank - 1) * 0.25, dy: 2.1, status: isVictim(pod) ? 'terminating' : 'running'});
         return set;
       }, {
         kubelet: KIT.pulse(run.shouldEvict ? 'danger' : 'ok',
@@ -144,14 +180,19 @@ window.createKubeletEvictionRankingSteps = function(config, run) {
       {
         title: 'Ghi status Failed/Evicted và Event — TRƯỚC khi dừng container',
         desc: KIT.desc(
-          'Việc đầu tiên kubelet làm <b>không</b> phải gửi tín hiệu giết, mà ghi lại lý do: <code>phase=Failed</code>, <code>reason=Evicted</code>, kèm một Event lên API Server.',
+          'Việc đầu tiên kubelet làm không phải giết, mà ghi lại lý do.',
           'Message của Event nêu đúng signal kích hoạt: <code>The node was low on resource: memory. Threshold quantity: ' + fmtMi(run.threshold.thresholdMi) + '</code>. Object Pod giờ đã mang bằng chứng, dù container còn đang chạy.',
           '<b>Vì sao thứ tự này quan trọng:</b> nếu kubelet giết trước rồi mới ghi, Node chết giữa chừng sẽ để lại Pod chết <span class="warn">không rõ nguyên nhân</span>. Ghi trước nghĩa là <code>kubectl describe pod</code> luôn nói cho bạn biết vì sao — đây là dòng chữ phân biệt <code>Evicted</code> (kubelet, do node pressure) với <code>OOMKilled</code> (kernel, do vượt limit).'),
         focus: ['kubelet', 'apiserver', victim.key],
+        labels: ['kubelet', 'apiserver', victim.key],
+        explain: [
+          {of: 'kubelet', tone: 'danger', text: 'Kubelet ghi <code>phase=Failed</code>, <code>reason=Evicted</code>, kèm Event lên API Server — trước khi gửi bất kỳ tín hiệu giết nào.'},
+          {of: victim.key, tone: 'danger', text: victim.name + ' giờ mang bằng chứng trong object của chính nó, dù container vẫn còn đang chạy lúc này.'}
+        ],
         set: {
           kubelet: KIT.pulse('danger', 'status + Event', {at: 0.35, dy: 2.5}),
           apiserver: KIT.pulse('danger', victim.name + ' Failed/Evicted', {at: 1.3, dy: 3.0}),
-          [victim.key]: KIT.mark('doomed', 'reason=Evicted', {at: 1.3, dy: 2.1})
+          [victim.key]: KIT.mark('doomed', 'reason=Evicted', {at: 1.3, dy: 2.1, status: 'evicted'})
         },
         scene(a) {
           KIT.link(a, 'kubelet', 'apiserver', 'danger', {at: 0.3, label: 'write status + Event'});
@@ -167,18 +208,27 @@ window.createKubeletEvictionRankingSteps = function(config, run) {
             : 'Soft eviction honor <code>terminationGracePeriodSeconds</code> của Pod nhưng cắt trần ở <code>evictionMaxPodGracePeriod=' + run.threshold.podGracePeriodSeconds + 's</code>.',
           '<b>“Grace 0s” không có nghĩa tức thời.</b> Vẫn phải qua CRI, qua syscall, qua việc kernel thu hồi trang nhớ — trong lúc đó memory chưa được trả lại. Cần app kịp flush dữ liệu? <span class="danger">Hard eviction không cho bạn cơ hội đó</span> — hãy dùng soft threshold với grace period, hoặc đừng để Node chạm ngưỡng.'),
         focus: ['kubelet', 'runtime', victim.key],
+        labels: ['kubelet', 'runtime', victim.key],
+        explain: [
+          {of: 'runtime', tone: 'danger', text: 'Kubelet gọi container runtime qua CRI để dừng container của ' + victim.name + ' — runtime là thứ thực thi, kubelet không tự gửi signal.'},
+          {of: victim.key, tone: 'danger', text: '"Grace 0s" không có nghĩa tức thời: vẫn phải qua CRI, qua syscall, qua việc kernel thu hồi trang nhớ.'}
+        ],
+        // Journey (kubelet → runtime → victim), 2 hops, single endpoint — a
+        // KIT.chain, not two separate KIT.link calls. `set` reads the same
+        // KILL_HOP schedule the `scene` chain draws (Rule 4).
         set: {
           kubelet: KIT.pulse('danger', 'kill ' + victim.name, {at: 0.35, dy: 2.5}),
-          runtime: KIT.pulse('danger', 'CRI StopContainer', {at: 0.9, dy: 2.1}),
+          runtime: KIT.pulse('danger', 'CRI StopContainer', {at: KILL_HOP[0].arrive, dy: 2.1}),
           [victim.key]: KIT.move(P.evicted, {
             tone: 'danger', label: victim.name + '\nFailed · Evicted', badge: 'containers stopped',
-            at: 1.6, dy: 2.2,
+            at: KILL_HOP[1].arrive, dy: 2.2,
             hover: victim.name + ': cùng một object, giờ ở phase Failed — không phải Pod mới'
           })
         },
         scene(a) {
-          KIT.link(a, 'kubelet', 'runtime', 'danger', {at: 0.3, label: 'CRI StopContainer'});
-          KIT.link(a, 'runtime', victim.key, 'danger', {at: 0.85, label: 'stop containers'});
+          KIT.chain(a, ['kubelet', 'runtime', victim.key], 'danger', Object.assign({
+            labels: ['CRI StopContainer', 'stop containers']
+          }, KILL_PACE));
           KIT.note(a, 'grace ' + run.threshold.podGracePeriodSeconds + 's ≠ tức thời', {of: victim.key, band: true}, 'danger', 1.2);
         }
       },
@@ -189,6 +239,11 @@ window.createKubeletEvictionRankingSteps = function(config, run) {
           'Chu kỳ sau nó lấy mẫu <i>mới</i> từ Summary API và xếp hạng <i>lại</i> từ đầu. Phép cộng ' + fmtMi(run.threshold.availableMi) + ' + ' + fmtMi(victim.usageMi) + ' = ' + fmtMi(run.projectedAvailableMi) + ' chỉ là <span class="warn">ước lượng dạy học</span>, không phải điều kubelet tin.',
           '<b>Hệ quả thực tế:</b> nếu áp lực vẫn còn, bạn thấy các Pod bị evict <i>lần lượt</i>, cách nhau khoảng một chu kỳ ' + config.monitoringPeriodSeconds + 's — không phải một loạt cùng lúc. Thấy 5 Pod <code>Evicted</code> trong cùng một giây thì nghi ngờ nguyên nhân khác, ví dụ Node restart hay kernel OOM.'),
         focus: ['kubelet', 'cadvisor', 'node'],
+        labels: ['kubelet', 'cadvisor', 'node'],
+        explain: [
+          {of: 'cadvisor', tone: 'warn', text: 'Kubelet dừng lại ở đúng một victim mỗi cycle — chu kỳ sau nó lấy mẫu mới từ Summary API và xếp hạng lại từ đầu.'},
+          {of: 'node', tone: 'mute', text: 'Nếu áp lực vẫn còn, các Pod bị evict lần lượt cách nhau khoảng một chu kỳ poll — không phải một loạt cùng lúc.'}
+        ],
         set: {
           cadvisor: KIT.pulse('warn', 'resample next cycle', {at: 1.0, dy: 2.1}),
           node: KIT.mark(run.needsAnotherCycleEstimate ? 'warn' : 'ok',

@@ -155,6 +155,9 @@
           showAt: phase.showAt || {},
           hideAt: phase.hideAt || {},
           scene: phase.scene,
+          // Giải thích tách rời, mỗi nhịp một lần Next — xem
+          // flow3d-engine-explain-beats.js.
+          explain: phase.explain || [],
           scoreMode: phase.scoreMode !== undefined ? phase.scoreMode : (split ? undefined : step.scoreMode),
           scores: phase.scores || step.scores,
           scoreTitle: phase.scoreTitle || step.scoreTitle,

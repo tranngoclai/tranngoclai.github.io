@@ -23,7 +23,7 @@ window.createOomKillerWorld = function(R) { return function(raw) {
 
   w.node('cgroup', {label: 'container cgroup v2\nmemory.max=' + M.fmtMi(R.cgroup.memoryMaxMi) + ' · memory.oom.group=' + R.cgroup.memoryOomGroup, pos: [KERNEL_COL[0], L.on(S.kernel[1]), KERNEL_Z], size: S.kernel, tone: 'gate', order: 2, hover: 'Initial cgroup state: memory.current=' + M.fmtMi(R.cgroup.memoryCurrentMi) + ', memory.max=' + M.fmtMi(R.cgroup.memoryMaxMi) + ', memory.oom.group=' + R.cgroup.memoryOomGroup, shape: 'hex'});
   w.node('oom', {label: 'kernel OOM\nkiller', pos: [KERNEL_COL[1], L.on(S.kernel[1]), KERNEL_Z], size: S.kernel, tone: 'engine', order: 2, hover: 'Chooses a killable Linux task inside the OOM cgroup', shape: 'hex'});
-  w.node('reaper', {label: 'OOM reaper', pos: [KERNEL_COL[2], L.on(S.kernel[1]), KERNEL_Z], size: S.kernel, tone: 'engine', order: 2, hover: 'Reclaims the selected task address space'});
+  w.node('reaper', {label: 'OOM reaper', pos: [KERNEL_COL[2], L.on(S.kernel[1]), KERNEL_Z], size: S.kernel, tone: 'engine', order: 2, hover: 'Reclaims the selected task address space', shape: 'hex'});
 
   w.node('kubelet', {label: 'kubelet\nsingleProcessOOMKill=' + R.resources.kubelet.singleProcessOOMKill, pos: [AGENT_COL[0], L.on(S.agent[1]), AGENT_Z], size: S.agent, tone: 'engine', order: 3, hover: 'Initial kubelet configuration; also reconciles restartPolicy=' + pod.restartPolicy});
   w.node('runtime', {label: 'container runtime\nCRI', pos: [AGENT_COL[1], L.on(S.agent[1]), AGENT_Z], size: S.agent, tone: 'system', order: 3, hover: 'Creates and observes container instances'});

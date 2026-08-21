@@ -139,6 +139,60 @@ KIT.link = function(a, from, to, ink, o) {
   });
 };
 
+/* ── chain ── một chuỗi hop đi thẳng tới đích, KHÔNG quay đầu: A → B → C.
+   Vẽ n−1 mũi tên trong CÙNG một phase, mũi sau khởi hành đúng lúc mũi trước
+   cập bến, nên mắt đọc ra một chuyển động liên tục thay vì phải bấm Next giữa
+   chừng và ghép lại trong đầu. Dùng khi các hop chỉ là chặng của một hành
+   trình; nếu một chặng là quyết định riêng (thắng/trượt, rẽ nhánh, có thể
+   quay lại) thì nó xứng đáng một phase của nó và KHÔNG thuộc về chain.
+
+     const t = KIT.chain(a, ['client','authn','admission','apiserver'], 'info', {
+       labels: ['POST deployments', 'authorize · RBAC', 'admit request'],
+       at: 0.35, dur: 0.85
+     });
+     // t = [{at, arrive}, …] — dùng để hẹn mark/status đúng nhịp hop cập bến:
+     set: { 'admission': KIT.mark('ok', 'validate ✓', {at: t[1].arrive}) }
+
+   Cả chain dùng chung một chu kỳ `loop` (mặc định = độ dài toàn chuỗi + nghỉ)
+   nên khi lặp lại nó chạy lại từ A, không phải ba mũi tên nhấp nháy lệch pha.
+   `inks` đổi màu từng hop khi ý nghĩa mỗi chặng khác nhau. */
+/* Lịch của chuỗi, tách riêng để `set` (viết trước, ngoài scene) và `scene`
+   cùng đọc MỘT nguồn thay vì gõ tay hai bộ số rồi lệch nhau khi chỉnh nhịp:
+
+     const HOP = KIT.chainTimes(3, {at: 0.35, dur: 0.85});
+     set:   { 'authn': KIT.mark('ok', 'RBAC allow', {at: HOP[0].arrive}) }
+     scene: KIT.chain(a, keys, 'info', {at: 0.35, dur: 0.85, labels: […]}) */
+KIT.chainTimes = function(count, o) {
+  o = o || {};
+  const dur = o.dur === undefined ? KIT.TIME.draw : o.dur;
+  const gap = o.gap === undefined ? 0.12 : o.gap;
+  const hops = [];
+  let at = o.at === undefined ? KIT.TIME.lead : o.at;
+  for (let i = 0; i < count; i++) {
+    hops.push({at: at, arrive: at + dur});
+    at += dur + gap;
+  }
+  return hops;
+};
+
+KIT.chain = function(a, keys, ink, o) {
+  o = o || {};
+  const dur = o.dur === undefined ? KIT.TIME.draw : o.dur;
+  const labels = o.labels || [];
+  const inks = o.inks || [];
+  const hops = KIT.chainTimes(keys.length - 1, o);
+  const span = hops.length ? hops[hops.length - 1].arrive : 0;
+  const loop = o.loop === undefined ? span + (o.hold === undefined ? 1.2 : o.hold) : o.loop;
+
+  hops.forEach(function(hop, i) {
+    KIT.link(a, keys[i], keys[i + 1], inks[i] || ink, {
+      at: hop.at, dur: dur, loop: loop, lift: o.lift,
+      label: labels[i], labelDy: o.labelDy, width: o.width
+    });
+  });
+  return hops;
+};
+
 /* ── flow ── the raw form: an explicit polyline through given points.
    Kept for the line that is genuinely about a path rather than about two
    components. If you are naming a source and a target, use KIT.link.
@@ -205,6 +259,13 @@ KIT.note = function(a, text, ref, ink, at) {
   a.note(text, pos[0], pos[1], pos[2], KIT.ink(ink || 'mute'), at || 0);
 };
 
+/* ── bubble ── a short, component-anchored explanation. Unlike a note, several
+   bubbles may be visible at once because each belongs to a particular actor. */
+KIT.bubble = function(a, key, text, o) {
+  o = o || {};
+  addBubble(text, key, o);
+};
+
 /* ── beat ── a link AND the state-change it causes, in one call.
 
    The coupling that matters between a flow line and the target's mark is
@@ -255,6 +316,12 @@ KIT.beat = function(from, to, ink, o) {
   if (o.hover !== undefined) markOpts.hover = o.hover;
   if (o.label !== undefined) markOpts.label = o.label;
   if (o.flash !== undefined) markOpts.flash = o.flash;
+  // A verdict has to outlive its own phase. The badge is torn down with the
+  // step layer and never re-created on replay, so a beat whose whole point is
+  // a conclusion ("this Node passed") must also write a status chip — that is
+  // the channel setNodeLook replays, and the only one that survives the next
+  // Next.
+  if (o.status !== undefined) markOpts.status = o.status;
   markOpts.at = (o.at !== undefined) ? o.at : arrival;
 
   var setEntry = {};
